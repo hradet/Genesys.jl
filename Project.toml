@@ -1,0 +1,13 @@
+name = "Genesys"
+uuid = "cfcd2543-b90b-4308-8884-96e35dc08e32"
+authors = ["Hugo <hugo.radet@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
