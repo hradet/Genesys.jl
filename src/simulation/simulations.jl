@@ -3,8 +3,9 @@
  =#
 
 # Simulate function
+# Simple
 function simulate(ld::Load, pv::Source, liion::Liion, controller::AbstractController,
-     designer::AbstractDesigner, grid::Grid, ω_optim::Scenarios, ω_simu::Scenarios, parameters::NamedTuple;
+     designer::AbstractDesigner, grid::Grid, ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple;
      mode = "serial")
 
     # Parameters
@@ -52,16 +53,38 @@ function simulate(ld::Load, pv::Source, liion::Liion, controller::AbstractContro
     else
         println("Unknown mode... Please chose between 'serial', 'multicores', 'distributed' or 'multithreads'.")
     end
+end
+# Multi-energy
+function simulate(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
+    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
+    controller::AbstractController, designer::AbstractDesigner, grid::Grid,
+    ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple; mode="serial")
 
-    # Compute economic indicators
-    costs = compute_economics(ld, pv, liion, designer, grid, parameters)
+    # Parameters
+    ns = size(ld.power_E,3)
 
-    return costs
+    # We simulate over the horizon for all the scenarios
+    if mode == "serial"
+        @showprogress for s in 1:ns
+            simulate_scenario(s, ld, pv, liion, h2tank, elyz, fc, tes, heater,
+            controller, designer, grid, ω_optim, ω_simu, parameters)
+        end
+    elseif mode == "multicores"
+        #TODO
+    elseif mode == "distributed"
+        #TODO
+    elseif mode == "multithreads"
+        #TODO
+    else
+        println("Unknown mode... Please chose between 'serial', 'multicores', 'distributed' or 'multithreads'.")
+
+    end
 end
 
 # Simulate one scenario
+# Simple
 function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, controller::AbstractController,
-     designer::AbstractDesigner, grid::Grid, ω_optim::Scenarios, ω_simu::Scenarios, parameters::NamedTuple)
+     designer::AbstractDesigner, grid::Grid, ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple)
 
     # Parameters
     nh = size(ld.power_E,1)
@@ -81,7 +104,7 @@ function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, control
                 compute_operation_dynamics(h, y, s, liion, controller, parameters)
 
                 # Power balance constraint checked for each node
-                power_balance_checking(h, y, s, ld, pv, liion, grid)
+                power_balance(h, y, s, ld, pv, liion, grid)
 
             end
 
@@ -93,6 +116,45 @@ function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, control
 
             # Compute investment dynamics
             compute_investment_dynamics(y, s, pv, liion, designer)
+
+    end
+end
+# Multi-energy
+function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
+    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
+    controller::AbstractController, designer::AbstractDesigner, grid::Grid,
+    ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple)
+
+    # Parameters
+    nh = size(ld.power_E,1)
+    ny = size(ld.power_E,2)
+
+    # We simulate over the horizon for a signle scenario
+    for y = 1 : ny
+        for h = 1 : nh
+
+            # Update operation informations
+            update_operation_informations(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, grid, ω_simu)
+
+            # Compute operation decision variables
+            compute_operation_decisions(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, controller, ω_optim, parameters)
+
+            # Compute operation dynamics
+            compute_operation_dynamics(h, y, s, liion, h2tank, elyz, fc, tes, heater, controller, parameters)
+
+            # Power balance constraint checked for each node
+            power_balance(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, grid)
+
+        end
+
+        # Update investment informations
+        update_investment_informations(y, s, pv, liion, h2tank, elyz, fc, tes, heater, ω_simu)
+
+        # Compute investment decision variables
+        compute_investment_decisions(y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, ω_optim, parameters)
+
+        # Compute investment dynamics
+        compute_investment_dynamics(y, s, pv, liion, h2tank, elyz, fc, tes, designer)
 
     end
 end

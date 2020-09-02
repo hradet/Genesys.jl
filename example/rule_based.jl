@@ -28,7 +28,7 @@ Genesys.initialize_designer(ld, pv, liion, designer, grid, ω_optim, outputGUI["
 Genesys.initialize_controller(ld, pv, liion, controller, grid, ω_optim, outputGUI["parameters"])
 
 # Simulate
-timer_online = @elapsed costs = Genesys.simulate(ld, pv, liion, controller, designer, grid, ω_optim, ω_simu, outputGUI["parameters"])
+timer_online = @elapsed Genesys.simulate(ld, pv, liion, controller, designer, grid, ω_optim, ω_simu, outputGUI["parameters"])
 
 # Plot
 Genesys.plot_operation(ld, pv, liion, grid, outputGUI["parameters"])

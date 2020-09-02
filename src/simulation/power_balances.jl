@@ -2,8 +2,15 @@
     This file includes all the functions needed to check the power balance
     constraints
 =#
-
-function power_balance_checking(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, grid)
+# Simple
+function power_balance(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion, grid::Grid)
+    # Electric power balance
+    grid.power_E[h,y,s] = max(0. , ld.power_E[h,y,s] - pv.power_E[h,y,s] - liion.power_E[h,y,s])
+end
+# Multi-energy
+# TODO : diviser les powers balance pour chaque noeud d'énergie + in/out réseau
+function power_balance(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion,
+    h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater, grid::Grid)
 
     # Hydrogen power balance
     if h2tank.power_H2[h,y,s] + elyz.power_H2[h,y,s] +  fc.power_H2[h,y,s] < 0.
@@ -47,5 +54,3 @@ function power_balance_checking(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, h
     # Electric power balance
     grid.power_E[h,y,s] = max(0. , ld.power_E[h,y,s] - pv.power_E[h,y,s] - liion.power_E[h,y,s] - elyz.power_E[h,y,s] - fc.power_E[h,y,s] - heater.power_E[h,y,s])
 end
-
-# TODO : diviser les powers balance pour chaque noeud d'énergie

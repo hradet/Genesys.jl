@@ -93,8 +93,7 @@ end
 #### Online functions ####
 # Simple
 function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-     liion::Liion, grid::Grid, controller::AbstractController,
-     designer::RuleBasedDesigner, ω_optim::Scenarios, parameters::NamedTuple)
+     liion::Liion, grid::Grid, designer::RuleBasedDesigner, ω_optim::Scenarios, parameters::NamedTuple)
     designer.u.u_pv[y,s], designer.u.u_liion[y,s] = designer.π(y, s, ld, pv, liion)
 end
 # Multi-energy

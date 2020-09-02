@@ -1,9 +1,6 @@
 # This file includes all the plot functions for both DES
 
-#                        Simple DES
-#_______________________________________________________________________________
-# TODO : add hist function to visualize histogramme of cost
-# Operation
+# Simple
 function plot_operation(ld::Load, pv::Source, liion::Liion, grid::Grid, parameters::NamedTuple; y=2, s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook",style="ticks",palette="deep", font="serif")
@@ -25,7 +22,6 @@ function plot_operation(ld::Load, pv::Source, liion::Liion, grid::Grid, paramete
     plot(hours,liion.soc[1:end-1,y,s], color=(0., 0.588, 0.314))
     ylabel("BATTERY SOC", weight="bold")
 end
-# Investment
 function plot_investment(designer::AbstractDesigner, parameters::NamedTuple; s=1)
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
 
@@ -43,7 +39,6 @@ function plot_investment(designer::AbstractDesigner, parameters::NamedTuple; s=1
     ylabel("BATTERY \n CAPACITY(kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"),
     xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
 end
-# SOH
 function plot_soh(liion; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=2.5)
@@ -58,9 +53,7 @@ function plot_soh(liion; s=1)
     xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
 end
 
-#                        Multi-energy DES
-#_______________________________________________________________________________
-# Operation
+# Multi-energy
 function plot_operation(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
      elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
      grid::Grid, parameters::NamedTuple; y=2, s=1)
@@ -103,7 +96,6 @@ function plot_operation(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     ylabel("TES SOC", weight="bold")
     xlabel("HOURS", weight="bold")
 end
-# Operation stacked
 function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
      elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
      grid::Grid; y=2, s=1, hmin=1, hmax=8760)
@@ -184,8 +176,6 @@ function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
     legend(fontsize="large",edgecolor="inherit")
     sp.grid()
 end
-# Investment
-# TODO : une seule fonction pour les deux benchmark avec if empty
 function plot_investment_multi_energy(designer::AbstractDesigner, parameters::NamedTuple; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1)
@@ -226,7 +216,6 @@ function plot_investment_multi_energy(designer::AbstractDesigner, parameters::Na
     ylabel("FC \n MAX. POWER (kW)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
     xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
 end
-# SOH
 function plot_soh(liion::Liion, elyz::Electrolyzer, fc::FuelCell; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
@@ -251,8 +240,7 @@ function plot_soh(liion::Liion, elyz::Electrolyzer, fc::FuelCell; s=1)
     xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
 end
 
-#                           Economics
-#_______________________________________________________________________________
+# Economics
 function plot_economics(costs::Costs, parameters::NamedTuple; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif",font_scale = 2.5)
@@ -276,7 +264,6 @@ function plot_economics(costs::Costs, parameters::NamedTuple; s=1)
     xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
     grid()
 end
-# NPV
 function plot_npv(costs)
     Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
 

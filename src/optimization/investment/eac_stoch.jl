@@ -312,8 +312,8 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion,
 
      # Formatting variables to simulation
      designer.u = (
-     u_liion = repeat(vcat(value.(designer.model[:r_liion]), zeros(ny-1,1)), 1, ns)
-     u_pv = repeat(vcat(value.(designer.model[:r_pv]), zeros(ny-1,1)), 1, ns)
+     u_liion = repeat(vcat(value.(designer.model[:r_liion]), zeros(ny-1,1)), 1, ns),
+     u_pv = repeat(vcat(value.(designer.model[:r_pv]), zeros(ny-1,1)), 1, ns),
      )
 end
 # Multi-energy
