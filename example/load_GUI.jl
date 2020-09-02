@@ -1,4 +1,5 @@
 # Load parameters from GUI
+# TODO : \tau_cost, etc en kwargs...
 function loadGUI(controller_flag, designer_flag, τ_cost, τ_power, τ_energy)
     # Directory path
     dirPath=pwd()
@@ -12,7 +13,7 @@ function loadGUI(controller_flag, designer_flag, τ_cost, τ_power, τ_energy)
     Δy = 1, # in years
     Y = 20, # in years
     τ = 0.045, # discount rate
-    ns = 3, # number of scenarios of ny years
+    ns = 10, # number of scenarios of ny years
     )
 
     #---------------------------------------------------------------------------
