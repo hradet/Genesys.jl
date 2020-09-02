@@ -3,8 +3,14 @@
     updates
 =#
 
-#                                   Model definition
-#_______________________________________________________________________________
+mutable struct AnticipativeOneStageOnlineDesigner <: AbstractDesigner
+    u::NamedTuple
+    horizon::Int64
+    model::JuMP.Model
+    AnticipativeOneStageOnlineDesigner() = new()
+end
+
+#### Models ####
 function onestage_milp_model(ld::Load, pv::Source, liion::Liion,
   controller::AnticipativeController, designer::AnticipativeOneStageOnlineDesigner,
   grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
@@ -96,8 +102,7 @@ function onestage_milp_model(ld::Load, pv::Source, liion::Liion,
     return m
 end
 
-#                                   Offline functions
-#_______________________________________________________________________________
+#### Offline functions ####
 function offline_optimization(ld::Load, pv::Source, liion::Liion,
       controller::AnticipativeController, designer::AnticipativeOneStageOnlineDesigner,
       grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
@@ -129,8 +134,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion,
       )
 end
 
-#                                   Online functions
-#_______________________________________________________________________________
+#### Online functions ####
 function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
     liion::Liion, grid::Grid, controller::AnticipativeController,
     designer::AnticipativeOneStageOnlineDesigner, ω_optim::Scenarios, parameters::NamedTuple)

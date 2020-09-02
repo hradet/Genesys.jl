@@ -124,7 +124,7 @@ function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, control
             update_investment_informations(y, s, pv, liion, ω_simu)
 
             # Compute investment decision variables
-            compute_investment_decisions(y, s, ld, pv, liion, grid, controller, designer, ω_optim, parameters)
+            compute_investment_decisions(y, s, ld, pv, liion, grid, designer, ω_optim, parameters)
 
             # Compute investment dynamics
             compute_investment_dynamics(y, s, pv, liion, designer)
