@@ -25,7 +25,7 @@
      C_liion::AbstractArray{Float64,2}
  end
  # Constructor
- function Liion(outputGUI, nh, ny, ns)
+ function Liion(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p_ch = outputGUI.α_p_ch
      α_p_dch = outputGUI.α_p_dch
@@ -82,7 +82,7 @@
 
  #                               Investment dynamic
  #______________________________________________________________________________
- function compute_investment_dynamics(liion::Liion, x_liion, u_liion)
+ function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Float64)
      #=
          INPUT :
                  x_liion = [Erated[y], soc[end,y], soh[end,y]]

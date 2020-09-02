@@ -21,7 +21,7 @@ struct Electrolyzer
      C_elyz::AbstractArray{Float64,2}
 end
 # Constructor
-function Electrolyzer(outputGUI, nh, ny, ns)
+function Electrolyzer(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p = outputGUI.α_p
      η_E_H2 = outputGUI.η_E_H2
@@ -41,7 +41,7 @@ end
 
 #                               Operation dynamic
 #______________________________________________________________________________
-function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz, Δh::Int64)
+function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64, Δh::Int64)
     #=
     INPUT :
             x_elyz = (powerMax[y], soh[h,y]) tuple
@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(elyz::Electrolyzer, x_elyz, u_elyz)
+function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64)
     #=
         INPUT :
                 x_elyz = [powerMax[y], soh[end,y]]

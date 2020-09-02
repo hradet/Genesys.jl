@@ -22,7 +22,7 @@ struct ThermalSto
      C_tes::AbstractArray{Float64,2}
 end
 # Constructor
-function ThermalSto(outputGUI, nh, ny, ns)
+function ThermalSto(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p_ch = outputGUI.α_p_ch
      α_p_dch = outputGUI.α_p_dch
@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(tes::ThermalSto, x_tes, u_tes)
+function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Float64)
     #=
         INPUT :
                 x_tes = [Erated[y], soc[end,y]]

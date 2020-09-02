@@ -15,7 +15,7 @@ mutable struct Grid
      C_grid_out::AbstractArray{Float64,3}
 end
 # Constructor
-function Grid(outputGUI, nh, ny, ns)
+function Grid(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      # Parameters
      τ_power = outputGUI.τ_power
      τ_energy = outputGUI.τ_energy

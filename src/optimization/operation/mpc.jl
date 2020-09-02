@@ -60,7 +60,7 @@ end
 # Simple
 function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::MPCController,
      grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
-     
+
      # Parameters
      nh = size(ld.power_E,1) # number of hours
      ny = size(ld.power_E,2) # number of simulation years
@@ -77,26 +77,6 @@ function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::M
      controller.u = (
      u_liion =  convert(SharedArray,zeros(nh,ny,ns)),
      )
-end
-# TODO : Initialize markovchains - Changer de dossier ?
-function initialize_markovchains(ω_optim::Scenarios)
-    # TODO : ajouter struct avec mc, nscenarios, nstate
-    # Clustering data
-    pv = clustering_month(ω_optim.pv_E, ω_optim.timestamp)
-    ld_wk = clustering_month_week(ω_optim.ld_E, ω_optim.timestamp)
-    ld_wkd = clustering_month_weekend(ω_optim.ld_E, ω_optim.timestamp)
-    # Compute markov chain
-    n_markov = minimum(vcat(size.(pv[:,1],2), size.(ld_wk[:,1],2), size.(ld_wkd[:,1],2)))-1
-    mc_pv = compute_markovchain(pv, n_markov)
-    mc_ld_wk = compute_markovchain(ld_wk, n_markov)
-    mc_ld_wkd = compute_markovchain(ld_wkd, n_markov)
-    # Store in a Namedtuple
-    markovchains = (
-    pv_E = mc_pv,
-    ld_E = (wk = mc_ld_wk, wkd = mc_ld_wkd),
-    )
-
-    return markovchains
 end
 
 #### Online functions ####

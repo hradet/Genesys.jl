@@ -21,7 +21,7 @@ struct FuelCell
      C_fc::AbstractArray{Float64,2}
 end
 # Constructor
-function FuelCell(outputGUI, nh, ny, ns)
+function FuelCell(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p = outputGUI.α_p
      η_H2_E = outputGUI.η_H2_E
@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(fc::FuelCell, x_fc, u_fc)
+function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float64)
      #=
          INPUT :
                  x_fc = [powerMax[y], soh[end,y]]

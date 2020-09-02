@@ -13,7 +13,7 @@ mutable struct Source
      C_pv::AbstractArray{Float64,2}
 end
 # Constructor
-function Solar(outputGUI, nh, ny, ns)
+function Source(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
      lifetime = outputGUI.lifetime
      power_E = convert(SharedArray,zeros(nh, ny, ns))
      powerMax = convert(SharedArray,zeros(ny+1, ns))
@@ -27,7 +27,7 @@ function Solar(outputGUI, nh, ny, ns)
 
  #                               Investment dynamic
  #______________________________________________________________________________
- function compute_investment_dynamics(pv::Source, x_pv, u_pv)
+ function compute_investment_dynamics(pv::Source, x_pv::NamedTuple, u_pv::Float64)
      #=
          INPUT :
                  x_pv = [powerMax[y]]
