@@ -102,6 +102,10 @@ function initialization(outputGUI)
         designer.horizon = outputGUI["designer"].horizon
     elseif outputGUI["designer"].id == "RuleBasedDesigner"
         designer = RuleBasedDesigner()
+    elseif outputGUI["designer"].id == "EACDesigner"
+        designer = EACDesigner()
+    elseif outputGUI["designer"].id == "EACStochasticDesigner"
+        designer = EACStochasticDesigner()
      else
          designer = []
     end

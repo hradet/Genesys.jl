@@ -2,8 +2,20 @@
     Rule based controller
 =#
 
-#                                   Policy definition
-#_______________________________________________________________________________
+mutable struct RuleBasedController <: AbstractController
+    u::NamedTuple
+    π::Function
+    RuleBasedController() = new()
+end
+
+#### Policies definition ####
+# Simple
+function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion)
+    # Liion
+    u_liion = ld.power_E[h,y,s] - pv.power_E[h,y,s]
+    return u_liion
+end
+# Multi-energy
 function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion,
     h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater)
     # Control parameters
@@ -69,8 +81,24 @@ function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
     return u_liion, u_elyz, u_fc, u_tes, u_heater
 end
 
-#                                   Offline functions
-#_______________________________________________________________________________
+#### Offline functions ####
+# Simple
+function initialize_controller(ld::Load, pv::Source, liion::Liion,
+    controller::RuleBasedController, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
+     # Parameters
+     nh = size(ld.power_E,1) # number of simulation hours in one year
+     ny = size(ld.power_E,2) # number of simulation years
+     ns = size(ld.power_E,3) # number of scenarios
+
+     # Initialize controller policy
+     controller.π = rb_operation_policy
+
+     # Initialize decisions variables
+     controller.u = (
+     u_liion = convert(SharedArray,zeros(nh,ny,ns)),
+     )
+end
+# Multi-energy
 function initialize_controller(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
       elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
       controller::RuleBasedController, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
@@ -93,8 +121,13 @@ function initialize_controller(ld::Load, pv::Source, liion::Liion, h2tank::H2Tan
       )
 end
 
-#                                   Online functions
-#_______________________________________________________________________________
+#### Online functions ####
+# Simple
+function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
+     liion::Liion, grid::Grid, controller::RuleBasedController, ω_optim::Scenarios, parameters::NamedTuple)
+    controller.u.u_liion[h,y,s] = controller.π(h, y, s, ld, pv, liion)
+end
+# Multi-energy
 function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
      liion::Liion, h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto,
      heater::Heater, controller::RuleBasedController, ω_optim::Scenarios, parameters::NamedTuple)

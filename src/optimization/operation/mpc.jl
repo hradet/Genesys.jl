@@ -2,65 +2,65 @@
     Model predictive control controller
 =#
 
-#                                   Model definition
-#_______________________________________________________________________________
+mutable struct MPCController <: AbstractController
+    u::NamedTuple
+    horizon::Int64
+    markovchains::NamedTuple
+    model::JuMP.Model
+    MPCController() = new()
+end
+
+#### Models ####
+# Simple
 function mpc_model(ld::Load, pv::Source, liion::Liion, controller::MPCController,
      grid::Grid, parameters::NamedTuple)
 
-         # Sets
-         nh = length(1:parameters.Δh:controller.horizon) # Number of hours
+     # Sets
+     nh = length(1:parameters.Δh:controller.horizon) # Number of hours
 
-         # Model definition
-         m = Model(CPLEX.Optimizer)
-         set_optimizer_attribute(m,"CPX_PARAM_SCRIND", 0)
+     # Model definition
+     m = Model(CPLEX.Optimizer)
+     set_optimizer_attribute(m,"CPX_PARAM_SCRIND", 0)
 
-         # Variables
-         @variables(m, begin
-         # Operation decisions variables
-         p_liion_ch[1:nh] <= 0.
-         p_liion_dch[1:nh] >= 0.
-         # Auxialliary
-         p_g_out[1:nh] <= 0.
-         p_g_in[1:nh] >= 0.
-         # State variables
-         soc_liion[1:nh+1]
-         # Variables to be updated
-         p_net[1:nh]
-         E_liion
-         soc_init
-         end)
+     # Variables
+     @variables(m, begin
+     # Operation decisions variables
+     p_liion_ch[1:nh] <= 0.
+     p_liion_dch[1:nh] >= 0.
+     p_g_out[1:nh] <= 0.
+     p_g_in[1:nh] >= 0.
+     # State variables
+     soc_liion[1:nh+1]
+     # Variables to be updated
+     p_net[1:nh]
+     E_liion
+     soc_init
+     end)
 
-         # Operation constraints bounds
-         @constraints(m, begin
-         # Decisions
-         [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * E_liion
-         [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * E_liion
-         # States
-         [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * E_liion
-         [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * E_liion
-         end)
+     # Constraints
+     @constraints(m, begin
+     # Power bounds
+     [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * E_liion
+     [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * E_liion
+     # SoC bounds
+     [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * E_liion
+     [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * E_liion
+     # Dynamics
+     [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1 - liion.η_self * parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * parameters.Δh
+     # Power balance
+     [h in 1:nh], p_net[h] <= p_g_out[h] + p_g_in[h] + p_liion_ch[h] + p_liion_dch[h]
+     # Initial and final conditions
+     soc_liion[1] == soc_init
+     end)
 
-         # Operation constraints dynamics and power balance
-         @constraints(m, begin
-         # Dynamics
-         [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1 - liion.η_self * parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * parameters.Δh
-         # Power balance
-         [h in 1:nh], p_net[h] <= p_g_out[h] + p_g_in[h] + p_liion_ch[h] + p_liion_dch[h]
-         end)
-
-         # Initial and final conditions
-         @constraints(m, begin
-         soc_liion[1] == soc_init
-         end)
-
-         return m
+     return m
 end
 
-#                                   Offline functions
-#_______________________________________________________________________________
-# Initialize controller
+#### Offline functions ####
+# Simple
 function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::MPCController,
      grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
+     
      # Parameters
      nh = size(ld.power_E,1) # number of hours
      ny = size(ld.power_E,2) # number of simulation years
@@ -78,7 +78,7 @@ function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::M
      u_liion =  convert(SharedArray,zeros(nh,ny,ns)),
      )
 end
-# Initialize markovchains
+# TODO : Initialize markovchains - Changer de dossier ?
 function initialize_markovchains(ω_optim::Scenarios)
     # TODO : ajouter struct avec mc, nscenarios, nstate
     # Clustering data
@@ -98,8 +98,9 @@ function initialize_markovchains(ω_optim::Scenarios)
 
     return markovchains
 end
-#                                   Online functions
-#_______________________________________________________________________________
+
+#### Online functions ####
+# Simple
 function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
      liion::Liion, grid::Grid, controller::MPCController, ω_optim::Scenarios, parameters::NamedTuple)
      # Parameters
