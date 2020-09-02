@@ -1,23 +1,27 @@
+#=
+    Scenario reduction functions
+=#
+
 
 mutable struct Scenarios <: AbstractScenarios
      # Timestamp
      timestamp::Union{Array{Float64,1}, Array{DateTime,1}}
      # Demand
-     ld_E::Union{Array{Float64,1}, Array{Float64,2},Array{Float64,3}}
-     ld_H::Union{Array{Float64,1}, Array{Float64,2},Array{Float64,3}}
+     ld_E::Array{Float64,3}
+     ld_H::Array{Float64,3}
      # Production
-     pv_E::Union{Array{Float64,1}, Array{Float64,2},Array{Float64,3}}
+     pv_E::Array{Float64,3}
      # Investment costs
-     C_pv::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_liion::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_tes::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_tank::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_elyz::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_fc::Union{Float64, Array{Float64,1}, Array{Float64,2}}
-     C_heater::Union{Float64, Array{Float64,1}, Array{Float64,2}}
+     C_pv::Array{Float64,2}
+     C_liion::Array{Float64,2}
+     C_tes::Array{Float64,2}
+     C_tank::Array{Float64,2}
+     C_elyz::Array{Float64,2}
+     C_fc::Array{Float64,2}
+     C_heater::Array{Float64,2}
      # Electricity tariff
-     C_grid_in::Union{Array{Float64,1}, Array{Float64,2},Array{Float64,3}}
-     C_grid_out::Union{Array{Float64,1}, Array{Float64,2},Array{Float64,3}}
+     C_grid_in::Array{Float64,3}
+     C_grid_out::Array{Float64,3}
 end
 
 # Constructor
@@ -47,7 +51,18 @@ mutable struct ClusteredScenarios
     nby # number of entities by cluster = counts
 end
 
-mutable struct MarkovChain
-    states
-    transition_matrices
+function scenarios_reduction(ω::Scenarios; mode = "reference")
+
+    if mode == "oneyear"
+
+    elseif mode == "typicaldays"
+
+    elseif mode == "multiscenario"
+
+    elseif mode == "multiscenario_typicaldays"
+
+    end
+
+
+    return
 end

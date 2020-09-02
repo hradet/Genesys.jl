@@ -1,3 +1,10 @@
+
+mutable struct MarkovChain
+    states
+    transition_matrices
+end
+
+
 #
 # Clustering
 #_______________________________________________________________________________

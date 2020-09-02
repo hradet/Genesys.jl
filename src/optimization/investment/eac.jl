@@ -281,7 +281,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion,
      ns = size(ld.power_E,3) # number of scenarios
 
      # Scenario reduction from the optimization scenario pool
-     ω_milp = scenario_reduction(ω_optim, mode = "oneyear")
+     ω_milp = scenarios_reduction(ω_optim, mode = "oneyear")
 
      # Initialize model
      designer.model = eac_milp_model(ld, pv, liion, designer, grid, ω_milp, parameters)
@@ -307,7 +307,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
 
   if mode == "reference"
     # Scenario reduction from the optimization scenario pool
-    ω_milp = scenario_reduction(ω_optim, mode = "oneyear")
+    ω_milp = scenarios_reduction(ω_optim, mode = "oneyear")
 
     # Initialize model
     designer.model = controller.model = onestage_milp_model(
