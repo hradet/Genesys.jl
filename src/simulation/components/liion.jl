@@ -25,7 +25,7 @@
      C_liion::AbstractArray{Float64,2}
  end
  # Constructor
- function Liion(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+ function Liion(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p_ch = outputGUI.α_p_ch
      α_p_dch = outputGUI.α_p_dch

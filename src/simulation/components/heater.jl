@@ -16,7 +16,7 @@ struct Heater
      C_heater::AbstractArray{Float64,2}
 end
 # Constructor
-function Heater(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function Heater(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      # Parameters
      η_E_H = outputGUI.η_E_H
      lifetime = outputGUI.lifetime

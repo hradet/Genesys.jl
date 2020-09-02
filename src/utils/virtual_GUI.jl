@@ -1,6 +1,5 @@
 # Load parameters from GUI
-# TODO : \tau_cost, etc en kwargs...
-function loadGUI(controller_flag, designer_flag, τ_cost, τ_power, τ_energy)
+function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., τ_energy = 0.)
     # Directory path
     dirPath=pwd()
 

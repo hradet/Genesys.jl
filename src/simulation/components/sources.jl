@@ -13,7 +13,7 @@ mutable struct Source
      C_pv::AbstractArray{Float64,2}
 end
 # Constructor
-function Source(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function Source(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      lifetime = outputGUI.lifetime
      power_E = convert(SharedArray,zeros(nh, ny, ns))
      powerMax = convert(SharedArray,zeros(ny+1, ns))

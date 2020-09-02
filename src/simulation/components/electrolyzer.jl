@@ -21,7 +21,7 @@ struct Electrolyzer
      C_elyz::AbstractArray{Float64,2}
 end
 # Constructor
-function Electrolyzer(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function Electrolyzer(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p = outputGUI.α_p
      η_E_H2 = outputGUI.η_E_H2

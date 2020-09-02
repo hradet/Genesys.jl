@@ -22,7 +22,7 @@ struct ThermalSto
      C_tes::AbstractArray{Float64,2}
 end
 # Constructor
-function ThermalSto(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function ThermalSto(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p_ch = outputGUI.α_p_ch
      α_p_dch = outputGUI.α_p_dch

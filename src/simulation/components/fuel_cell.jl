@@ -21,7 +21,7 @@ struct FuelCell
      C_fc::AbstractArray{Float64,2}
 end
 # Constructor
-function FuelCell(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function FuelCell(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
      # Paramètres
      α_p = outputGUI.α_p
      η_H2_E = outputGUI.η_H2_E

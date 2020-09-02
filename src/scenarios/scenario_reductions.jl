@@ -25,7 +25,7 @@ mutable struct Scenarios <: AbstractScenarios
 end
 
 # Constructor
-function Scenarios(outputGUI::Dict{String,Any}, nh::Int64, ny::Int64, ns::Int64)
+function Scenarios(outputGUI::Dict{}, nh::Int64, ny::Int64, ns::Int64)
      # Demand
      ld_E = outputGUI["ld_E"][1:nh, 1:ny, 1:ns]
      ld_H =outputGUI["ld_H"][1:nh, 1:ny, 1:ns]

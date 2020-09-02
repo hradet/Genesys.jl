@@ -5,7 +5,7 @@ using JuMP, CPLEX
 # Math
 using Statistics, Clustering, Distributions
 # Others
-using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays
+using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
 include(joinpath("simulation","components","liion.jl"))
 include(joinpath("simulation","components","tes.jl"))
@@ -23,12 +23,11 @@ include(joinpath("simulation","dynamics.jl"))
 include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
 # Scenarios
-include(joinpath("scenarios","struct.jl"))
+include(joinpath("scenarios","scenario_reductions.jl"))
 include(joinpath("scenarios","utils.jl"))
 include(joinpath("scenarios","markov_functions.jl"))
 include(joinpath("scenarios","time_blocks_functions.jl"))
 include(joinpath("scenarios","typical_days_functions.jl"))
-include(joinpath("scenarios","initialize_scenarios.jl"))
 # Anticipative optimization
 include(joinpath("optimization","anticipative","anticipative_controller.jl"))
 include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
@@ -48,5 +47,6 @@ include(joinpath("postprocessing","plots.jl"))
 include(joinpath("postprocessing","save_functions.jl"))
 # Utils
 include(joinpath("utils","initialization.jl"))
+include(joinpath("utils","virtual_GUI.jl"))
 
 end
