@@ -27,7 +27,7 @@ function Source(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
 
  #                               Investment dynamic
  #______________________________________________________________________________
- function compute_investment_dynamics(pv::Source, x_pv::NamedTuple, u_pv::Float64)
+ function compute_investment_dynamics(pv::Source, x_pv::NamedTuple, u_pv::Union{Float64, Int64})
      #=
          INPUT :
                  x_pv = [powerMax[y]]

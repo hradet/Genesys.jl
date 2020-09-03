@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float64)
+function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union{Float64, Int64})
      #=
          INPUT :
                  x_fc = [powerMax[y], soh[end,y]]

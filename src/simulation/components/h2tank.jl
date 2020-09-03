@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank::Float64)
+function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank::Union{Float64, Int64})
      #=
          INPUT :
                  x_tank = [Erated[y], soc[end,y]]

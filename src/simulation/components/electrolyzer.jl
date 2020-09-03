@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64)
+function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Union{Float64, Int64})
     #=
         INPUT :
                 x_elyz = [powerMax[y], soh[end,y]]

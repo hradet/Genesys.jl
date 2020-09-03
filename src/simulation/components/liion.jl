@@ -82,7 +82,7 @@
 
  #                               Investment dynamic
  #______________________________________________________________________________
- function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Float64)
+ function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Union{Float64, Int64})
      #=
          INPUT :
                  x_liion = [Erated[y], soc[end,y], soh[end,y]]

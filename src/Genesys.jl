@@ -24,10 +24,9 @@ include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
 # Scenarios
 include(joinpath("scenarios","scenario_reductions.jl"))
+include(joinpath("scenarios","clustering.jl"))
+include(joinpath("scenarios","markov.jl"))
 include(joinpath("scenarios","utils.jl"))
-include(joinpath("scenarios","markov_functions.jl"))
-include(joinpath("scenarios","time_blocks_functions.jl"))
-include(joinpath("scenarios","typical_days_functions.jl"))
 # Anticipative optimization
 include(joinpath("optimization","anticipative","anticipative_controller.jl"))
 include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
@@ -37,7 +36,9 @@ include(joinpath("optimization","anticipative","utils.jl"))
 # Investment optimization
 include(joinpath("optimization","investment","rule_based.jl"))
 include(joinpath("optimization","investment","eac.jl"))
+include(joinpath("optimization","investment","eac_td.jl"))
 include(joinpath("optimization","investment","eac_stoch.jl"))
+include(joinpath("optimization","investment","eac_stoch_td.jl"))
 # Operation optimization
 include(joinpath("optimization","operation","rule_based.jl"))
 include(joinpath("optimization","operation","mpc.jl"))

@@ -71,7 +71,7 @@ end
 
 #                               Investment dynamic
 #______________________________________________________________________________
-function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Float64)
+function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Union{Float64, Int64})
     #=
         INPUT :
                 x_tes = [Erated[y], soc[end,y]]
