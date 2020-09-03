@@ -67,11 +67,10 @@ function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::M
      ns = size(ld.power_E,3) # number of scenarios
 
      # Initialize model
-     controller.model = mpc_model(
-     ld, pv, liion, controller, grid, parameters)
+     controller.model = mpc_model(ld, pv, liion, controller, grid, parameters)
 
-     # Initialize scenario generation with markov chain
-     controller.markovchains = initialize_markovchains(ω_optim)
+     # Compute markov chain for scenario generation
+     controller.markovchains = compute_markovchains(ω_optim)
 
      # Initialize operation decisions
      controller.u = (
@@ -97,8 +96,8 @@ function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv:
      # Power net
      power_net_fcst = ld_E_fcst .- pv.powerMax[y,s] .* pv_fcst
      # Grid
-     C_grid_in_fcst = vcat(ω_optim.C_grid_in[window,y,s], zeros(n_zeros))
-     C_grid_out_fcst = vcat(ω_optim.C_grid_out[window,y,s], zeros(n_zeros))
+     C_grid_in_fcst = vcat(ω_optim.values.C_grid_in[window,y,s], zeros(n_zeros))
+     C_grid_out_fcst = vcat(ω_optim.values.C_grid_out[window,y,s], zeros(n_zeros))
 
      # Fix net power
      fix.(controller.model[:p_net], power_net_fcst)

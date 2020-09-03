@@ -5,9 +5,7 @@ mutable struct MarkovChain
 end
 
 
-#
-# Clustering
-#_______________________________________________________________________________
+# Clustering functions
 # Clustering data by month
 function clustering_month(data, timestamp)
     #=
@@ -77,33 +75,31 @@ function clustering_month_weekend(data, timestamp)
     return data_cluster
 end
 # Clustering states using k-means algorithm
-function clustering_states(data_day, nMarkovstate)
+function clustering_states(data_day, n_state)
     # Parameters
     nh = size(data_day,1)
     nd = size(data_day,2)
     # Pre-allocate
     sequence = zeros(Int64, nh, nd)
-    states = zeros(nh, nMarkovstate)
+    states = zeros(nh, n_state)
 
     # For each hour, we extract markov states and the corresponding sequence
     for h in 1 : nh
-        cluster = kmeans(convert(Array{Float64,2},reshape(data_day[h,:],1,:)), nMarkovstate)
+        cluster = kmeans(convert(Array{Float64,2},reshape(data_day[h,:],1,:)), n_state)
         states[h,:], sequence[h,:] = cluster.centers, cluster.assignments
     end
 
     return states, sequence
 end
 
-#
 # Transition matrix
-#_______________________________________________________________________________
 # Compute transition matrix between consecutive hours
-function compute_transition_between_hours(sequence, nMarkovstate)
+function compute_transition_between_hours(sequence, n_state::Int64)
     # Parameters
     nh = size(sequence, 1)
 
     # Pre-allocate
-    transition_matrix = zeros(nMarkovstate,nMarkovstate,nh-1)
+    transition_matrix = zeros(n_state,n_state,nh-1)
 
     for h in 1:nh-1
         for (i,j) in zip(sequence[h, :], sequence[h+1, :])
@@ -129,9 +125,9 @@ function compute_transition_between_hours(sequence, nMarkovstate)
     return transition_matrix
 end
 # Compute transition matrix from a sequence
-function compute_transition_from_sequence(sequence, nMarkovstate::Int64)
+function compute_transition_from_sequence(sequence, n_state::Int64)
 
-    transition_matrix = zeros(nMarkovstate,nMarkovstate) # n of state size square matrix
+    transition_matrix = zeros(n_state,n_state) # n of state size square matrix
 
     # Compute number of transition
     for (i,j) in zip(sequence[1:end-1],sequence[2:end])
@@ -155,11 +151,9 @@ function compute_transition_from_sequence(sequence, nMarkovstate::Int64)
     return transition_matrix
 end
 
-#
 # Compute MarkovChain
-#_______________________________________________________________________________
 # Compute markov-chain from clustered data
-function compute_markovchain(data, nMarkovstate::Int64)
+function compute_markovchain(data, n_state::Int64)
     # Parameters
     nm = size(data,1)
     ny = size(data,2)
@@ -174,19 +168,17 @@ function compute_markovchain(data, nMarkovstate::Int64)
             # # For each hour, we extract markov states using k-means and the sequence
             # needed to compute transition matrices between consecutive hours. The number
             # of markostate must be < number of days...
-            states[m,y], sequence = clustering_states(data[m,y], min(nMarkovstate, size(data[m,y],2)-1))
+            states[m,y], sequence = clustering_states(data[m,y], min(n_state, size(data[m,y],2)-1))
 
             # Compute transition matrix between consecutive hours for each month
-            transition_matrices[m,y] = compute_transition_between_hours(sequence, min(nMarkovstate, size(data[m,y],2)-1))
+            transition_matrices[m,y] = compute_transition_between_hours(sequence, min(n_state, size(data[m,y],2)-1))
         end
     end
 
     return MarkovChain(states, transition_matrices)
 end
 
-#
 # Compute scenario from markov_chain
-#_______________________________________________________________________________
 # Compute a markov scenario
 function compute_scenario(mc::MarkovChain, state_init::Union{Int64,Float64}, time_init::DateTime, year::Int64, nstep::Int64)
     # Initialize timestamp
@@ -263,17 +255,18 @@ function compute_scenario(mc::MarkovChain, state_init, horizon::Int64)
     return scenario
 end
 
-function initialize_markovchains(ω_optim::Scenarios)
+# Compute markovchains from scenarios
+function compute_markovchains(ω_optim::Scenarios)
     # TODO : ajouter struct avec mc, nscenarios, nstate
     # Clustering data
-    pv = clustering_month(ω_optim.pv_E, ω_optim.timestamp)
-    ld_wk = clustering_month_week(ω_optim.ld_E, ω_optim.timestamp)
-    ld_wkd = clustering_month_weekend(ω_optim.ld_E, ω_optim.timestamp)
+    pv = clustering_month(ω_optim.values.pv_E, ω_optim.timestamp)
+    ld_wk = clustering_month_week(ω_optim.values.ld_E, ω_optim.timestamp)
+    ld_wkd = clustering_month_weekend(ω_optim.values.ld_E, ω_optim.timestamp)
     # Compute markov chain
-    n_markov = minimum(vcat(size.(pv[:,1],2), size.(ld_wk[:,1],2), size.(ld_wkd[:,1],2)))-1
-    mc_pv = compute_markovchain(pv, n_markov)
-    mc_ld_wk = compute_markovchain(ld_wk, n_markov)
-    mc_ld_wkd = compute_markovchain(ld_wkd, n_markov)
+    n_state = minimum(vcat(size.(pv[:,1],2), size.(ld_wk[:,1],2), size.(ld_wkd[:,1],2)))-1
+    mc_pv = compute_markovchain(pv, n_state)
+    mc_ld_wk = compute_markovchain(ld_wk, n_state)
+    mc_ld_wkd = compute_markovchain(ld_wkd, n_state)
     # Store in a Namedtuple
     markovchains = (
     pv_E = mc_pv,

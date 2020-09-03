@@ -1,5 +1,5 @@
 # Find indices of weekend days
-isweekend(timestamp) = (Dates.dayname.(timestamp) .== "Saturday") .| (Dates.dayname.(timestamp) .== "Sunday")
+isweekend(timestamp::DateTime) = (Dates.dayname.(timestamp) .== "Saturday") .| (Dates.dayname.(timestamp) .== "Sunday")
 # Plot statistics
 function plot_stats(ω, data)
     Seaborn.set(context="notebook",style="ticks",palette="deep", font="serif", font_scale=1.5)
