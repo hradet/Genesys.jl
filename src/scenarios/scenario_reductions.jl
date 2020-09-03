@@ -33,6 +33,7 @@ function Scenarios(outputGUI::Dict{}, nh::Int64, ny::Int64, ns::Int64)
 
     return Scenarios(outputGUI["timestamp"],values, proba)
 end
+
 # Scenario Reduction function
 function scenarios_reduction(ω::Scenarios, mode::String)
 
