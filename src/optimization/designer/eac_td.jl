@@ -2,11 +2,10 @@
     Designer based on the equivalent annual cost (EAC)
 =#
 
-mutable struct TypicalDayEACDesigner <: AbstractDesigner
+mutable struct TypicalDayEACDesigner <: AbstractOneStageDesigner
     u::NamedTuple
-    horizon::Int64
-    ntd::Int64
     model::JuMP.Model
+    parameters::Dict{String, Any}
     TypicalDayEACDesigner() = new()
 end
 
@@ -126,10 +125,10 @@ function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    ns = size(ld.power_E,3) # number of scenarios
 
    # Scenario reduction from the optimization scenario pool
-   ω_eac = scenarios_reduction(ω_optim, "eac")
+   ω_eac = scenarios_reduction(designer, ω_optim)
 
    # Clustering typical days
-   ω_td = clustering_typical_day(ω_eac, designer.ntd)
+   ω_td = clustering_typical_day(ω_eac, designer.parameters["ntd"])
 
    # Initialize model
    designer.model = eac_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_td, parameters)

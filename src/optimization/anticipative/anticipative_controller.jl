@@ -2,7 +2,6 @@
 
 mutable struct AnticipativeController <: AbstractController
     u::NamedTuple
-    horizon::Int64
     model::JuMP.Model
     AnticipativeController() = new()
 end

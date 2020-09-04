@@ -130,17 +130,55 @@ function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., 
     #                                  Controller
     #---------------------------------------------------------------------------
     controller=(
-    id=controller_flag,
-    horizon = 12, # hours
+    id = controller_flag,
+    mpc = Dict(
+        "horizon" => 12), # hours
+    rb = Dict(
+        "β_min_tes" => 0.2,
+        "β_max_tes" => 0.9,
+        "β_min_fc" => 0.25,
+        "β_max_fc" => 0.3,
+        "β_min_elyz" => 0.4,
+        "β_max_elyz" => 0.45),
+
     )
 
     #---------------------------------------------------------------------------
     #                                  Designer
     #---------------------------------------------------------------------------
     designer=(
-    id=designer_flag, #
-    eac_td = (ntd=5,),    
-    horizon = 20, # years
+    id = designer_flag,
+    anticipative_multi = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1),
+    anticipative_one = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1,
+        "idx_years" => 1:20,
+        "risk" => "esperance"),
+    anticipative_one_up = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1,
+        "idx_years" => 1:20,
+        "risk" => "esperance"),
+    eac = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1,
+        "idx_year" => 1),
+    eac_td = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1,
+        "idx_year" => 1,
+        "ntd" => 5),
+    eac_stoch = Dict(
+        "reduction" => "manual",
+        "idx_scenario" => 1,
+        "idx_years" => 1:20,
+        "risk" => "esperance"),
+    eac_stoch_td = Dict(),
+    metaheuristic = Dict(),
+    metaheuristic_stoch = Dict(),
+    rb = Dict(),
     )
 
     #---------------------------------------------------------------------------

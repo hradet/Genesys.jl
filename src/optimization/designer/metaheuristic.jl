@@ -2,7 +2,7 @@
     Designer based on a metaheuristic
 =#
 
-mutable struct MetaHeuristicDesigner <: AbstractDesigner
+mutable struct MetaHeuristicDesigner <: AbstractMultiStageDesigner
     u::NamedTuple
     horizon::Int64
     MetaHeuristicDesigner() = new()

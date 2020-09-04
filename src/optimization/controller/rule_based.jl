@@ -5,24 +5,22 @@
 mutable struct RuleBasedController <: AbstractController
     u::NamedTuple
     π::Function
+    parameters::Dict{String, Any}
     RuleBasedController() = new()
 end
 
 #### Policies definition ####
 # Simple
-function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion)
+function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion, controller::RuleBasedController)
     # Liion
     u_liion = ld.power_E[h,y,s] - pv.power_E[h,y,s]
     return u_liion
 end
 # Multi-energy
 function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion,
-    h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater)
+    h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater, controller::RuleBasedController)
     # Control parameters
     ϵ = 1e-2
-    β_min_tes, β_max_tes = 0.2, 0.9
-    β_min_fc, β_max_fc = 0.25, 0.3
-    β_min_elyz, β_max_elyz = 0.4, 0.45
 
     # Net power elec
     p_net_E = ld.power_E[h,y,s] - pv.power_E[h,y,s]
@@ -32,10 +30,10 @@ function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
         # FC is off
         u_fc, p_fc_H = 0., 0.
         # Strategy for Elyz
-        if liion.soc[h,y,s] > β_max_elyz
+        if liion.soc[h,y,s] > controller.parameters["β_max_elyz"]
             u_elyz = min(max(p_net_E, -elyz.powerMax[y,s]), -elyz.α_p * elyz.powerMax[y,s])
             p_elyz_H = - u_elyz * elyz.η_E_H
-        elseif liion.soc[h,y,s] > β_min_elyz && h !=1 && elyz.power_E[h-1,y,s] <= -ϵ
+        elseif liion.soc[h,y,s] > controller.parameters["β_min_elyz"] && h !=1 && elyz.power_E[h-1,y,s] <= -ϵ
             u_elyz = min(max(p_net_E, -elyz.powerMax[y,s]), -elyz.α_p * elyz.powerMax[y,s])
             p_elyz_H = - u_elyz * elyz.η_E_H
         else
@@ -45,10 +43,10 @@ function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
         # Elyz is off
         u_elyz, p_elyz_H = 0., 0.
         # Strategy for FC
-        if liion.soc[h,y,s] < β_min_fc
+        if liion.soc[h,y,s] < controller.parameters["β_min_fc"]
             u_fc = min(max(p_net_E, fc.α_p * fc.powerMax[y,s]), fc.powerMax[y,s])
             p_fc_H = u_fc * fc.η_H2_H / fc.η_H2_E
-        elseif liion.soc[h,y,s] < β_max_fc && h !=1 && fc.power_E[h-1,y,s] >= ϵ
+        elseif liion.soc[h,y,s] < controller.parameters["β_max_fc"] && h !=1 && fc.power_E[h-1,y,s] >= ϵ
             u_fc = min(max(p_net_E, fc.α_p * fc.powerMax[y,s]), fc.powerMax[y,s])
             p_fc_H = u_fc * fc.η_H2_H / fc.η_H2_E
         else
@@ -64,10 +62,10 @@ function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
 
     # Heater
     if p_net_H >= 0.
-        if tes.soc[h,y,s] < β_min_tes
+        if tes.soc[h,y,s] < controller.parameters["β_min_tes"]
             p_heater_H = p_net_H
             u_heater = - p_heater_H / heater.η_E_H
-        elseif tes.soc[h,y,s] < β_max_tes && h !=1 && heater.power_H[h-1,y,s] > ϵ
+        elseif tes.soc[h,y,s] < controller.parameters["β_max_tes"] && h !=1 && heater.power_H[h-1,y,s] > ϵ
             p_heater_H = p_net_H
             u_heater = - p_heater_H / heater.η_E_H
         else
@@ -130,11 +128,11 @@ end
 # Simple
 function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
      liion::Liion, grid::Grid, controller::RuleBasedController, ω_optim::Scenarios, parameters::NamedTuple)
-    controller.u.u_liion[h,y,s] = controller.π(h, y, s, ld, pv, liion)
+    controller.u.u_liion[h,y,s] = controller.π(h, y, s, ld, pv, liion, controller)
 end
 # Multi-energy
 function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
      liion::Liion, h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto,
      heater::Heater, controller::RuleBasedController, ω_optim::Scenarios, parameters::NamedTuple)
-    controller.u.u_liion[h,y,s], controller.u.u_elyz[h,y,s], controller.u.u_fc[h,y,s], controller.u.u_tes[h,y,s], controller.u.u_heater[h,y,s] = controller.π(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater)
+    controller.u.u_liion[h,y,s], controller.u.u_elyz[h,y,s], controller.u.u_fc[h,y,s], controller.u.u_tes[h,y,s], controller.u.u_heater[h,y,s] = controller.π(h, y, s, ld, pv, liion, h2tank, elyz, fc, tes, heater, controller)
 end

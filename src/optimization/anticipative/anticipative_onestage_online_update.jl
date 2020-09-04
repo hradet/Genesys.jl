@@ -3,98 +3,77 @@
     updates
 =#
 
-mutable struct AnticipativeOneStageOnlineDesigner <: AbstractDesigner
+mutable struct AnticipativeOneStageOnlineDesigner <: AbstractOneStageStochasticDesigner
     u::NamedTuple
-    horizon::Int64
     model::JuMP.Model
+    parameters::Dict{String, Any}
     AnticipativeOneStageOnlineDesigner() = new()
 end
 
 #### Models ####
 function onestage_milp_model(ld::Load, pv::Source, liion::Liion,
-  controller::AnticipativeController, designer::AnticipativeOneStageOnlineDesigner,
-  grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
+  designer::AnticipativeOneStageOnlineDesigner, grid::Grid, ω_optim::Scenarios,
+  parameters::NamedTuple)
 
     # Parameters
-    crf_liion = (parameters.τ * (parameters.τ + 1) ^ liion.lifetime) / ((parameters.τ + 1) ^ liion.lifetime - 1)
-    crf_pv = (parameters.τ * (parameters.τ + 1) ^ pv.lifetime) / ((parameters.τ + 1) ^ pv.lifetime - 1)
+    Γ_liion = (parameters.τ * (parameters.τ + 1.) ^ liion.lifetime) / ((parameters.τ + 1.) ^ liion.lifetime - 1.)
+    Γ_pv = (parameters.τ * (parameters.τ + 1.) ^ pv.lifetime) / ((parameters.τ + 1.) ^ pv.lifetime - 1.)
 
     # Sets
-    nh = length(1:parameters.Δh:controller.horizon) # Number of hours
-    ns = size(ω_optim.ld_E,2) # Number of one-year scenarios
+    nh = size(ω_optim.values.ld_E,1) # Number of hours
+    ns = size(ω_optim.values.ld_E,2) # Number of scenarios
 
     # Model definition
     m = Model(CPLEX.Optimizer)
 
     # Variables
-    # Operation control variables
     @variables(m, begin
-    # Liion
-     p_liion_ch[1:nh,1:ns] <= 0.
-     p_liion_dch[1:nh,1:ns] >= 0.
-     # Recourse
-     p_g_out[1:nh,1:ns] <= 0.
-     p_g_in[1:nh,1:ns] >= 0.
+    # Operation decision variables
+     p_liion_ch[1:nh, 1:ns] <= 0.
+     p_liion_dch[1:nh, 1:ns] >= 0.
+     p_g_out[1:nh, 1:ns] <= 0.
+     p_g_in[1:nh, 1:ns] >= 0.
+     # Investment decision variables
+     0 <= r_liion <= 1000
+     0 <= r_pv <= 1000
+     # Operation states variables
+     soc_liion[1:nh+1, 1:ns]
     end)
 
-    # Investment control variables
-    @variables(m, begin
-    r_liion >= 0.
-    r_pv >= 0.
-    end)
-
-    # Operation state variables
-    @variables(m, begin
-    soc_liion[1:nh+1,1:ns]
-    end)
-
-    # Operation constraints bounds
+    # Constraints
     @constraints(m, begin
-    # Controls
-    # Liion
+    # Power bounds
     [h in 1:nh, s in 1:ns], p_liion_dch[h,s] <= liion.α_p_dch * r_liion
     [h in 1:nh, s in 1:ns], p_liion_ch[h,s] >= -liion.α_p_ch * r_liion
-
-    # State
-    # Liion
+    [h in 1:nh, s in 1:ns], p_g_in[h,s] <= (1. - grid.τ_power) * maximum(ω_optim.values.ld_E)
+    # SoC bounds
     [h in 1:nh+1, s in 1:ns], soc_liion[h,s] <= liion.α_soc_max * r_liion
     [h in 1:nh+1, s in 1:ns], soc_liion[h,s] >= liion.α_soc_min * r_liion
-    end)
-
-    # Investment constraints bounds
-    @constraints(m, begin
-    # Controls
+    # Investment bounds
     r_liion <= 1000.
     r_pv <= 1000.
-    end)
-
-    # Operation constraints dynamics and recourse
-    @constraints(m, begin
-    # Dynamics
-    # Liion
+    # State dynamic
     [h in 1:nh, s in 1:ns], soc_liion[h+1,s] == soc_liion[h,s] * (1 - liion.η_self * parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * parameters.Δh
-
-    # Recourse
-    [h in 1:nh, s in 1:ns], ω_optim.ld_E[h,s] - r_pv * ω_optim.pv_E[h,s] <= p_g_out[h,s] + p_g_in[h,s] + p_liion_ch[h,s] + p_liion_dch[h,s]
-    end)
-
+    # Power balance
+    [h in 1:nh, s in 1:ns], ω_optim.values.ld_E[h,s] - r_pv * ω_optim.values.pv_E[h,s] <= p_g_out[h,s] + p_g_in[h,s] + p_liion_ch[h,s] + p_liion_dch[h,s]
+    # Self-sufficiency constraint
+    self_constraint[s in 1:ns], sum(p_g_in[h,s] for h in 1:nh) <= (1. - grid.τ_energy) * sum(ω_optim.values.ld_E[h,s] for h in 1:nh)
     # Initial and final conditions
-    @constraints(m, begin
     [s in 1:ns], soc_liion[1,s] == liion.soc[1] * r_liion
-    [s in 1:ns], soc_liion[end,s] == soc_liion[1,s]
-    end)
-
-    # Grid constraints
-    @constraints(m, begin
-    power_constraint, p_g_in .<= (1. - grid.τ_power) * maximum(ω_optim.ld_E)
-    self_constraint[s in 1:ns], sum(p_g_in[h,s] for h in 1:nh) <= (1. - grid.τ_energy) * sum(ω_optim.ld_E[h,s] for h in 1:nh)
+    [s in 1:ns], soc_liion[nh,s] == soc_liion[1,s]
     end)
 
     # CAPEX
-    capex = @expression(m, crf_pv * ω_optim.C_pv[1] * r_pv + crf_liion * ω_optim.C_liion[1] * r_liion)
+    capex = @expression(m, Γ_pv * ω_optim.values.C_pv[1] * r_pv + Γ_liion * ω_optim.values.C_liion[1] * r_liion)
 
     # OPEX
-    opex = @expression(m, sum((p_g_in[h,s] * ω_optim.C_grid_in[h,s] + p_g_out[h,s] * ω_optim.C_grid_out[h,s]) * parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
+    if designer.parameters["risk"] == "esperance"
+      #TODO : multiplier par proba du scenario au lieu de /ns...
+      opex = @expression(m, sum((p_g_in[h,s] * ω_optim.values.C_grid_in[h,s] + p_g_out[h,s] * ω_optim.values.C_grid_out[h,s]) * parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
+    elseif designer.parameters["risk"]  == "cvar"
+    else
+      println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
+    end
 
     # Objective
     @objective(m, Min, capex + opex)
@@ -110,14 +89,11 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion,
       ny = size(ld.power_E,2) # number of simulation years
       ns = size(ld.power_E,3) # number of scenarios
 
-      # Selection of one-year scenarios from the optimization dataset
-      ω_milp = Scenarios(ω_optim.timestamp,ω_optim.ld_E[:,:,1],nothing,ω_optim.pv_E[:,:,1],
-      ω_optim.C_pv[:,1],ω_optim.C_liion[:,1],nothing,nothing,nothing,nothing,nothing,
-      ω_optim.C_grid_in[:,:,1],ω_optim.C_grid_out[:,:,1])
+      # Scenario reduction from the optimization scenario pool
+      ω_anticipative = scenarios_reduction(designer, ω_optim)
 
       # Initialize model
-      designer.model = controller.model = onestage_milp_model(
-      ld, pv, liion, controller, designer, grid, ω_milp, parameters)
+      designer.model = controller.model = onestage_milp_model(ld, pv, liion, controller, designer, grid, ω_anticipative, parameters)
 
       # Compute both investment and operation decisions
       optimize!(designer.model)
@@ -136,21 +112,19 @@ end
 
 #### Online functions ####
 function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, grid::Grid, controller::AnticipativeController,
-    designer::AnticipativeOneStageOnlineDesigner, ω_optim::Scenarios, parameters::NamedTuple)
+    liion::Liion, grid::Grid, designer::AnticipativeOneStageOnlineDesigner, ω_optim::Scenarios, parameters::NamedTuple)
     # Parameters
     ϵ = 0.1
     ny = size(ld.power_E,2)
     ns = size(ld.power_E,3)
 
     if liion.soh[end,y,s] < ϵ
-        # Compute forecast scenarios
-        ω_forecast = Scenarios(ω_optim.timestamp,ω_optim.ld_E[:,y+1:end,s],nothing,ω_optim.pv_E[:,y+1:end,s],
-        ω_optim.C_pv[y,s],ω_optim.C_liion[y,s],nothing,nothing,nothing,nothing,nothing,
-        ω_optim.C_grid_in[:,y+1:end,s],ω_optim.C_grid_out[:,y+1:end,s])
-        # Initialize model
-        designer.model = controller.model = onestage_milp_model(
-        ld, pv, liion, controller, designer, grid, ω_forecast, parameters)
+        # Update reduction range
+        designer.parameters["idx_years"] = y+1:ny
+        # Scenario reduction from the scenario pool
+        ω_anticipative = scenarios_reduction(designer, ω_optim)
+        # Initialize model with the new values
+        designer.model = controller.model = onestage_milp_model(ld, pv, liion, controller, designer, grid, ω_anticipative, parameters)
         # Compute both investment and operation decisions
         # Fix PV design
         fix.(designer.model[:r_pv], pv.powerMax[y], force = true)

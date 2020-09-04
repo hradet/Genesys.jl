@@ -34,25 +34,18 @@ function Scenarios(outputGUI::Dict{}, nh::Int64, ny::Int64, ns::Int64)
     return Scenarios(outputGUI["timestamp"],values, proba)
 end
 
-# Scenario Reduction function
-function scenarios_reduction(ω::Scenarios, mode::String)
+# Scenario Reduction functions
+# One stage designer reduction
+function scenarios_reduction(designer::AbstractOneStageDesigner, ω::Scenarios)
 
-    if mode == "eac"
-        ω_red = eac_reduction(ω)
-    elseif mode == "eac_stoch"
-        #TODO
-    elseif mode == "metaheuristic"
-        ω_red = metaheuristic_reduction(ω)
-    elseif mode == "metaheuristic_stoch"
-        #TODO
+    if designer.parameters["reduction"] == "manual"
+        # Year and scenario indexes are manually chosen
+        y = designer.parameters["idx_year"]
+        s = designer.parameters["idx_scenario"]
+    else
+        # Year and scenario indexes are randomly chosen to 1
+        y, s = 1, 1
     end
-
-    return ω_red
-end
-# Scenario reduction for EAC method
-function eac_reduction(ω::Scenarios)
-    # Only choose one year of data among the input scenarios
-    y, s = 1, 1
 
     # Reduced values
     values = (
@@ -75,10 +68,81 @@ function eac_reduction(ω::Scenarios)
 
     return Scenarios(ω.timestamp,values, [ω.proba[s]])
 end
-# Scenario reduction for metaheuristic method
-function metaheuristic_reduction(ω::Scenarios)
-    # Only choose one scenario among the input scenarios
-    s = 1
+# One stage stochastic designer reduction
+function scenarios_reduction(designer::AbstractOneStageStochasticDesigner, ω::Scenarios)
+
+    if designer.parameters["reduction"] == "manual"
+        # Year and scenario indexes are manually chosen
+        y = designer.parameters["idx_years"]
+        s = designer.parameters["idx_scenario"]
+    else
+        #TODO !! so far, year and scenario indexes are randomly chosen
+        y, s = size(ω.values.ld_E,2), 1
+    end
+
+    # Reduced values
+    values = (
+    ld_E = ω.values.ld_E[:,y,s],
+    ld_H = ω.values.ld_H[:,y,s],
+    # Production
+    pv_E = ω.values.pv_E[:,y,s],
+    # Investment costs
+    C_pv = ω.values.C_pv[y,s],
+    C_liion = ω.values.C_liion[y,s],
+    C_tes = ω.values.C_tes[y,s],
+    C_tank = ω.values.C_tank[y,s],
+    C_elyz = ω.values.C_elyz[y,s],
+    C_fc = ω.values.C_fc[y,s],
+    C_heater = ω.values.C_heater[y,s],
+    # Electricity tariff
+    C_grid_in = ω.values.C_grid_in[:,y,s],
+    C_grid_out = ω.values.C_grid_out[:,y,s],
+    )
+
+    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+end
+# Multistage designer reduction
+function scenarios_reduction(designer::AbstractMultiStageDesigner, ω::Scenarios)
+
+    if designer.parameters["reduction"]== "manual"
+        # Scenario index is manually chosen
+        s = designer.parameters["idx_scenario"]
+    else
+        # Scenario index is randomly chosen to 1
+        s = 1
+    end
+
+    # Reduced values
+    values = (
+    ld_E = ω.values.ld_E[:,:,s],
+    ld_H = ω.values.ld_H[:,:,s],
+    # Production
+    pv_E = ω.values.pv_E[:,:,s],
+    # Investment costs
+    C_pv = ω.values.C_pv[:,s],
+    C_liion = ω.values.C_liion[:,s],
+    C_tes = ω.values.C_tes[:,s],
+    C_tank = ω.values.C_tank[:,s],
+    C_elyz = ω.values.C_elyz[:,s],
+    C_fc = ω.values.C_fc[:,s],
+    C_heater = ω.values.C_heater[:,s],
+    # Electricity tariff
+    C_grid_in = ω.values.C_grid_in[:,:,s],
+    C_grid_out = ω.values.C_grid_out[:,:,s],
+    )
+
+    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+end
+# Multistage stochastic designer reduction
+function scenarios_reduction(designer::AbstractMultiStageStochasticDesigner, ω::Scenarios)
+
+    if designer.parameters["reduction"] == "manual"
+        # Scenario indexes are manually chosen
+        s = designer.parameters["idx_scenarios"]
+    else
+        # TODO !! so far, scenario indexes are randomly chosen
+        s = size(ω.values.ld_E,3)
+    end
 
     # Reduced values
     values = (

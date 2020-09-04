@@ -2,10 +2,10 @@
     Designer based on the equivalent annual cost (EAC) with multiple scenarios
 =#
 
-mutable struct EACStochasticDesigner <: AbstractDesigner
+mutable struct EACStochasticDesigner <: AbstractOneStageStochasticDesigner
     u::NamedTuple
-    horizon::Int64
     model::JuMP.Model
+    parameters::Dict{String, Any}
     EACStochasticDesigner() = new()
 end
 
@@ -13,7 +13,7 @@ end
 # Simple
 function eac_milp_model(ld::Load, pv::Source, liion::Liion,
   designer::EACStochasticDesigner, grid::Grid, ω_optim::Scenarios,
-  parameters::NamedTuple; risk = "esperance")
+  parameters::NamedTuple)
 
     # Parameters
     Γ_liion = (parameters.τ * (parameters.τ + 1.) ^ liion.lifetime) / ((parameters.τ + 1.) ^ liion.lifetime - 1.)
@@ -67,10 +67,10 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion,
     capex = @expression(m, Γ_pv * ω_optim.values.C_pv[1] * r_pv + Γ_liion * ω_optim.values.C_liion[1] * r_liion)
 
     # OPEX
-    if risk == "esperance"
+    if designer.parameters["risk"] == "esperance"
       #TODO : multiplier par proba du scenario au lieu de /ns...
       opex = @expression(m, sum((p_g_in[h,s] * ω_optim.values.C_grid_in[h,s] + p_g_out[h,s] * ω_optim.values.C_grid_out[h,s]) * parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
-    elseif risk == "cvar"
+    elseif designer.parameters["risk"] == "cvar"
     else
       println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
     end
@@ -84,7 +84,7 @@ end
 function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
     designer::EACStochasticDesigner, grid::Grid, ω_optim::Scenarios,
-    parameters::NamedTuple; risk = "esperance")
+    parameters::NamedTuple)
     # Parameters
     Γ_pv = (parameters.τ * (parameters.τ + 1.) ^ pv.lifetime) / ((parameters.τ + 1.) ^ pv.lifetime - 1.)
     Γ_liion = (parameters.τ * (parameters.τ + 1.) ^ liion.lifetime) / ((parameters.τ + 1.) ^ liion.lifetime - 1.)
@@ -170,10 +170,10 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     Γ_tes * ω_optim.values.C_tes[1] * r_tes)
 
     # OPEX
-    if risk == "esperance"
+    if designer.parameters["risk"] == "esperance"
       #TODO : multiplier par proba du scenario au lieu de /ns...
       opex = @expression(m, sum((p_g_in[h,s] * ω_optim.values.C_grid_in[h,s] + p_g_out[h,s] * ω_optim.values.C_grid_out[h,s]) * parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
-    elseif risk == "cvar"
+    elseif designer.parameters["risk"] == "cvar"
     else
       println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
     end
@@ -193,7 +193,7 @@ function initialize_designer(ld::Load, pv::Source, liion::Liion,
      ns = size(ld.power_E,3) # number of scenarios
 
      # Scenario reduction from the optimization scenario pool
-     ω_eac_stoch = scenarios_reduction(ω_optim, "eac_stoch")
+     ω_eac_stoch = scenarios_reduction(designer, ω_optim)
 
      # Initialize model
      designer.model = eac_milp_model(ld, pv, liion, designer, grid, ω_eac_stoch, parameters)
@@ -218,10 +218,10 @@ function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    ns = size(ld.power_E,3) # number of scenarios
 
    # Scenario reduction from the optimization scenario pool
-   ω_eac_stoch = scenarios_reduction(ω_optim, "eac_stoch")
+   ω_eac_stoch = scenarios_reduction(designer, ω_optim)
 
    # Initialize model
-   designer.model = controller.model = onestage_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_eac_stoch, parameters)
+   designer.model = onestage_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_eac_stoch, parameters)
 
    # Compute investment decisions
    optimize!(designer.model)

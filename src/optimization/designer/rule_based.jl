@@ -5,6 +5,7 @@
 mutable struct RuleBasedDesigner <: AbstractDesigner
     u::NamedTuple
     π::Function
+    parameters::Dict{String, Any}
     RuleBasedDesigner() = new()
 end
 

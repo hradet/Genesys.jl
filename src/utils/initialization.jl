@@ -78,14 +78,14 @@ function initialization(outputGUI)
     #---------------------------------------------------------------------------
     if outputGUI["controller"].id == "AnticipativeController"
         controller = AnticipativeController()
-        controller.horizon = outputGUI["controller"].horizon
     elseif outputGUI["controller"].id == "RuleBasedController"
         controller = RuleBasedController()
+        controller.parameters = outputGUI["controller"].rb
     elseif outputGUI["controller"].id == "MPCController"
         controller = MPCController()
-        controller.horizon = outputGUI["controller"].horizon
+        controller.parameters = outputGUI["controller"].mpc
     else
-        controller = []
+        println("Unknown controller id...")
     end
 
     #---------------------------------------------------------------------------
@@ -93,26 +93,27 @@ function initialization(outputGUI)
     #---------------------------------------------------------------------------
     if outputGUI["designer"].id == "AnticipativeMultiStageDesigner"
         designer = AnticipativeMultiStageDesigner()
-        designer.horizon = outputGUI["designer"].horizon
+        designer.parameters = outputGUI["designer"].anticipative_multi
     elseif outputGUI["designer"].id == "AnticipativeOneStageDesigner"
         designer = AnticipativeOneStageDesigner()
-        designer.horizon = outputGUI["designer"].horizon
+        designer.parameters = outputGUI["designer"].anticipative_one
     elseif outputGUI["designer"].id == "AnticipativeOneStageOnlineDesigner"
         designer = AnticipativeOneStageOnlineDesigner()
-        designer.horizon = outputGUI["designer"].horizon
+        designer.parameters = outputGUI["designer"].anticipative_one_up
     elseif outputGUI["designer"].id == "RuleBasedDesigner"
         designer = RuleBasedDesigner()
+        designer.parameters = outputGUI["designer"].rb
     elseif outputGUI["designer"].id == "EACDesigner"
         designer = EACDesigner()
+        designer.parameters = outputGUI["designer"].eac
     elseif outputGUI["designer"].id == "EACStochasticDesigner"
         designer = EACStochasticDesigner()
+        designer.parameters = outputGUI["designer"].eac_stoch
     elseif outputGUI["designer"].id == "TypicalDayEACDesigner"
         designer = TypicalDayEACDesigner()
-        designer.ntd = outputGUI["designer"].eac_td.ntd
-    elseif outputGUI["designer"].id == "EACStochasticDesigner"
-        designer = EACStochasticDesigner()
-     else
-         designer = []
+        designer.parameters = outputGUI["designer"].eac_td
+    else
+         println("Unknown designer id...")
     end
 
    return ld, pv, liion, h2tank, elyz, fc, tes, heater, controller, designer, grid, ω_optim, ω_simu

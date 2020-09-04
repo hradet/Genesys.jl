@@ -4,4 +4,8 @@
 
 abstract type AbstractController end
 abstract type AbstractDesigner end
+abstract type AbstractOneStageDesigner <: AbstractDesigner end
+abstract type AbstractOneStageStochasticDesigner <: AbstractDesigner end
+abstract type AbstractMultiStageDesigner <: AbstractDesigner end
+abstract type AbstractMultiStageStochasticDesigner <: AbstractDesigner end
 abstract type AbstractScenarios end

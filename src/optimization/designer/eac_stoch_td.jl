@@ -2,7 +2,7 @@
     Designer based on the equivalent annual cost (EAC) with multiple scenarios
 =#
 
-mutable struct TypicalDayEACStochasticDesigner <: AbstractDesigner
+mutable struct TypicalDayEACStochasticDesigner <: AbstractOneStageStochasticDesigner
     u::NamedTuple
     horizon::Int64
     ntd::Int64
@@ -133,7 +133,7 @@ function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    ns = size(ld.power_E,3) # number of scenarios
 
    # Scenario reduction from the optimization scenario pool
-   ω_eac_stoch = scenarios_reduction(ω_optim, "eac_stoch")
+   ω_eac_stoch = scenarios_reduction(designer, ω_optim)
 
    # Clustering typical days
    ω_td = clustering_typical_day(ω_eac_stoch, designer.ntd)

@@ -4,9 +4,8 @@
 
 mutable struct MPCController <: AbstractController
     u::NamedTuple
-    horizon::Int64
-    markovchains::NamedTuple
     model::JuMP.Model
+    parameters::Dict{String, Any}
     MPCController() = new()
 end
 
@@ -16,7 +15,7 @@ function mpc_model(ld::Load, pv::Source, liion::Liion, controller::MPCController
      grid::Grid, parameters::NamedTuple)
 
      # Sets
-     nh = length(1:parameters.Δh:controller.horizon) # Number of hours
+     nh = length(1:parameters.Δh:controller.parameters["horizon"]) # Number of hours
 
      # Model definition
      m = Model(CPLEX.Optimizer)
@@ -70,7 +69,7 @@ function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::M
      controller.model = mpc_model(ld, pv, liion, controller, grid, parameters)
 
      # Compute markov chain for scenario generation
-     controller.markovchains = compute_markovchains(ω_optim)
+     controller.parameters["markovchains"] = compute_markovchains(ω_optim)
 
      # Initialize operation decisions
      controller.u = (
@@ -83,16 +82,16 @@ end
 function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
      liion::Liion, grid::Grid, controller::MPCController, ω_optim::Scenarios, parameters::NamedTuple)
      # Parameters
-     window = h:parameters.Δh:min(parameters.H, h + controller.horizon - 1)
-     n_zeros = length(1:parameters.Δh:controller.horizon) - length(window)
+     window = h:parameters.Δh:min(parameters.H, h + controller.parameters["horizon"] - 1)
+     n_zeros = length(1:parameters.Δh:controller.parameters["horizon"]) - length(window)
 
      # Compute forecasts and add zeros if needed
      # PV
-     pv_fcst = compute_scenario(controller.markovchains.pv_E, pv.power_E[h,y,s] / pv.powerMax[y,s],
-      ω_optim.timestamp[h], y, controller.horizon-1)
+     pv_fcst = compute_scenario(controller.parameters["markovchains"].pv_E, pv.power_E[h,y,s] / pv.powerMax[y,s],
+      ω_optim.timestamp[h], y, controller.parameters["horizon"]-1)
       # Laod
-     ld_E_fcst = compute_scenario(controller.markovchains.ld_E.wk, controller.markovchains.ld_E.wkd,
-     ld.power_E[h,y,s], ω_optim.timestamp[h], y, controller.horizon-1)
+     ld_E_fcst = compute_scenario(controller.parameters["markovchains"].ld_E.wk, controller.parameters["markovchains"].ld_E.wkd,
+     ld.power_E[h,y,s], ω_optim.timestamp[h], y, controller.parameters["horizon"]-1)
      # Power net
      power_net_fcst = ld_E_fcst .- pv.powerMax[y,s] .* pv_fcst
      # Grid

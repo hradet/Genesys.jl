@@ -32,7 +32,6 @@ include(joinpath("optimization","anticipative","anticipative_controller.jl"))
 include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
 include(joinpath("optimization","anticipative","anticipative_onestage.jl"))
 include(joinpath("optimization","anticipative","anticipative_onestage_online_update.jl"))
-include(joinpath("optimization","anticipative","utils.jl"))
 # Investment optimization
 include(joinpath("optimization","designer","rule_based.jl"))
 include(joinpath("optimization","designer","eac.jl"))
