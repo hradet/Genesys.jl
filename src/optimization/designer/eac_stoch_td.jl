@@ -123,7 +123,7 @@ end
 
 #### Offline functions ####
 # Multi-energy
-function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
+function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
    designer::TypicalDayEACStochasticDesigner, grid::Grid, ω_optim::Scenarios,
    parameters::NamedTuple)
@@ -136,7 +136,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
    ω_eac_stoch = scenarios_reduction(ω_optim, "eac_stoch")
 
    # Clustering typical days
-   ω_td = clustering_typical_days(ω_eac_stoch, designer.ntd)
+   ω_td = clustering_typical_day(ω_eac_stoch, designer.ntd)
 
    # Initialize model
    designer.model = eac_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_td, parameters)

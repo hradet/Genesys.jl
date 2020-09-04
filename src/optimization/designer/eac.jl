@@ -172,7 +172,7 @@ end
 
 #### Offline functions ####
 # Simple
-function offline_optimization(ld::Load, pv::Source, liion::Liion,
+function initialize_designer(ld::Load, pv::Source, liion::Liion,
      designer::EACDesigner, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
      # Parameters
      ny = size(ld.power_E,2) # number of simulation years
@@ -194,7 +194,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion,
      )
 end
 # Multi-energy
-function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
+function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
    designer::EACDesigner, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
 

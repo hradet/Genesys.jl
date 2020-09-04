@@ -57,20 +57,20 @@ function eac_reduction(ω::Scenarios)
     # Reduced values
     values = (
     ld_E = ω.values.ld_E[:,y,s],
-    ld_H = ω.ld_H[:,y,s],
+    ld_H = ω.values.ld_H[:,y,s],
     # Production
-    pv_E = ω.pv_E[:,y,s],
+    pv_E = ω.values.pv_E[:,y,s],
     # Investment costs
-    C_pv = ω.C_pv[y,s],
-    C_liion = ω.C_liion[y,s],
-    C_tes = ω.C_tes[y,s],
-    C_tank = ω.C_tank[y,s],
-    C_elyz = ω.C_elyz[y,s],
-    C_fc = ω.C_fc[y,s],
-    C_heater = ω.C_heater[y,s],
+    C_pv = ω.values.C_pv[y,s],
+    C_liion = ω.values.C_liion[y,s],
+    C_tes = ω.values.C_tes[y,s],
+    C_tank = ω.values.C_tank[y,s],
+    C_elyz = ω.values.C_elyz[y,s],
+    C_fc = ω.values.C_fc[y,s],
+    C_heater = ω.values.C_heater[y,s],
     # Electricity tariff
-    C_grid_in = ω.C_grid_in[:,y,s],
-    C_grid_out = ω.C_grid_out[:,y,s],
+    C_grid_in = ω.values.C_grid_in[:,y,s],
+    C_grid_out = ω.values.C_grid_out[:,y,s],
     )
 
     return Scenarios(ω.timestamp,values, [ω.proba[s]])
@@ -83,20 +83,20 @@ function metaheuristic_reduction(ω::Scenarios)
     # Reduced values
     values = (
     ld_E = ω.values.ld_E[:,:,s],
-    ld_H = ω.ld_H[:,:,s],
+    ld_H = ω.values.ld_H[:,:,s],
     # Production
-    pv_E = ω.pv_E[:,:,s],
+    pv_E = ω.values.pv_E[:,:,s],
     # Investment costs
-    C_pv = ω.C_pv[:,s],
-    C_liion = ω.C_liion[:,s],
-    C_tes = ω.C_tes[:,s],
-    C_tank = ω.C_tank[:,s],
-    C_elyz = ω.C_elyz[:,s],
-    C_fc = ω.C_fc[:,s],
-    C_heater = ω.C_heater[:,s],
+    C_pv = ω.values.C_pv[:,s],
+    C_liion = ω.values.C_liion[:,s],
+    C_tes = ω.values.C_tes[:,s],
+    C_tank = ω.values.C_tank[:,s],
+    C_elyz = ω.values.C_elyz[:,s],
+    C_fc = ω.values.C_fc[:,s],
+    C_heater = ω.values.C_heater[:,s],
     # Electricity tariff
-    C_grid_in = ω.C_grid_in[:,:,s],
-    C_grid_out = ω.C_grid_out[:,:,s],
+    C_grid_in = ω.values.C_grid_in[:,:,s],
+    C_grid_out = ω.values.C_grid_out[:,:,s],
     )
 
     return Scenarios(ω.timestamp,values, [ω.proba[s]])

@@ -14,7 +14,7 @@ end
 # Multi-energy
 function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
-    designer::TypicalDayEACDesigner, grid::Grid, ω_optim::ClusteredScenarios,
+    designer::TypicalDayEACDesigner, grid::Grid, ω_td::ClusteredScenarios,
     parameters::NamedTuple)
     # Parameters
     Γ_pv = (parameters.τ * (parameters.τ + 1.) ^ pv.lifetime) / ((parameters.τ + 1.) ^ pv.lifetime - 1.)
@@ -25,9 +25,9 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     Γ_tes = (parameters.τ * (parameters.τ + 1.) ^ tes.lifetime) / ((parameters.τ + 1.) ^ tes.lifetime - 1.)
 
     # Sets
-    nh = size(ω_optim.clusters.ld_E,1) # number of hours by td (=24)
-    ntd = size(ω_optim.clusters.ld_E,2) # number of td
-    nd = size(ω_optim.σ,1) # number of days over the year (length of the sequence)
+    nh = size(ω_td.clusters.ld_E,1) # number of hours by td (=24)
+    ntd = size(ω_td.clusters.ld_E,2) # number of td
+    nd = size(ω_td.σ,1) # number of days over the year (length of the sequence)
 
     # Model definition
     m = Model(CPLEX.Optimizer)
@@ -67,7 +67,7 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     [h in 1:nh, td in 1:ntd], p_fc_E[h,td] <= r_fc
     [h in 1:nh, td in 1:ntd], p_elyz_E[h,td] >= -r_elyz
     [h in 1:nh, td in 1:ntd], p_heater_E[h,td] >= -heater.powerMax[1]
-    [h in 1:nh, td in 1:ntd], p_g_in[h,td] <= (1. - grid.τ_power) * maximum(ω_optim.clusters.ld_E .+ ω_optim.clusters.ld_H ./ heater.η_E_H) # seems to be faster in vectorized form
+    [h in 1:nh, td in 1:ntd], p_g_in[h,td] <= (1. - grid.τ_power) * maximum(ω_td.clusters.ld_E .+ ω_td.clusters.ld_H ./ heater.η_E_H) # seems to be faster in vectorized form
     # SoC bounds
     [h in 1:nh+1, d in 1:nd], soc_liion[h,d] <= liion.α_soc_max * r_liion
     [h in 1:nh+1, d in 1:nd], soc_liion[h,d] >= liion.α_soc_min * r_liion
@@ -84,10 +84,10 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     [d in 1:nd-1], soc_h2[1,d+1] == soc_h2[nh+1,d] * (1. - h2tank.η_self * parameters.Δh) - (p_elyz_E[1,ω_td.σ[d+1]] * elyz.η_E_H2 + p_fc_E[1,ω_td.σ[d+1]] / fc.η_H2_E) * parameters.Δh
     [d in 1:nd-1], soc_tes[1,d+1] == soc_tes[nh+1,d] * (1. - tes.η_self * parameters.Δh) - (p_tes_ch[1,ω_td.σ[d+1]] * tes.η_ch + p_tes_dch[1,ω_td.σ[d+1]] / tes.η_dch) * parameters.Δh
     # Power balance
-    [h in 1:nh, td in 1:ntd], ω_optim.clusters.ld_E[h,td] - r_pv * ω_optim.clusters.pv_E[h,td] <= p_g_out[h,td] + p_g_in[h,td] + p_liion_ch[h,td] + p_liion_dch[h,td] + p_elyz_E[h,td] + p_fc_E[h,td] + p_heater_E[h,td]
-    [h in 1:nh, td in 1:ntd], ω_optim.clusters.ld_H[h,td] <= - elyz.η_E_H * p_elyz_E[h,td] +  fc.η_H2_H / fc.η_H2_E * p_fc_E[h,td] -  heater.η_E_H * p_heater_E[h,td] + p_tes_ch[h,td] + p_tes_dch[h,td]
+    [h in 1:nh, td in 1:ntd], ω_td.clusters.ld_E[h,td] - r_pv * ω_td.clusters.pv_E[h,td] <= p_g_out[h,td] + p_g_in[h,td] + p_liion_ch[h,td] + p_liion_dch[h,td] + p_elyz_E[h,td] + p_fc_E[h,td] + p_heater_E[h,td]
+    [h in 1:nh, td in 1:ntd], ω_td.clusters.ld_H[h,td] <= - elyz.η_E_H * p_elyz_E[h,td] +  fc.η_H2_H / fc.η_H2_E * p_fc_E[h,td] -  heater.η_E_H * p_heater_E[h,td] + p_tes_ch[h,td] + p_tes_dch[h,td]
     # Self-sufficiency constraint
-    self_constraint, sum(ω_optim.nby[td] * sum(p_g_in[h,td] for h in 1:nh) for td in 1:ntd) <= (1. - grid.τ_energy) * sum(ω_optim.nby[td] * sum(ω_optim.clusters.ld_E[h,td] + ω_optim.clusters.ld_H[h,td] / heater.η_E_H for h in 1:nh) for td in 1:ntd)
+    self_constraint, sum(ω_td.nby[td] * sum(p_g_in[h,td] for h in 1:nh) for td in 1:ntd) <= (1. - grid.τ_energy) * sum(ω_td.nby[td] * sum(ω_td.clusters.ld_E[h,td] + ω_td.clusters.ld_H[h,td] / heater.η_E_H for h in 1:nh) for td in 1:ntd)
     # Initial and final conditions
     soc_liion[1,1] == liion.soc[1,1] * r_liion
     soc_h2[1,1] == h2tank.soc[1,1] * r_tank
@@ -98,15 +98,15 @@ function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     end)
 
     # CAPEX
-    capex = @expression(m, Γ_pv * ω_optim.clusters.C_pv[1] * r_pv +
-    Γ_liion * ω_optim.clusters.C_liion[1] * r_liion +
-    Γ_tank * ω_optim.clusters.C_tank[1] * r_tank +
-    Γ_elyz * ω_optim.clusters.C_elyz[1] * r_elyz +
-    Γ_fc * ω_optim.clusters.C_fc[1] * r_fc +
-    Γ_tes * ω_optim.clusters.C_tes[1] * r_tes)
+    capex = @expression(m, Γ_pv * ω_td.clusters.C_pv[1] * r_pv +
+    Γ_liion * ω_td.clusters.C_liion[1] * r_liion +
+    Γ_tank * ω_td.clusters.C_tank[1] * r_tank +
+    Γ_elyz * ω_td.clusters.C_elyz[1] * r_elyz +
+    Γ_fc * ω_td.clusters.C_fc[1] * r_fc +
+    Γ_tes * ω_td.clusters.C_tes[1] * r_tes)
 
     # OPEX
-    opex = @expression(m, sum(ω_optim.nby[td] * sum((p_g_in[h,td] * ω_optim.clusters.C_grid_in[h] + p_g_out[h,td] * ω_optim.clusters.C_grid_out[h]) * parameters.Δh  for h in 1:nh) for td in 1:ntd))
+    opex = @expression(m, sum(ω_td.nby[td] * sum((p_g_in[h,td] * ω_td.clusters.C_grid_in[h] + p_g_out[h,td] * ω_td.clusters.C_grid_out[h]) * parameters.Δh  for h in 1:nh) for td in 1:ntd))
 
     # Objective
     @objective(m, Min, capex + opex)
@@ -116,7 +116,7 @@ end
 
 #### Offline functions ####
 # Multi-energy
-function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
+function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
    designer::TypicalDayEACDesigner, grid::Grid, ω_optim::Scenarios,
    parameters::NamedTuple)
@@ -129,7 +129,7 @@ function offline_optimization(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
    ω_eac = scenarios_reduction(ω_optim, "eac")
 
    # Clustering typical days
-   ω_td = clustering_typical_days(ω_eac, designer.ntd)
+   ω_td = clustering_typical_day(ω_eac, designer.ntd)
 
    # Initialize model
    designer.model = eac_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_td, parameters)

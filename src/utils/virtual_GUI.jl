@@ -1,5 +1,5 @@
 # Load parameters from GUI
-function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., τ_energy = 0.)
+function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., τ_energy = 0., ns = 1)
     # Directory path
     dirPath=pwd()
 
@@ -12,7 +12,7 @@ function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., 
     Δy = 1, # in years
     Y = 20, # in years
     τ = 0.045, # discount rate
-    ns = 10, # number of scenarios of ny years
+    ns = ns, # number of scenarios of ny years
     )
 
     #---------------------------------------------------------------------------
@@ -139,6 +139,7 @@ function loadGUI(controller_flag::String, designer_flag::String; τ_power = 0., 
     #---------------------------------------------------------------------------
     designer=(
     id=designer_flag, #
+    eac_td = (ntd=5,),    
     horizon = 20, # years
     )
 

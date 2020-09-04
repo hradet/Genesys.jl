@@ -12,24 +12,6 @@
  end
 
 # Simple
-function compute_opex(ld::Load, grid::Grid, Δh)
-
-    # Reference case when all the electricity is purchased from the grid
-    ref = max.(0,ld.power_E)
-    saving = (ref .- grid.power_E) .* Δh .* grid.C_grid_in
-
-    # opex
-    opex = dropdims(sum(saving, dims=1), dims=1)
-
-    return opex
-end
-function compute_capex(pv::Source, liion::Liion, designer::AbstractDesigner)
-
-    #capex
-    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion
-
-    return capex
-end
 function compute_economics(ld::Load, pv::Source, liion::Liion, designer::AbstractDesigner,
      grid::Grid, parameters::NamedTuple)
 
@@ -53,11 +35,10 @@ function compute_economics(ld::Load, pv::Source, liion::Liion, designer::Abstrac
 
     return Costs(capex, opex, cf, cumulative_npv, npv)
 end
-# Multi-energy
-function compute_opex(ld::Load, heater::Heater, grid::Grid, Δh)
+function compute_opex(ld::Load, grid::Grid, Δh)
 
     # Reference case when all the electricity is purchased from the grid
-    ref = max.(0,ld.power_E .+ ld.power_H ./ heater.η_E_H)
+    ref = max.(0,ld.power_E)
     saving = (ref .- grid.power_E) .* Δh .* grid.C_grid_in
 
     # opex
@@ -65,16 +46,15 @@ function compute_opex(ld::Load, heater::Heater, grid::Grid, Δh)
 
     return opex
 end
-function compute_capex(pv::Source, liion::Liion, h2tank::H2Tank, elyz::Electrolyzer,
-     fc::FuelCell, tes::ThermalSto, designer::AbstractDesigner)
+function compute_capex(pv::Source, liion::Liion, designer::AbstractDesigner)
 
     #capex
-    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion .+
-    designer.u.u_tank .* h2tank.C_tank .+ designer.u.u_elyz .* elyz.C_elyz .+
-    designer.u.u_fc .* fc.C_fc .+ designer.u.u_tes .* tes.C_tes
+    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion
 
     return capex
 end
+
+# Multi-energy
 function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
      elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
      designer::AbstractDesigner, grid::Grid, parameters::NamedTuple)
@@ -98,4 +78,26 @@ function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     npv = dropdims(sum(cf, dims=1), dims=1)
 
     return Costs(capex, opex, cf, cumulative_npv, npv)
+end
+
+function compute_opex(ld::Load, heater::Heater, grid::Grid, Δh)
+
+    # Reference case when all the electricity is purchased from the grid
+    ref = max.(0,ld.power_E .+ ld.power_H ./ heater.η_E_H)
+    saving = (ref .- grid.power_E) .* Δh .* grid.C_grid_in
+
+    # opex
+    opex = dropdims(sum(saving, dims=1), dims=1)
+
+    return opex
+end
+function compute_capex(pv::Source, liion::Liion, h2tank::H2Tank, elyz::Electrolyzer,
+     fc::FuelCell, tes::ThermalSto, designer::AbstractDesigner)
+
+    #capex
+    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion .+
+    designer.u.u_tank .* h2tank.C_tank .+ designer.u.u_elyz .* elyz.C_elyz .+
+    designer.u.u_fc .* fc.C_fc .+ designer.u.u_tes .* tes.C_tes
+
+    return capex
 end

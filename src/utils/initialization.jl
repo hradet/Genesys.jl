@@ -106,6 +106,11 @@ function initialization(outputGUI)
         designer = EACDesigner()
     elseif outputGUI["designer"].id == "EACStochasticDesigner"
         designer = EACStochasticDesigner()
+    elseif outputGUI["designer"].id == "TypicalDayEACDesigner"
+        designer = TypicalDayEACDesigner()
+        designer.ntd = outputGUI["designer"].eac_td.ntd
+    elseif outputGUI["designer"].id == "EACStochasticDesigner"
+        designer = EACStochasticDesigner()
      else
          designer = []
     end
