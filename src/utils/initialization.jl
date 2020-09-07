@@ -85,6 +85,7 @@ function initialization(outputGUI)
         controller = MPCController()
         controller.parameters = outputGUI["controller"].mpc
     else
+        controller = nothing
         println("Unknown controller id...")
     end
 
@@ -100,6 +101,8 @@ function initialization(outputGUI)
     elseif outputGUI["designer"].id == "AnticipativeOneStageOnlineDesigner"
         designer = AnticipativeOneStageOnlineDesigner()
         designer.parameters = outputGUI["designer"].anticipative_one_up
+    elseif outputGUI["designer"].id == "DummyDesigner"
+        designer = DummyDesigner()
     elseif outputGUI["designer"].id == "RuleBasedDesigner"
         designer = RuleBasedDesigner()
         designer.parameters = outputGUI["designer"].rb
@@ -112,8 +115,12 @@ function initialization(outputGUI)
     elseif outputGUI["designer"].id == "TypicalDayEACDesigner"
         designer = TypicalDayEACDesigner()
         designer.parameters = outputGUI["designer"].eac_td
+    elseif outputGUI["designer"].id == "MetaHeuristicDesigner"
+        designer = MetaHeuristicDesigner()
+        designer.parameters = outputGUI["designer"].metaheuristic
     else
-         println("Unknown designer id...")
+        designer = nothing
+        println("Unknown designer id...")
     end
 
    return ld, pv, liion, h2tank, elyz, fc, tes, heater, controller, designer, grid, ω_optim, ω_simu

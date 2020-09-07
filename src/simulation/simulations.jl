@@ -9,7 +9,7 @@ function simulate(ld::Load, pv::Source, liion::Liion, controller::AbstractContro
      mode = "serial")
 
     # Parameters
-    ns = size(ld.power_E,3)
+    ns = size(ω_simu.values.ld_E,3)
 
     if mode == "serial"
         # We simulate over the horizon for all the scenarios
@@ -61,7 +61,7 @@ function simulate(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
     ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple; mode="serial")
 
     # Parameters
-    ns = size(ld.power_E,3)
+    ns = size(ω_simu.values.ld_E,3)
 
     # We simulate over the horizon for all the scenarios
     if mode == "serial"
@@ -87,8 +87,8 @@ function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, control
      designer::AbstractDesigner, grid::Grid, ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple)
 
     # Parameters
-    nh = size(ld.power_E,1)
-    ny = size(ld.power_E,2)
+    nh = size(ω_simu.values.ld_E,1)
+    ny = size(ω_simu.values.ld_E,2)
 
     # We simulate over the horizon for a signle scenario
     for y = 1 : ny
@@ -126,8 +126,8 @@ function simulate_scenario(s::Int64, ld::Load, pv::Source, liion::Liion, h2tank:
     ω_optim::AbstractScenarios, ω_simu::AbstractScenarios, parameters::NamedTuple)
 
     # Parameters
-    nh = size(ld.power_E,1)
-    ny = size(ld.power_E,2)
+    nh = size(ω_simu.values.ld_E,1)
+    ny = size(ω_simu.values.ld_E,2)
 
     # We simulate over the horizon for a signle scenario
     for y = 1 : ny

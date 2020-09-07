@@ -1,7 +1,7 @@
 module Genesys
 
 # Optimisation
-using JuMP, CPLEX
+using JuMP, CPLEX, Evolutionary
 # Math
 using Statistics, Clustering, Distributions
 # Others
@@ -33,11 +33,13 @@ include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
 include(joinpath("optimization","anticipative","anticipative_onestage.jl"))
 include(joinpath("optimization","anticipative","anticipative_onestage_online_update.jl"))
 # Investment optimization
+include(joinpath("optimization","designer","dummy.jl"))
 include(joinpath("optimization","designer","rule_based.jl"))
 include(joinpath("optimization","designer","eac.jl"))
 include(joinpath("optimization","designer","eac_td.jl"))
 include(joinpath("optimization","designer","eac_stoch.jl"))
 include(joinpath("optimization","designer","eac_stoch_td.jl"))
+include(joinpath("optimization","designer","metaheuristic.jl"))
 # Operation optimization
 include(joinpath("optimization","controller","rule_based.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
