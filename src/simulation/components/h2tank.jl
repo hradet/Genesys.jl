@@ -54,17 +54,17 @@ function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Floa
      =#
 
      # Power constraint and correction
-     0 <= u_h2 <= h2tank.α_p_dch * x_h2.Erated ? power_dch = u_h2 : power_dch = 0
-     0 <= -u_h2 <= h2tank.α_p_ch * x_h2.Erated ? power_ch = u_h2 : power_ch = 0
+     0. <= u_h2 <= h2tank.α_p_dch * x_h2.Erated ? power_dch = u_h2 : power_dch = 0.
+     0. <= -u_h2 <= h2tank.α_p_ch * x_h2.Erated ? power_ch = u_h2 : power_ch = 0.
 
      # SoC dynamic
-     soc_next = x_h2.soc * (1 - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2.Erated
+     soc_next = x_h2.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2.Erated
 
      # State variable bounds
      overshoot = (round(soc_next;digits=3) < h2tank.α_soc_min) || (round(soc_next;digits=3) > h2tank.α_soc_max)
 
-     overshoot ? soc_next = max(x_h2.soc * (1 - h2tank.η_self), h2tank.α_soc_min) : nothing
-     overshoot ? power_ch = power_dch = 0 : nothing
+     overshoot ? soc_next = max(x_h2.soc * (1. - h2tank.η_self * Δh), h2tank.α_soc_min) : nothing
+     overshoot ? power_ch = power_dch = 0. : nothing
 
      return soc_next, power_ch + power_dch
 end

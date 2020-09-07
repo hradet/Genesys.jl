@@ -42,7 +42,7 @@ end
      =#
 
      # Power constraint and correction
-     0. <= -u_heater <= x_heater.powerMax ? power_E = u_heater : power_E = 0
+     0. <= -u_heater <= x_heater.powerMax ? power_E = u_heater : power_E = 0.
 
      # Power computation
      power_H = - heater.η_E_H * power_E

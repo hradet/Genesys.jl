@@ -61,21 +61,21 @@
      =#
 
      # Power constraint and correction
-     0 <= u_liion <= liion.α_p_dch * x_liion.Erated ? power_dch = u_liion : power_dch = 0
-     0 <= -u_liion <= liion.α_p_ch * x_liion.Erated ? power_ch = u_liion : power_ch = 0
+     0. <= u_liion <= liion.α_p_dch * x_liion.Erated ? power_dch = u_liion : power_dch = 0.
+     0. <= -u_liion <= liion.α_p_ch * x_liion.Erated ? power_ch = u_liion : power_ch = 0.
 
      # SoC dynamic
-     soc_next = x_liion.soc * (1 - liion.η_self * Δh) - (power_ch * liion.η_ch + power_dch / liion.η_dch) * Δh / x_liion.Erated
+     soc_next = x_liion.soc * (1. - liion.η_self * Δh) - (power_ch * liion.η_ch + power_dch / liion.η_dch) * Δh / x_liion.Erated
 
      # SoH dynamic
-     soh_next = x_liion.soh - (power_dch - power_ch) * Δh / (2 * liion.nCycle * liion.dod * x_liion.Erated)
+     soh_next = x_liion.soh - (power_dch - power_ch) * Δh / (2. * liion.nCycle * liion.dod * x_liion.Erated)
 
      # SoC and SoH constraints and corrections
      overshoot = (round(soc_next;digits=3) < liion.α_soc_min) || (round(soc_next;digits=3) > liion.α_soc_max) || (soh_next < 0)
 
-     overshoot ? soc_next = max(x_liion.soc * (1 - liion.η_self), liion.α_soc_min) : nothing
+     overshoot ? soc_next = max(x_liion.soc * (1. - liion.η_self * Δh), liion.α_soc_min) : nothing
      overshoot ? soh_next = x_liion.soh : nothing
-     overshoot ? power_ch = power_dch = 0 : nothing
+     overshoot ? power_ch = power_dch = 0. : nothing
 
      return soc_next, soh_next, power_ch + power_dch
  end

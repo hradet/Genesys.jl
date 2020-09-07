@@ -54,17 +54,17 @@ function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::F
     =#
 
     # Power constraint and correction
-    0 <= u_tes <= tes.α_p_dch * x_tes.Erated ? power_dch = u_tes : power_dch = 0
-    0 <= -u_tes <= tes.α_p_ch * x_tes.Erated ? power_ch = u_tes : power_ch = 0
+    0. <= u_tes <= tes.α_p_dch * x_tes.Erated ? power_dch = u_tes : power_dch = 0.
+    0. <= -u_tes <= tes.α_p_ch * x_tes.Erated ? power_ch = u_tes : power_ch = 0.
 
     # SoC dynamic
-    soc_next = x_tes.soc * (1 - tes.η_self * Δh) - (power_ch * tes.η_ch + power_dch / tes.η_dch) * Δh / x_tes.Erated
+    soc_next = x_tes.soc * (1. - tes.η_self * Δh) - (power_ch * tes.η_ch + power_dch / tes.η_dch) * Δh / x_tes.Erated
 
     # State variable bounds
     overshoot = (round(soc_next;digits=3) < tes.α_soc_min) || (round(soc_next;digits=3) > tes.α_soc_max)
 
-    overshoot ? soc_next = max(x_tes.soc * (1 - tes.η_self), tes.α_soc_min) : nothing
-    overshoot ? power_ch = power_dch = 0 : nothing
+    overshoot ? soc_next = max(x_tes.soc * (1. - tes.η_self * Δh), tes.α_soc_min) : nothing
+    overshoot ? power_ch = power_dch = 0. : nothing
 
     return soc_next, power_ch + power_dch
 end
