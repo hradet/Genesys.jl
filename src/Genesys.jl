@@ -44,9 +44,9 @@ include(joinpath("optimization","designer","metaheuristic.jl"))
 include(joinpath("optimization","controller","rule_based.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
 # Post-processing
-include(joinpath("postprocessing","economics.jl"))
+include(joinpath("postprocessing","indicators.jl"))
 include(joinpath("postprocessing","plots.jl"))
-include(joinpath("postprocessing","save_functions.jl"))
+include(joinpath("postprocessing","saves.jl"))
 # Utils
 include(joinpath("utils","initialization.jl"))
 include(joinpath("utils","virtual_GUI.jl"))

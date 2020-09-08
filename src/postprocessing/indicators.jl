@@ -1,8 +1,9 @@
 #=
-    This file includes all the funtions needed to compute the economic
+    This file includes all the funtions needed to compute the techno-economic
     indicators
  =#
 
+### Economics ###
  mutable struct Costs
       capex::Array{Float64,2}
       opex::Array{Float64,2}
@@ -53,7 +54,6 @@ function compute_capex(pv::Source, liion::Liion, designer::AbstractDesigner)
 
     return capex
 end
-
 # Multi-energy
 function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
      elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
@@ -79,7 +79,6 @@ function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
 
     return Costs(capex, opex, cf, cumulative_npv, npv)
 end
-
 function compute_opex(ld::Load, heater::Heater, grid::Grid, Δh)
 
     # Reference case when all the electricity is purchased from the grid
@@ -100,4 +99,19 @@ function compute_capex(pv::Source, liion::Liion, h2tank::H2Tank, elyz::Electroly
     designer.u.u_fc .* fc.C_fc .+ designer.u.u_tes .* tes.C_tes
 
     return capex
+end
+
+### Techno ###
+mutable struct Indicators
+     τ_self::Array{Float64,2}
+     τ_autoconso
+end
+
+function compute_tech_indicators(ld::Load, grid::Grid)
+    # Self-sufficiency
+    τ_self = dropdims(1. .- sum(max.(0., grid.power_E), dims=1) ./ sum(ld.power_E, dims=1), dims=1)
+    # Self-consumption
+    # TODO
+
+    return Indicators(τ_self, nothing)
 end
