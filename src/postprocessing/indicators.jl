@@ -3,7 +3,7 @@
     indicators
  =#
 
-### Economics ###
+### Economics
  mutable struct Costs
       capex::Array{Float64,2}
       opex::Array{Float64,2}
@@ -12,61 +12,16 @@
       npv::Array{Float64,1}
  end
 
-# Simple
-function compute_economics(ld::Load, pv::Source, liion::Liion, designer::AbstractDesigner,
-     grid::Grid, parameters::NamedTuple)
-
-    # Discount factor
-    γ = 1. ./ (1. + parameters.τ) .^ (1:parameters.Y)
-
-    # Investment cost
-    capex = compute_capex(pv, liion, designer)
-
-    # Operation cost
-    opex = compute_opex(ld, grid, parameters.Δh)
-
-    # Cash flow
-    cf = γ .* (- capex .+ opex)
-
-    # Discounted NPV each year
-    cumulative_npv = cumsum(cf, dims = 1)
-
-    # Discounted NPV
-    npv = dropdims(sum(cf, dims=1), dims=1)
-
-    return Costs(capex, opex, cf, cumulative_npv, npv)
-end
-function compute_opex(ld::Load, grid::Grid, Δh)
-
-    # Reference case when all the electricity is purchased from the grid
-    ref = max.(0,ld.power_E)
-    saving = (ref .- grid.power_E) .* Δh .* grid.C_grid_in
-
-    # opex
-    opex = dropdims(sum(saving, dims=1), dims=1)
-
-    return opex
-end
-function compute_capex(pv::Source, liion::Liion, designer::AbstractDesigner)
-
-    #capex
-    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion
-
-    return capex
-end
-# Multi-energy
-function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
-     elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
-     designer::AbstractDesigner, grid::Grid, parameters::NamedTuple)
+function compute_economics(des::DES)
 
      # Discount factor
-     γ = 1. ./ (1. + parameters.τ) .^ (1:parameters.Y)
+     γ = 1. ./ (1. + des.parameters.τ) .^ (1:des.parameters.Y)
 
     # Investment cost
-    capex = compute_capex(pv, liion, h2tank, elyz, fc, tes, designer)
+    capex = compute_capex(des)
 
     # Operation cost
-    opex = compute_opex(ld, heater, grid, parameters.Δh)
+    opex = compute_opex(des)
 
     # Cash flow
     cf = γ .* (- capex .+ opex)
@@ -79,24 +34,36 @@ function compute_economics(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
 
     return Costs(capex, opex, cf, cumulative_npv, npv)
 end
-function compute_opex(ld::Load, heater::Heater, grid::Grid, Δh)
+function compute_opex(des::DES)
+    # Parameters
+    nh = size(des.ld_E.power, 1)
+    ny = size(des.ld_E.power, 2)
+    ns = size(des.ld_E.power, 3)
+
+    isa(des.ld_H, Load) ? ld_H_to_E = des.ld_H.power ./ des.heater.η_E_H : ld_H_to_E = zeros(nh, ny, ns)
 
     # Reference case when all the electricity is purchased from the grid
-    ref = max.(0,ld.power_E .+ ld.power_H ./ heater.η_E_H)
-    saving = (ref .- grid.power_E) .* Δh .* grid.C_grid_in
+    ref = max.(0, des.ld_E.power .+ ld_H_to_E)
+    saving = ((ref .- max.(0., des.grid.power_E)) .* des.grid.C_grid_in - min.(0., des.grid.power_E) .* des.grid.C_grid_out) .* des.parameters.Δh
 
     # opex
     opex = dropdims(sum(saving, dims=1), dims=1)
 
     return opex
 end
-function compute_capex(pv::Source, liion::Liion, h2tank::H2Tank, elyz::Electrolyzer,
-     fc::FuelCell, tes::ThermalSto, designer::AbstractDesigner)
+function compute_capex(des::DES)
+    # Parameters
+    ny = size(des.ld_E.power, 2)
+    ns = size(des.ld_E.power, 3)
+    # Preallocation
+    capex = zeros(ny, ns)
 
-    #capex
-    capex = designer.u.u_pv .* pv.C_pv .+ designer.u.u_liion .* liion.C_liion .+
-    designer.u.u_tank .* h2tank.C_tank .+ designer.u.u_elyz .* elyz.C_elyz .+
-    designer.u.u_fc .* fc.C_fc .+ designer.u.u_tes .* tes.C_tes
+    isa(des.pv, Source) ? capex .+= des.designer.u.pv .* des.pv.C_pv : nothing
+    isa(des.liion, Liion) ? capex .+= des.designer.u.liion .* des.liion.C_liion : nothing
+    isa(des.tes, ThermalSto) ? capex .+= des.designer.u.tes .* des.tes.C_tes : nothing
+    isa(des.h2tank, H2Tank) ? capex .+= des.designer.u.h2tank .* des.h2tank.C_tank : nothing
+    isa(des.elyz, Electrolyzer) ? capex .+= des.designer.u.elyz .* des.elyz.C_elyz : nothing
+    isa(des.fc, FuelCell) ? capex .+= des.designer.u.fc .* des.fc.C_fc : nothing
 
     return capex
 end
@@ -107,9 +74,9 @@ mutable struct Indicators
      τ_autoconso
 end
 
-function compute_tech_indicators(ld::Load, grid::Grid)
+function compute_tech_indicators(des::DES)
     # Self-sufficiency
-    τ_self = dropdims(1. .- sum(max.(0., grid.power_E), dims=1) ./ sum(ld.power_E, dims=1), dims=1)
+    τ_self = dropdims(1. .- sum(max.(0., des.grid.power_E), dims=1) ./ sum(des.ld_E.power, dims=1), dims=1)
     # Self-consumption
     # TODO
 
