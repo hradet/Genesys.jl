@@ -3,39 +3,72 @@
     and investment dynamics
  =#
 
-# Simple
-function compute_operation_dynamics(h::Int64, y::Int64, s::Int64, liion::Liion, controller::AbstractController, parameters::NamedTuple)
-    liion.soc[h+1,y,s], liion.soh[h+1,y,s], liion.power_E[h,y,s] = compute_operation_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[h,y,s], soh = liion.soh[h,y,s]), controller.u.u_liion[h,y,s], parameters.Δh)
-end
-function compute_investment_dynamics(y::Int64, s::Int64, pv::Source, liion::Liion, designer::AbstractDesigner)
-     # Converters
-     pv.powerMax[y+1,s] = compute_investment_dynamics(pv, (powerMax = pv.powerMax[y,s],), designer.u.u_pv[y,s])
-     # Storage
-     liion.Erated[y+1,s], liion.soc[1,y+1,s], liion.soh[1,y+1,s] = compute_investment_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[end,y,s], soh = liion.soh[end,y,s]), designer.u.u_liion[y,s])
-end
-# Multi-energy
-function compute_operation_dynamics(h::Int64, y::Int64, s::Int64, liion::Liion, h2tank::H2Tank,
-    elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater, controller::AbstractController, parameters::NamedTuple)
+function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, des::DES)
 
     # Converters
-    heater.power_E[h,y,s], heater.power_H[h,y,s] = compute_operation_dynamics(heater, (powerMax = heater.powerMax[y,s],), controller.u.u_heater[h,y,s], parameters.Δh)
-    elyz.power_E[h,y,s], elyz.power_H[h,y,s], elyz.power_H2[h,y,s], elyz.soh[h+1,y,s] = compute_operation_dynamics(elyz, (powerMax = elyz.powerMax[y,s], soh = elyz.soh[h,y,s]), controller.u.u_elyz[h,y,s], parameters.Δh)
-    fc.power_E[h,y,s], fc.power_H[h,y,s], fc.power_H2[h,y,s], fc.soh[h+1,y,s] = compute_operation_dynamics(fc, (powerMax = fc.powerMax[y,s], soh = fc.soh[h,y,s]), controller.u.u_fc[h,y,s], parameters.Δh)
+    if isa(des.heater, Heater)
+        des.heater.power_E[h,y,s], des.heater.power_H[h,y,s] =
+        compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), des.controller.u.heater[h,y,s], des.parameters.Δh)
+    end
+
+    if isa(des.elyz, Electrolyzer)
+        des.elyz.power_E[h,y,s], des.elyz.power_H[h,y,s], des.elyz.power_H2[h,y,s], des.elyz.soh[h+1,y,s] =
+        compute_operation_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[h,y,s]), des.controller.u.elyz[h,y,s], des.parameters.Δh)
+    end
+
+    if isa(des.fc, FuelCell)
+        des.fc.power_E[h,y,s], des.fc.power_H[h,y,s], des.fc.power_H2[h,y,s], des.fc.soh[h+1,y,s] =
+        compute_operation_dynamics(des.fc, (powerMax = des.fc.powerMax[y,s], soh = des.fc.soh[h,y,s]), des.controller.u.fc[h,y,s], des.parameters.Δh)
+    end
 
     # Storage
-    liion.soc[h+1,y,s], liion.soh[h+1,y,s], liion.power_E[h,y,s] = compute_operation_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[h,y,s], soh = liion.soh[h,y,s]), controller.u.u_liion[h,y,s], parameters.Δh)
-    tes.soc[h+1,y,s], tes.power_H[h,y,s] = compute_operation_dynamics(tes, (Erated = tes.Erated[y], soc = tes.soc[h,y,s]), controller.u.u_tes[h,y,s], parameters.Δh)
-    h2tank.soc[h+1,y,s], h2tank.power_H2[h,y,s] = compute_operation_dynamics(h2tank, (Erated = h2tank.Erated[y,s], soc = h2tank.soc[h,y,s]), - (fc.power_H2[h,y,s] + elyz.power_H2[h,y,s]), parameters.Δh)
+    if isa(des.liion, Liion)
+        des.liion.soc[h+1,y,s], des.liion.soh[h+1,y,s], des.liion.power_E[h,y,s] =
+        compute_operation_dynamics(des.liion, (Erated = des.liion.Erated[y,s], soc = des.liion.soc[h,y,s], soh = des.liion.soh[h,y,s]), des.controller.u.liion[h,y,s], des.parameters.Δh)
+    end
+
+    if isa(des.tes, ThermalSto)
+        des.tes.soc[h+1,y,s], des.tes.power_H[h,y,s] =
+        compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), des.controller.u.tes[h,y,s], des.parameters.Δh)
+    end
+
+    if isa(des.h2tank, H2Tank)
+        des.h2tank.soc[h+1,y,s], des.h2tank.power_H2[h,y,s] =
+        compute_operation_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[h,y,s]), - (des.fc.power_H2[h,y,s] + des.elyz.power_H2[h,y,s]), des.parameters.Δh)
+    end
+    #TODO tank ne doit pas que dépendre de elyz + fc
 end
-function compute_investment_dynamics(y::Int64, s::Int64, pv::Source, liion::Liion, h2tank::H2Tank,
-     elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, designer::AbstractDesigner)
+function compute_investment_dynamics!(y::Int64, s::Int64, des::DES)
 
      # Converters
-     pv.powerMax[y+1,s] = compute_investment_dynamics(pv, (powerMax = pv.powerMax[y,s],), designer.u.u_pv[y,s])
-     elyz.powerMax[y+1,s], elyz.soh[1,y+1,s] = compute_investment_dynamics(elyz, (powerMax = elyz.powerMax[y,s], soh = elyz.soh[end,y,s]), designer.u.u_elyz[y,s])
-     fc.powerMax[y+1,s], fc.soh[1,y+1,s] = compute_investment_dynamics(fc, (powerMax = fc.powerMax[y,s], soh = fc.soh[end,y,s]), designer.u.u_fc[y,s])
+     if isa(des.pv, Source)
+         des.pv.powerMax[y+1,s] =
+         compute_investment_dynamics(des.pv, (powerMax = des.pv.powerMax[y,s],), des.designer.u.pv[y,s])
+     end
+
+     if isa(des.elyz, Electrolyzer)
+         des.elyz.powerMax[y+1,s], des.elyz.soh[1,y+1,s] =
+         compute_investment_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[end,y,s]), des.designer.u.elyz[y,s])
+     end
+
+     if isa(des.fc, FuelCell)
+         des.fc.powerMax[y+1,s], des.fc.soh[1,y+1,s] =
+         compute_investment_dynamics(des.fc, (powerMax = des.fc.powerMax[y,s], soh = des.fc.soh[end,y,s]), des.designer.u.fc[y,s])
+     end
+
      # Storage
-     liion.Erated[y+1,s], liion.soc[1,y+1,s], liion.soh[1,y+1,s] = compute_investment_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[end,y,s], soh = liion.soh[end,y,s]), designer.u.u_liion[y,s])
-     tes.Erated[y+1,s], tes.soc[1,y+1,s] = compute_investment_dynamics(tes, (Erated = tes.Erated[y,s], soc = tes.soc[end,y,s]), designer.u.u_tes[y,s])
-     h2tank.Erated[y+1,s], h2tank.soc[1,y+1,s] = compute_investment_dynamics(h2tank, (Erated = h2tank.Erated[y,s], soc = h2tank.soc[end,y,s]), designer.u.u_tank[y,s])
+     if isa(des.liion, Liion)
+         des.liion.Erated[y+1,s], des.liion.soc[1,y+1,s], des.liion.soh[1,y+1,s] =
+         compute_investment_dynamics(des.liion, (Erated = des.liion.Erated[y,s], soc = des.liion.soc[end,y,s], soh = des.liion.soh[end,y,s]), des.designer.u.liion[y,s])
+     end
+
+     if isa(des.tes, ThermalSto)
+         des.tes.Erated[y+1,s], des.tes.soc[1,y+1,s] =
+         compute_investment_dynamics(des.tes, (Erated = des.tes.Erated[y,s], soc = des.tes.soc[end,y,s]), des.designer.u.tes[y,s])
+     end
+
+     if isa(des.h2tank, H2Tank)
+         des.h2tank.Erated[y+1,s], des.h2tank.soc[1,y+1,s] =
+         compute_investment_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[end,y,s]), des.designer.u.h2tank[y,s])
+     end
 end

@@ -2,10 +2,8 @@
     Li-ion battery modelling
  =#
 
- #                                  Structure
- #______________________________________________________________________________
- struct Liion
-     # Paramètres
+ mutable struct Liion
+     # Parameters
      α_p_ch::Float64
      α_p_dch::Float64
      η_ch::Float64
@@ -16,6 +14,10 @@
      lifetime::Float64
      nCycle::Float64
      dod::Float64
+     # Initial conditions
+     Erated_ini::Float64
+     soc_ini::Float64
+     soh_ini::Float64
      # Variables
      Erated::AbstractArray{Float64,2}
      power_E::AbstractArray{Float64,3}
@@ -23,32 +25,33 @@
      soh::AbstractArray{Float64,3}
      # Eco
      C_liion::AbstractArray{Float64,2}
- end
- # Constructor
- function Liion(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
-     # Paramètres
-     α_p_ch = outputGUI.α_p_ch
-     α_p_dch = outputGUI.α_p_dch
-     η_ch = outputGUI.η_ch
-     η_dch = outputGUI.η_dch
-     η_self = outputGUI.η_self
-     α_soc_min = outputGUI.α_soc_min
-     α_soc_max = outputGUI.α_soc_max
-     lifetime = outputGUI.lifetime
-     nCycle = outputGUI.nCycle
-     dod = outputGUI.dod
-     # Variables
-     Erated = convert(SharedArray,zeros(ny+1, ns))
-     power_E = convert(SharedArray,zeros(nh, ny, ns))
-     soc = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     soh = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     # Eco
-     C_liion = convert(SharedArray,zeros(ny, ns))
-     return Liion(α_p_ch,α_p_dch,η_ch,η_dch,η_self,α_soc_min,α_soc_max,lifetime,nCycle,dod,Erated,power_E,soc,soh,C_liion)
+     # Inner constructor
+     Liion(; α_p_ch = 1.5,
+        α_p_dch = 1.5,
+        η_ch = 0.8,
+        η_dch = 0.8,
+        η_self = 0.,
+        α_soc_min = 0.2,
+        α_soc_max = 0.8,
+        lifetime = 12,
+        nCycle = 2500,
+        dod = 0.6,
+        Erated_ini = 0.,
+        soc_ini = 0.5,
+        soh_ini = 1.) =
+        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, nCycle, dod, Erated_ini, soc_ini, soh_ini)
  end
 
- #                               Operation dynamic
- #______________________________________________________________________________
+### Preallocation
+ function preallocate!(liion::Liion, nh::Int64, ny::Int64, ns::Int64)
+     liion.Erated = convert(SharedArray,zeros(ny+1, ns)) ; liion.Erated[1,:] .= liion.Erated_ini
+     liion.power_E = convert(SharedArray,zeros(nh, ny, ns))
+     liion.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soc[1,1,:] .= liion.soc_ini
+     liion.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soh[1,1,:] .= liion.soh_ini
+     liion.C_liion = convert(SharedArray,zeros(ny, ns))
+ end
+
+ ### Operation dynamic
  function compute_operation_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Float64, Δh::Int64)
      #=
      INPUT :
@@ -80,8 +83,7 @@
      return soc_next, soh_next, power_ch + power_dch
  end
 
- #                               Investment dynamic
- #______________________________________________________________________________
+ ### Investment dynamic
  function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Union{Float64, Int64})
      #=
          INPUT :

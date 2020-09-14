@@ -2,15 +2,16 @@
     Fuel cell modelling
  =#
 
- #                                  Structure
- #______________________________________________________________________________
-struct FuelCell
+mutable struct FuelCell
      # Paramètres
      α_p::Float64
      η_H2_E::Float64
      η_H2_H::Float64
      lifetime::Float64
      nHoursMax::Float64
+     # Initial conditions
+     powerMax_ini::Float64
+     soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
      power_E::AbstractArray{Float64,3}
@@ -19,28 +20,28 @@ struct FuelCell
      soh::AbstractArray{Float64,3}
      # Eco
      C_fc::AbstractArray{Float64,2}
-end
-# Constructor
-function FuelCell(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
-     # Paramètres
-     α_p = outputGUI.α_p
-     η_H2_E = outputGUI.η_H2_E
-     η_H2_H = outputGUI.η_H2_H
-     lifetime = outputGUI.lifetime
-     nHoursMax = outputGUI.nHoursMax
-     # Variables
-     powerMax = convert(SharedArray,zeros(ny+1, ns))
-     power_E = convert(SharedArray,zeros(nh, ny, ns))
-     power_H = convert(SharedArray,zeros(nh, ny, ns))
-     power_H2 = convert(SharedArray,zeros(nh, ny, ns))
-     soh = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     # Eco
-     C_fc = convert(SharedArray,zeros(ny, ns))
-     return FuelCell(α_p,η_H2_E,η_H2_H,lifetime,nHoursMax,powerMax,power_E,power_H,power_H2,soh,C_fc)
+     # Inner constructor
+     FuelCell(; α_p = 8/100,
+             η_H2_E = 0.4,
+             η_H2_H = 0.4,
+             lifetime = 5.,
+             nHoursMax = 10000.,
+             powerMax_ini = 0.,
+             soh_ini = 1.) =
+             new(α_p, η_H2_E, η_H2_H, lifetime, nHoursMax, powerMax_ini, soh_ini)
 end
 
-#                               Operation dynamic
-#______________________________________________________________________________
+### Preallocation
+function preallocate!(fc::FuelCell, nh::Int64, ny::Int64, ns::Int64)
+     fc.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; fc.powerMax[1,:] .= fc.powerMax_ini
+     fc.power_E = convert(SharedArray,zeros(nh, ny, ns))
+     fc.power_H = convert(SharedArray,zeros(nh, ny, ns))
+     fc.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
+     fc.soh = convert(SharedArray,zeros(nh+1, ny+1, ns))
+     fc.C_fc = convert(SharedArray,zeros(ny, ns))
+end
+
+### Operation dynamic
 function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float64, Δh::Int64)
      #=
      INPUT :
@@ -69,8 +70,7 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
      return power_E, power_H, power_H2, soh_next
 end
 
-#                               Investment dynamic
-#______________________________________________________________________________
+### Investment dynamic
 function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union{Float64, Int64})
      #=
          INPUT :

@@ -2,15 +2,16 @@
     Electrolyzer modelling
  =#
 
-#                                  Structure
-#______________________________________________________________________________
-struct Electrolyzer
+mutable struct Electrolyzer
      # Paramètres
      α_p::Float64
      η_E_H2::Float64
      η_E_H::Float64
      lifetime::Float64
      nHoursMax::Float64
+     # Initial conditions
+     powerMax_ini::Float64
+     soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
      power_E::AbstractArray{Float64,3}
@@ -19,28 +20,28 @@ struct Electrolyzer
      soh::AbstractArray{Float64,3}
      # Eco
      C_elyz::AbstractArray{Float64,2}
-end
-# Constructor
-function Electrolyzer(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
-     # Paramètres
-     α_p = outputGUI.α_p
-     η_E_H2 = outputGUI.η_E_H2
-     η_E_H = outputGUI.η_E_H
-     lifetime = outputGUI.lifetime
-     nHoursMax = outputGUI.nHoursMax
-     # Variables
-     powerMax = convert(SharedArray,zeros(ny+1, ns))
-     power_E = convert(SharedArray,zeros(nh, ny, ns))
-     power_H = convert(SharedArray,zeros(nh, ny, ns))
-     power_H2 = convert(SharedArray,zeros(nh, ny, ns))
-     soh = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     # Eco
-     C_elyz = convert(SharedArray,zeros(ny, ns))
-     return Electrolyzer(α_p,η_E_H2,η_E_H,lifetime,nHoursMax,powerMax,power_E,power_H,power_H2,soh,C_elyz)
+     # Inner constructor
+     Electrolyzer(; α_p = 5/100,
+                 η_E_H2 = 0.5,
+                 η_E_H = 0.3,
+                 lifetime = 10.,
+                 nHoursMax = 26000.,
+                 powerMax_ini = 0.,
+                 soh_ini = 1.) =
+                 new(α_p, η_E_H2, η_E_H, lifetime, nHoursMax, powerMax_ini, soh_ini)
 end
 
-#                               Operation dynamic
-#______________________________________________________________________________
+### Preallocation
+function preallocate!(elyz::Electrolyzer, nh::Int64, ny::Int64, ns::Int64)
+     elyz.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; elyz.powerMax[1,:] .= elyz.powerMax_ini
+     elyz.power_E = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.power_H = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; elyz.soh[1,1,:] .= elyz.soh_ini
+     elyz.C_elyz = convert(SharedArray,zeros(ny, ns))
+end
+
+### Operation dynamic
 function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64, Δh::Int64)
     #=
     INPUT :
@@ -69,8 +70,7 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
     return power_E, power_H, power_H2, soh_next
 end
 
-#                               Investment dynamic
-#______________________________________________________________________________
+### Investment dynamic
 function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Union{Float64, Int64})
     #=
         INPUT :

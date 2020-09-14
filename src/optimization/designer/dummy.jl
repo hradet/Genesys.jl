@@ -7,53 +7,27 @@ mutable struct DummyDesigner <: AbstractDesigner
     DummyDesigner() = new()
 end
 
-#### Offline functions ####
-# Simple
-function initialize_designer(ld::Genesys.Load, pv::Genesys.Source,
-    liion::Genesys.Liion, designer::DummyDesigner,
-     grid::Genesys.Grid, ω_optim::Genesys.Scenarios, parameters::NamedTuple)
-     # Parameters
-     nh = size(ld.power_E,1) # number of simulation hours in one year
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
-
-     # Initialize controller and designer policies
-     # The policy must be initialize at this place...
-
-     # Initialize decisions variables
-     designer.u = (
-     u_liion = zeros(ny,ns),
-     u_pv = zeros(ny,ns),
-     )
+### Offline
+function initialize_designer!(des::DES, ω::Scenarios)
+    return nothing
 end
 
-#### Online functions ####
-# Simple
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, grid::Grid, designer::DummyDesigner, ω_optim::Scenarios, parameters::NamedTuple)
-    ϵ = 0.1
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
-    end
-end
-# Multi-energy
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto,
-    heater::Heater, designer::DummyDesigner, ω_optim::Scenarios, parameters::NamedTuple)
+### Online
+function compute_investment_decisions!(y::Int64, s::Int64, des::DES)
     ϵ = 0.1
 
     # Liion
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
+    if isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ
+        des.designer.u.liion[y,s] = des.liion.Erated[y,s]
     end
 
     # Electrolyzer
-    if elyz.soh[end,y,s] < ϵ
-        designer.u.u_elyz[y,s] = elyz.powerMax[y,s]
+    if isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ
+        des.designer.u.elyz[y,s] = des.elyz.powerMax[y,s]
     end
 
     # FuelCell
-    if fc.soh[end,y,s] < ϵ
-        designer.u.u_fc[y,s] = fc.powerMax[y,s]
+    if isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ
+        des.designer.u.fc[y,s] = des.fc.powerMax[y,s]
     end
 end

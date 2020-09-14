@@ -2,9 +2,7 @@
     H2 tank storage modelling
  =#
 
- #                                  Structure
- #______________________________________________________________________________
-struct H2Tank
+mutable struct H2Tank
      # Paramètres
      α_p_ch::Float64
      α_p_dch::Float64
@@ -14,35 +12,38 @@ struct H2Tank
      α_soc_min::Float64
      α_soc_max::Float64
      lifetime::Float64
+     # Initial conditions
+     Erated_ini::Float64
+     soc_ini::Float64
      # Variable
      Erated::AbstractArray{Float64,2}
      power_H2::AbstractArray{Float64,3}
      soc::AbstractArray{Float64,3}
      # Eco
      C_tank::AbstractArray{Float64,2}
-end
-# Constructor
-function H2Tank(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
-     # Paramètres
-     α_p_ch = outputGUI.α_p_ch
-     α_p_dch = outputGUI.α_p_dch
-     η_ch = outputGUI.η_ch
-     η_dch = outputGUI.η_dch
-     η_self = outputGUI.η_self
-     α_soc_min = outputGUI.α_soc_min
-     α_soc_max = outputGUI.α_soc_max
-     lifetime = outputGUI.lifetime
-     # Variables
-     Erated = convert(SharedArray,zeros(ny+1, ns))
-     power_H2 = convert(SharedArray,zeros(nh, ny, ns))
-     soc = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     # Eco
-     C_tank = convert(SharedArray,zeros(ny, ns))
-     return H2Tank(α_p_ch,α_p_dch,η_ch,η_dch,η_self,α_soc_min,α_soc_max,lifetime,Erated,power_H2,soc,C_tank)
+     # Inner constructor
+     H2Tank(; α_p_ch = 1.5,
+        α_p_dch = 1.5,
+        η_ch = 1.,
+        η_dch = 1.,
+        η_self = 0.,
+        α_soc_min = 0.,
+        α_soc_max = 1.,
+        lifetime = 25,
+        Erated_ini = 0.,
+        soc_ini = 0.5) =
+        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
 end
 
-#                               Operation dynamic
-#______________________________________________________________________________
+### Preallocation
+function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
+   h2tank.Erated = convert(SharedArray,zeros(ny+1, ns)) ; h2tank.Erated[1,:] .= h2tank.Erated_ini
+   h2tank.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
+   h2tank.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; h2tank.soc[1,1,:] .= h2tank.soc_ini
+   h2tank.C_tank = convert(SharedArray,zeros(ny, ns))
+end
+
+### Operation dynamic
 function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Float64, Δh::Int64)
      #=
      INPUT :
@@ -69,8 +70,7 @@ function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Floa
      return soc_next, power_ch + power_dch
 end
 
-#                               Investment dynamic
-#______________________________________________________________________________
+### Investment dynamic
 function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank::Union{Float64, Int64})
      #=
          INPUT :

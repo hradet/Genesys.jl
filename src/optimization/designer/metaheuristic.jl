@@ -41,24 +41,25 @@ function initialize_designer(ld::Load, pv::Source, liion::Liion,
           # Compute tech indicators
           tech = compute_tech_indicators(ld, grid)
 
-          # Objective
-          obj = - costs.npv[1] + 1e10 * max(0., grid.τ_energy - minimum(tech.τ_self[2:end,:]))
+          # Objective - algorithm find the maximum
+          obj = costs.npv[1] - 1e10 * max(0., grid.τ_energy - minimum(tech.τ_self[2:end,:]))
 
-         return obj # As the algorithm find the minimum...
+         return obj
      end
 
      # Initialize decision variables and bounds
-     u0 = [designer.parameters["u0"].pv, designer.parameters["u0"].liion]
      lb = [designer.parameters["lb"].pv, designer.parameters["lb"].liion]
      ub = [designer.parameters["ub"].pv, designer.parameters["ub"].liion]
 
      # Compute investment decisions
-     designer.results = Evolutionary.optimize(objective_function, lb, ub, u0, GA(), Evolutionary.Options(iterations=100))
+     designer.results = Metaheuristics.optimize(objective_function, lb, ub,
+                                                Metaheuristics.Clearing(),
+                                                options = Metaheuristics.Options(iterations=10, multithreads=true, itmax_unchanged=5))
 
      # Formatting variables to simulation
      designer.u = (
-     u_pv = repeat(vcat(Evolutionary.minimizer(designer.results)[1], zeros(ny-1,1)), 1, ns),
-     u_liion = repeat(vcat(Evolutionary.minimizer(designer.results)[2], zeros(ny-1,1)), 1, ns),
+     u_pv = repeat(vcat(designer.results.minimizer[1], zeros(ny-1,1)), 1, ns),
+     u_liion = repeat(vcat(designer.results.minimizer[2], zeros(ny-1,1)), 1, ns),
      )
 
 end

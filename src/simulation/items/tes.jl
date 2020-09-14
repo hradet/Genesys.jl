@@ -2,9 +2,7 @@
     Thermal energy storage modelling
  =#
 
-#                                  Structure
-#______________________________________________________________________________
-struct ThermalSto
+mutable struct ThermalSto
      # Paramètres
      α_p_ch::Float64
      α_p_dch::Float64
@@ -14,35 +12,38 @@ struct ThermalSto
      α_soc_min::Float64
      α_soc_max::Float64
      lifetime::Float64
+     # Initial conditions
+     Erated_ini::Float64
+     soc_ini::Float64
      # Variables
      Erated::AbstractArray{Float64,2}
      power_H::AbstractArray{Float64,3}
      soc::AbstractArray{Float64,3}
      # Eco
      C_tes::AbstractArray{Float64,2}
-end
-# Constructor
-function ThermalSto(outputGUI::NamedTuple, nh::Int64, ny::Int64, ns::Int64)
-     # Paramètres
-     α_p_ch = outputGUI.α_p_ch
-     α_p_dch = outputGUI.α_p_dch
-     η_ch = outputGUI.η_ch
-     η_dch = outputGUI.η_dch
-     η_self = outputGUI.η_self
-     α_soc_min = outputGUI.α_soc_min
-     α_soc_max = outputGUI.α_soc_max
-     lifetime = outputGUI.lifetime
-     # Variables
-     Erated = convert(SharedArray,zeros(ny+1, ns))
-     power_H = convert(SharedArray,zeros(nh, ny, ns))
-     soc = convert(SharedArray,zeros(nh+1, ny+1, ns))
-     # Eco
-     C_tes = convert(SharedArray,zeros(ny, ns))
-     return ThermalSto(α_p_ch,α_p_dch,η_ch,η_dch,η_self,α_soc_min,α_soc_max,lifetime,Erated,power_H,soc,C_tes)
+     # Inner constructor
+     ThermalSto(; α_p_ch = 1.5,
+          α_p_dch = 1.5,
+          η_ch = 0.9,
+          η_dch = 0.9,
+          η_self = 0.01,
+          α_soc_min = 0.,
+          α_soc_max = 1.,
+          lifetime = 25,
+          Erated_ini = 0.,
+          soc_ini = 0.5) =
+          new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
 end
 
-#                               Operation dynamic
-#______________________________________________________________________________
+### Preallocation
+function preallocate!(tes::ThermalSto, nh::Int64, ny::Int64, ns::Int64)
+   tes.Erated = convert(SharedArray,zeros(ny+1, ns)) ; tes.Erated[1,:] .= tes.Erated_ini
+   tes.power_H = convert(SharedArray,zeros(nh, ny, ns))
+   tes.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; tes.soc[1,1,:] .= tes.soc_ini
+   tes.C_tes = convert(SharedArray,zeros(ny, ns))
+end
+
+### Operation dynamic
 function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Float64, Δh::Int64)
     #=
     INPUT :
@@ -69,8 +70,7 @@ function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::F
     return soc_next, power_ch + power_dch
 end
 
-#                               Investment dynamic
-#______________________________________________________________________________
+### Investment dynamic
 function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Union{Float64, Int64})
     #=
         INPUT :

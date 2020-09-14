@@ -13,7 +13,7 @@ end
 # Simple
 function rb_operation_policy(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion, controller::RuleBasedController)
     # Liion
-    u_liion = ld.power_E[h,y,s] - pv.power_E[h,y,s]
+    u_liion = ld.power[h,y,s] - pv.power_E[h,y,s]
     return u_liion
 end
 # Multi-energy

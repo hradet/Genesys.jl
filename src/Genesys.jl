@@ -1,22 +1,23 @@
 module Genesys
 
 # Optimisation
-using JuMP, CPLEX, Evolutionary
+using JuMP, CPLEX, Metaheuristics
 # Math
 using Statistics, Clustering, Distributions
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
-include(joinpath("simulation","components","liion.jl"))
-include(joinpath("simulation","components","tes.jl"))
-include(joinpath("simulation","components","h2tank.jl"))
-include(joinpath("simulation","components","electrolyzer.jl"))
-include(joinpath("simulation","components","fuel_cell.jl"))
-include(joinpath("simulation","components","heater.jl"))
-include(joinpath("simulation","components","grid.jl"))
-include(joinpath("simulation","components","sources.jl"))
-include(joinpath("simulation","components","loads.jl"))
-include(joinpath("simulation","components","abstract.jl"))
+include(joinpath("simulation","items","liion.jl"))
+include(joinpath("simulation","items","tes.jl"))
+include(joinpath("simulation","items","h2tank.jl"))
+include(joinpath("simulation","items","electrolyzer.jl"))
+include(joinpath("simulation","items","fuel_cell.jl"))
+include(joinpath("simulation","items","heater.jl"))
+include(joinpath("simulation","items","grid.jl"))
+include(joinpath("simulation","items","sources.jl"))
+include(joinpath("simulation","items","loads.jl"))
+include(joinpath("simulation","items","abstract.jl"))
+include(joinpath("simulation","items","DES.jl"))
 # Simulation
 include(joinpath("simulation","informations.jl"))
 include(joinpath("simulation","dynamics.jl"))
@@ -41,6 +42,7 @@ include(joinpath("optimization","designer","eac_stoch.jl"))
 include(joinpath("optimization","designer","eac_stoch_td.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
 # Operation optimization
+include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","rule_based.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
 # Post-processing
@@ -48,7 +50,6 @@ include(joinpath("postprocessing","indicators.jl"))
 include(joinpath("postprocessing","plots.jl"))
 include(joinpath("postprocessing","saves.jl"))
 # Utils
-include(joinpath("utils","initialization.jl"))
-include(joinpath("utils","virtual_GUI.jl"))
+include(joinpath("utils","GUI.jl"))
 
 end

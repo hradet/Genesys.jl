@@ -3,39 +3,33 @@
     and investment informations
  =#
 
-# Simple
-function update_operation_informations(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion, grid::Grid, ω::AbstractScenarios)
-    # Energy demand and production
-    ld.power_E[h,y,s] = ω.values.ld_E[h,y,s]
-    pv.power_E[h,y,s] = pv.powerMax[y,s] * ω.values.pv_E[h,y,s]
-    # Electricity tariff
-    grid.C_grid_in[h,y,s] = ω.values.C_grid_in[h,y,s]
-    grid.C_grid_out[h,y,s] = ω.values.C_grid_out[h,y,s]
+
+function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::DES, ω::AbstractScenarios)
+
+    isa(des.ld_E, Load) ? des.ld_E.power[h,y,s] = ω.values.ld_E[h,y,s] : nothing
+
+    isa(des.ld_H, Load) ? des.ld_H.power[h,y,s] = ω.values.ld_H[h,y,s] : nothing
+
+    isa(des.pv, Source) ? des.pv.power_E[h,y,s] = des.pv.powerMax[y,s] * ω.values.pv_E[h,y,s] : nothing
+
+    if isa(des.grid, Grid)
+        des.grid.C_grid_in[h,y,s] = ω.values.C_grid_in[h,y,s]
+        des.grid.C_grid_out[h,y,s] = ω.values.C_grid_out[h,y,s]
+    end
 end
-function update_investment_informations(y::Int64, s::Int64, pv::Source, liion::Liion, ω::AbstractScenarios)
-    # Investment cost
-    pv.C_pv[y,s] = ω.values.C_pv[y,s]
-    liion.C_liion[y,s] = ω.values.C_liion[y,s]
-end
-# Multi-energy
-function update_operation_informations(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source, liion::Liion,
-    h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater, grid::Grid, ω::AbstractScenarios)
-    # Energy demand and production
-    ld.power_E[h,y,s] = ω.values.ld_E[h,y,s]
-    ld.power_H[h,y,s] = ω.values.ld_H[h,y,s]
-    pv.power_E[h,y,s] = pv.powerMax[y,s] * ω.values.pv_E[h,y,s]
-    # Electricity tariff
-    grid.C_grid_in[h,y,s] = ω.values.C_grid_in[h,y,s]
-    grid.C_grid_out[h,y,s] = ω.values.C_grid_out[h,y,s]
-end
-function update_investment_informations(y::Int64, s::Int64, pv::Source, liion::Liion,
-    h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater, ω::AbstractScenarios)
-    # Investment cost
-    pv.C_pv[y,s] = ω.values.C_pv[y,s]
-    liion.C_liion[y,s] = ω.values.C_liion[y,s]
-    tes.C_tes[y,s] = ω.values.C_tes[y,s]
-    h2tank.C_tank[y,s] = ω.values.C_tank[y,s]
-    elyz.C_elyz[y,s] = ω.values.C_elyz[y,s]
-    fc.C_fc[y,s] = ω.values.C_fc[y,s]
-    heater.C_heater[y,s] = ω.values.C_heater[y,s]
+function update_investment_informations!(y::Int64, s::Int64, des::DES, ω::AbstractScenarios)
+
+    isa(des.pv, Source) ? des.pv.C_pv[y,s] = ω.values.C_pv[y,s] : nothing
+
+    isa(des.liion, Liion) ? des.liion.C_liion[y,s] = ω.values.C_liion[y,s] : nothing
+
+    isa(des.tes, ThermalSto) ? des.tes.C_tes[y,s] = ω.values.C_tes[y,s] : nothing
+
+    isa(des.h2tank, H2Tank) ? des.h2tank.C_tank[y,s] = ω.values.C_tank[y,s] : nothing
+
+    isa(des.elyz, Electrolyzer) ? des.elyz.C_elyz[y,s] = ω.values.C_elyz[y,s] : nothing
+
+    isa(des.fc, FuelCell) ? des.fc.C_fc[y,s] = ω.values.C_fc[y,s] : nothing
+
+    isa(des.heater, Heater) ? des.heater.C_heater[y,s] = ω.values.C_heater[y,s] : nothing
 end
