@@ -37,7 +37,7 @@ function preallocate!(fc::FuelCell, nh::Int64, ny::Int64, ns::Int64)
      fc.power_E = convert(SharedArray,zeros(nh, ny, ns))
      fc.power_H = convert(SharedArray,zeros(nh, ny, ns))
      fc.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
-     fc.soh = convert(SharedArray,zeros(nh+1, ny+1, ns))
+     fc.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; fc.soh[1,1,:] .= fc.soh_ini
      fc.C_fc = convert(SharedArray,zeros(ny, ns))
 end
 

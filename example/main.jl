@@ -26,7 +26,7 @@ DES = DistributedEnergySystem(ld_E = Load(),
                               fc = FuelCell(),
                               heater = Heater(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.4))
+                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.6))
 
 # Initialize controller
 controller = initialize_controller!(DES,
@@ -45,3 +45,5 @@ designer = initialize_designer!(DES,
 # Postprocessing
 costs = Genesys.compute_economics(DES, designer)
 tech = Genesys.compute_tech_indicators(DES)
+Genesys.plot_operation(DES)
+Genesys.plot_investment(DES, designer)
