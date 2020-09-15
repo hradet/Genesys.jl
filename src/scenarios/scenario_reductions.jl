@@ -38,10 +38,10 @@ end
 # One stage designer reduction
 function scenarios_reduction(designer::AbstractOneStageDesigner, ω::Scenarios)
 
-    if designer.parameters["reduction"] == "manual"
+    if designer.options.scenario_reduction == "manual"
         # Year and scenario indexes are manually chosen
-        y = designer.parameters["idx_year"]
-        s = designer.parameters["idx_scenario"]
+        y =  designer.options.y
+        s =  designer.options.s
     else
         # Year and scenario indexes are randomly chosen to 1
         y, s = 1, 1

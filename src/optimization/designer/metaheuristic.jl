@@ -1,7 +1,7 @@
 #=
     Designer based on a metaheuristic
 =#
-
+#TODO ajouter controller dans les options de metheuristic
 mutable struct MetaHeuristicDesigner <: AbstractMultiStageDesigner
     u::NamedTuple
     parameters::Dict{String, Any}

@@ -1,254 +1,297 @@
 #=
-    Designer based on the equivalent annual cost (EAC)
+    Equivalent annual cost (EAC) designer based on a single year
 =#
 
+mutable struct EACOptions
+  solver
+  scenario_reduction::String # scenario reduction technique "manual" or "auto"
+  share_constraint::Bool
+  s::Int64 # scenario index for the manual reduction technique
+  y::Int64 # year index for the manual reduction technique
+
+  EACOptions(; solver = CPLEX, scenario_reduction = "manual", share_constraint = true, s = 1, y = 1) = new(solver, scenario_reduction, share_constraint, s, y)
+end
+
 mutable struct EACDesigner <: AbstractOneStageDesigner
+    options::EACOptions
     u::NamedTuple
     model::JuMP.Model
-    parameters::Dict{String, Any}
-    EACDesigner() = new()
+
+    EACDesigner(; options = EACOptions()) = new(options)
 end
 
-#### Models ####
-# Simple
-function eac_milp_model(ld::Load, pv::Source, liion::Liion,
-  designer::EACDesigner, grid::Grid, ω_optim::Scenarios,
-  parameters::NamedTuple)
+### Model
+function build_model!(des::DistributedEnergySystem, designer::EACDesigner, ω_optim::Scenarios)
 
-    # Parameters
-    Γ_liion = (parameters.τ * (parameters.τ + 1.) ^ liion.lifetime) / ((parameters.τ + 1.) ^ liion.lifetime - 1.)
-    Γ_pv = (parameters.τ * (parameters.τ + 1.) ^ pv.lifetime) / ((parameters.τ + 1.) ^ pv.lifetime - 1.)
+    #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
 
     # Sets
-    nh = size(ω_optim.values.ld_E,1) # Number of hours
+    nh = des.parameters.nh # Number of hours
 
     # Model definition
     m = Model(CPLEX.Optimizer)
 
-    # Variables
-    @variables(m, begin
-    # Operation decision variables
-     p_liion_ch[1:nh] <= 0.
-     p_liion_dch[1:nh] >= 0.
-     p_g_out[1:nh] <= 0.
-     p_g_in[1:nh] >= 0.
-     # Investment decision variables
-     0 <= r_liion <= 1000
-     0 <= r_pv <= 1000
-     # Operation states variables
-     soc_liion[1:nh+1]
-    end)
+    # Initialize expressions
+    isa(des.ld_E, Load) ? power_balance_E = AffExpr.(- ω_optim.values.ld_E) : nothing
+    isa(des.ld_H, Load) ? power_balance_H = AffExpr.(- ω_optim.values.ld_H) : nothing
+    power_balance_H2 = AffExpr.(zeros(nh))
+    capex = AffExpr(0.)
 
-    # Constraints
-    @constraints(m, begin
-    # Power bounds
-    [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * r_liion
-    [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * r_liion
-    [h in 1:nh], p_g_in[h] <= (1. - grid.τ_power) * maximum(ω_optim.values.ld_E)
-    # SoC bounds
-    [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * r_liion
-    [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * r_liion
-    # Investment bounds
-    r_liion <= 1000.
-    r_pv <= 1000.
-    # State dynamic
-    [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1 - liion.η_self * parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * parameters.Δh
-    # Power balance
-    [h in 1:nh], ω_optim.values.ld_E[h] - r_pv * ω_optim.values.pv_E[h] <= p_g_out[h] + p_g_in[h] + p_liion_ch[h] + p_liion_dch[h]
-    # Self-sufficiency constraint
-    self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - grid.τ_energy) * sum(ω_optim.values.ld_E[h] for h in 1:nh)
-    # Initial and final conditions
-    soc_liion[1] == liion.soc[1] * r_liion
-    soc_liion[end] == soc_liion[1]
-    end)
+    # Build model
+    if isa(des.liion, Liion)
+        # Parameters
+        Γ_liion = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.liion.lifetime) / ((des.parameters.τ + 1.) ^ des.liion.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_liion_ch[1:nh] <= 0.
+        p_liion_dch[1:nh] >= 0.
+        # Investment decisions variables
+        0 <= r_liion <= 1000
+        # Operation state variables
+        soc_liion[1:nh+1]
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_liion_dch[h] <= des.liion.α_p_dch * r_liion
+        [h in 1:nh], p_liion_ch[h] >= -des.liion.α_p_ch * r_liion
+        # SoC bounds
+        [h in 1:nh+1], soc_liion[h] <= des.liion.α_soc_max * r_liion
+        [h in 1:nh+1], soc_liion[h] >= des.liion.α_soc_min * r_liion
+        # State dynamics
+        [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * des.liion.η_ch + p_liion_dch[h] / des.liion.η_dch) * des.parameters.Δh
+        # Initial and final conditions
+        soc_liion[1] == des.liion.soc_ini * r_liion
+        soc_liion[nh] >= soc_liion[1]
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_liion_ch .+ p_liion_dch) : nothing
+        # CAPEX
+        add_to_expression!(capex, Γ_liion * ω_optim.values.C_liion[1] * r_liion)
+    end
 
-    # CAPEX
-    capex = @expression(m, Γ_pv * ω_optim.values.C_pv[1] * r_pv + Γ_liion * ω_optim.values.C_liion[1] * r_liion)
+    if isa(des.tes, ThermalSto)
+        # Parameters
+        Γ_tes = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.tes.lifetime) / ((des.parameters.τ + 1.) ^ des.tes.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_tes_ch[1:nh] <= 0.
+        p_tes_dch[1:nh] >= 0.
+        # Investment decisions variables
+        0 <= r_tes <= 1000
+        # Operation state variables
+        soc_tes[1:nh+1]
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_tes_dch[h] <= des.tes.α_p_dch * r_tes
+        [h in 1:nh], p_tes_ch[h] >= -des.tes.α_p_ch * r_tes
+        # SoC bounds
+        [h in 1:nh+1], soc_tes[h] <= des.tes.α_soc_max * r_tes
+        [h in 1:nh+1], soc_tes[h] >= des.tes.α_soc_min * r_tes
+        # State dynamics
+        [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - des.tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * des.tes.η_ch + p_tes_dch[h] / des.tes.η_dch) * des.parameters.Δh
+        # Initial and final conditions
+        soc_tes[1] == des.tes.soc_ini * r_tes
+        soc_tes[nh] >= soc_tes[1]
+        end)
+        # Power balance
+        isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, p_tes_ch .+ p_tes_dch) : nothing
+        # CAPEX
+        add_to_expression!(capex, Γ_tes * ω_optim.values.C_tes[1] * r_tes)
+    end
+
+    if isa(des.h2tank, H2Tank)
+        # Parameters
+        Γ_h2tank = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.h2tank.lifetime) / ((des.parameters.τ + 1.) ^ des.h2tank.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_h2tank_ch[1:nh] <= 0.
+        p_h2tank_dch[1:nh] >= 0.
+        # Investment decisions variables
+        0 <= r_h2tank <= 50000
+        # Operation state variables
+        soc_h2tank[1:nh+1]
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_h2tank_dch[h] <= des.h2tank.α_p_dch * r_h2tank
+        [h in 1:nh], p_h2tank_ch[h] >= -des.h2tank.α_p_ch * r_h2tank
+        # SoC bounds
+        [h in 1:nh+1], soc_h2tank[h] <= des.h2tank.α_soc_max * r_h2tank
+        [h in 1:nh+1], soc_h2tank[h] >= des.h2tank.α_soc_min * r_h2tank
+        # State dynamics
+        [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - des.h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * des.h2tank.η_ch + p_h2tank_dch[h] / des.h2tank.η_dch) * des.parameters.Δh
+        # Initial and final conditions
+        soc_h2tank[1] == des.h2tank.soc_ini * r_h2tank
+        soc_h2tank[nh] >= soc_h2tank[1]
+        end)
+        # Power balances
+        add_to_expression!.(power_balance_H2, p_h2tank_ch .+ p_h2tank_dch)
+        # CAPEX
+        add_to_expression!.(capex, Γ_h2tank * ω_optim.values.C_tank[1] * r_h2tank)
+    end
+
+    if isa(des.elyz, Electrolyzer)
+        # Parameters
+        Γ_elyz = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.elyz.lifetime) / ((des.parameters.τ + 1.) ^ des.elyz.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_elyz_E[1:nh] <= 0.
+        # Investment decisions variables
+        0 <= r_elyz <= 50
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_elyz_E[h] >= -r_elyz
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_elyz_E) : nothing
+        isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, - des.elyz.η_E_H .* p_elyz_E) : nothing
+        add_to_expression!.(power_balance_H2, - des.elyz.η_E_H2 * p_elyz_E)
+        # CAPEX
+        add_to_expression!(capex, Γ_elyz * ω_optim.values.C_elyz[1] * r_elyz)
+    end
+
+    if isa(des.fc, FuelCell)
+        # Parameters
+        Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.fc.lifetime) / ((des.parameters.τ + 1.) ^ des.fc.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_fc_E[1:nh] >= 0.
+        # Investment decisions variables
+        0 <= r_fc <= 50
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_fc_E[h] <= r_fc
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_fc_E) : nothing
+        isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, des.fc.η_H2_H / des.fc.η_H2_E .* p_fc_E) : nothing
+        add_to_expression!.(power_balance_H2, - p_fc_E / des.fc.η_H2_E)
+        # CAPEX
+        add_to_expression!(capex, Γ_fc * ω_optim.values.C_fc[1] * r_fc)
+    end
+
+    if isa(des.heater, Heater)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_heater_E[1:nh] <= 0.
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_heater_E[h] >= -des.heater.powerMax[1]
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_heater_E) : nothing
+        isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, - des.heater.η_E_H .* p_heater_E) : nothing
+    end
+
+    if isa(des.pv, Source)
+        # Parameters
+        Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.pv.lifetime) / ((des.parameters.τ + 1.) ^ des.pv.lifetime - 1.)
+        # Variables
+        @variables(m, begin
+        # Investment decisions variables
+        0 <= r_pv <= 1000
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, r_pv * ω_optim.values.pv_E) : nothing
+        # CAPEX
+        add_to_expression!(capex, Γ_pv * ω_optim.values.C_pv[1] * r_pv)
+    end
+
+    if isa(des.grid, Grid)
+        # Variables
+        @variables(m, begin
+        # Operation decisions variables
+        p_g_out[1:nh] <= 0.
+        p_g_in[1:nh] >= 0.
+        end)
+        # Constraints
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh], p_g_in[h] <= des.grid.powerMax
+        end)
+        # Power balance
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_g_in .+ p_g_out) : nothing
+    end
+
+    # Power balances
+    isa(des.ld_E, Load) ? @constraint(m, power_balance_E .>= 0.) : nothing
+    isa(des.ld_H, Load) ? @constraint(m, power_balance_H .>= 0.) : nothing
+    @constraint(m, power_balance_H2 .== 0.)
+
+    # Share of renewables constraint
+    if designer.options.share_constraint
+        ld_tot = 0.
+        isa(des.ld_E, Load) ? ld_tot += sum(ω_optim.values.ld_E[h] for h in 1:nh) : nothing
+        isa(des.ld_H, Load) ? ld_tot += sum(ω_optim.values.ld_H[h] ./ des.heater.η_E_H for h in 1:nh) : nothing
+        @constraint(m, self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - des.parameters.τ_share) * ld_tot)
+    end
 
     # OPEX
-    opex = @expression(m, sum((p_g_in[h] * ω_optim.values.C_grid_in[h] + p_g_out[h] * ω_optim.values.C_grid_out[h]) * parameters.Δh  for h in 1:nh))
+    opex = @expression(m, sum((p_g_in[h] * ω_optim.values.C_grid_in[h] + p_g_out[h] * ω_optim.values.C_grid_out[h]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
     @objective(m, Min, capex + opex)
 
-    return m
-end
-# Multi-energy
-function eac_milp_model(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
-   elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
-    designer::EACDesigner, grid::Grid, ω_optim::Scenarios,
-    parameters::NamedTuple)
-    # Parameters
-    Γ_pv = (parameters.τ * (parameters.τ + 1.) ^ pv.lifetime) / ((parameters.τ + 1.) ^ pv.lifetime - 1.)
-    Γ_liion = (parameters.τ * (parameters.τ + 1.) ^ liion.lifetime) / ((parameters.τ + 1.) ^ liion.lifetime - 1.)
-    Γ_tank = (parameters.τ * (parameters.τ + 1.) ^ h2tank.lifetime) / ((parameters.τ + 1.) ^ h2tank.lifetime - 1.)
-    Γ_elyz = (parameters.τ * (parameters.τ + 1.) ^ elyz.lifetime) / ((parameters.τ + 1.) ^ elyz.lifetime - 1.)
-    Γ_fc = (parameters.τ * (parameters.τ + 1.) ^ fc.lifetime) / ((parameters.τ + 1.) ^ fc.lifetime - 1.)
-    Γ_tes = (parameters.τ * (parameters.τ + 1.) ^ tes.lifetime) / ((parameters.τ + 1.) ^ tes.lifetime - 1.)
-
-    # Sets
-    nh = size(ω_optim.values.ld_E,1) # Number of hours
-
-    # Model definition
-    m = Model(CPLEX.Optimizer)
-
-    # Variables
-    @variables(m, begin
-    # Operation decisions variables
-    p_liion_ch[1:nh] <= 0.
-    p_liion_dch[1:nh] >= 0.
-    p_elyz_E[1:nh] <= 0.
-    p_fc_E[1:nh] >= 0.
-    p_tes_ch[1:nh] <= 0.
-    p_tes_dch[1:nh] >= 0.
-    p_heater_E[1:nh] <= 0.
-    p_g_out[1:nh] <= 0.
-    p_g_in[1:nh] >= 0.
-    # Investment decisions variables
-    0 <= r_pv <= 1000
-    0 <= r_liion <= 1000
-    0 <= r_tank <= 50000
-    0 <= r_elyz <= 50
-    0 <= r_fc <= 50
-    0 <= r_tes <= 1000
-    # Operation state variables
-    soc_liion[1:nh+1]
-    soc_h2[1:nh+1]
-    soc_tes[1:nh+1]
-    end)
-
-    # Constraints
-    @constraints(m, begin
-    # Power bounds
-    [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * r_liion
-    [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * r_liion
-    [h in 1:nh], p_tes_dch[h] <= tes.α_p_dch * r_tes
-    [h in 1:nh], p_tes_ch[h] >= -tes.α_p_ch * r_tes
-    [h in 1:nh], p_fc_E[h] <= r_fc
-    [h in 1:nh], p_elyz_E[h] >= -r_elyz
-    [h in 1:nh], p_heater_E[h] >= -heater.powerMax[1]
-    [h in 1:nh], p_g_in[h] <= (1. - grid.τ_power) * maximum(ω_optim.values.ld_E .+ ω_optim.values.ld_H ./ heater.η_E_H) # seems to be faster in vectorized form
-    # SoC bounds
-    [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * r_liion
-    [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * r_liion
-    [h in 1:nh+1], soc_h2[h] <= h2tank.α_soc_max * r_tank
-    [h in 1:nh+1], soc_h2[h] >= h2tank.α_soc_min * r_tank
-    [h in 1:nh+1], soc_tes[h] <= tes.α_soc_max * r_tes
-    [h in 1:nh+1], soc_tes[h] >= tes.α_soc_min * r_tes
-    # State dynamics
-    [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - liion.η_self * parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * parameters.Δh
-    [h in 1:nh], soc_h2[h+1] == soc_h2[h] * (1. - h2tank.η_self * parameters.Δh) - (p_elyz_E[h] * elyz.η_E_H2 + p_fc_E[h] / fc.η_H2_E) * parameters.Δh
-    [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - tes.η_self * parameters.Δh) - (p_tes_ch[h] * tes.η_ch + p_tes_dch[h] / tes.η_dch) * parameters.Δh
-    # Power balance
-    [h in 1:nh], ω_optim.values.ld_E[h] - r_pv * ω_optim.values.pv_E[h] <= p_g_out[h] + p_g_in[h] + p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h]
-    [h in 1:nh], ω_optim.values.ld_H[h] <= - elyz.η_E_H * p_elyz_E[h] +  fc.η_H2_H / fc.η_H2_E * p_fc_E[h] -  heater.η_E_H * p_heater_E[h] + p_tes_ch[h] + p_tes_dch[h]
-    # Self-sufficiency constraint
-    self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - grid.τ_energy) * sum(ω_optim.values.ld_E[h] .+ ω_optim.values.ld_H[h] ./ heater.η_E_H for h in 1:nh)
-    # Initial and final conditions
-    soc_liion[1] == liion.soc[1,1] * r_liion
-    soc_h2[1] == h2tank.soc[1,1] * r_tank
-    soc_tes[1] == tes.soc[1,1] * r_tes
-    soc_liion[nh] >= soc_liion[1]
-    soc_h2[nh] >= soc_h2[1]
-    soc_tes[nh] >= soc_tes[1]
-    end)
-
-    # CAPEX
-    capex = @expression(m, Γ_pv * ω_optim.values.C_pv[1] * r_pv +
-    Γ_liion * ω_optim.values.C_liion[1] * r_liion +
-    Γ_tank * ω_optim.values.C_tank[1] * r_tank +
-    Γ_elyz * ω_optim.values.C_elyz[1] * r_elyz +
-    Γ_fc * ω_optim.values.C_fc[1] * r_fc +
-    Γ_tes * ω_optim.values.C_tes[1] * r_tes)
-
-    # OPEX
-    opex = @expression(m, sum((p_g_in[h] * ω_optim.values.C_grid_in[h] + p_g_out[h] * ω_optim.values.C_grid_out[h]) * parameters.Δh  for h in 1:nh))
-
-    # Objective
-    @objective(m, Min, capex + opex)
-
-    return m
+    # Store model
+    designer.model = m
 end
 
-#### Offline functions ####
-# Simple
-function initialize_designer(ld::Load, pv::Source, liion::Liion,
-     designer::EACDesigner, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
-     # Parameters
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
-
-     # Scenario reduction from the optimization scenario pool
-     ω_eac = scenarios_reduction(designer, ω_optim)
-
-     # Initialize model
-     designer.model = eac_milp_model(ld, pv, liion, designer, grid, ω_eac, parameters)
-
-     # Compute investment decisions
-     optimize!(designer.model)
-
-     # Formatting variables to simulation
-     designer.u = (
-     u_liion = repeat(vcat(value.(designer.model[:r_liion]), zeros(ny-1,1)), 1, ns),
-     u_pv = repeat(vcat(value.(designer.model[:r_pv]), zeros(ny-1,1)), 1, ns),
-     )
-end
-# Multi-energy
-function initialize_designer(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
-   elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
-   designer::EACDesigner, grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
-
-   # Parameters
-   ny = size(ld.power_E,2) # number of simulation years
-   ns = size(ld.power_E,3) # number of scenarios
+### Offline
+function initialize_designer!(des::DistributedEnergySystem, designer::EACDesigner, ω_optim::Scenarios)
 
    # Scenario reduction from the optimization scenario pool
    ω_eac = scenarios_reduction(designer, ω_optim)
 
-   # Initialize model
-   designer.model = eac_milp_model(ld, pv, liion, h2tank, elyz, fc, tes, heater, designer, grid, ω_eac, parameters)
+   # Build model
+   build_model!(des, designer, ω_eac)
 
-    # Compute investment decisions
-    optimize!(designer.model)
+   # Compute investment decisions
+   optimize!(designer.model)
 
-    # Formatting variables to simulation
-    designer.u = (
-    u_pv = repeat(vcat( value.(designer.model[:r_pv]), zeros(ny-1,1)), 1, ns),
-    u_liion = repeat(vcat(value.(designer.model[:r_liion]), zeros(ny-1,1)), 1, ns),
-    u_tank = repeat(vcat(value.(designer.model[:r_tank]), zeros(ny-1,1)), 1, ns),
-    u_elyz = repeat(vcat(value.(designer.model[:r_elyz]), zeros(ny-1,1)), 1, ns),
-    u_fc = repeat(vcat(value.(designer.model[:r_fc]), zeros(ny-1,1)), 1, ns),
-    u_tes = repeat(vcat(value.(designer.model[:r_tes]), zeros(ny-1,1)), 1, ns),
-    )
+   # Preallocate and assigned values
+   preallocate!(designer, des.parameters.ny, des.parameters.ns)
+   isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
+   isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
+   isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
+   isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
+   isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
+   isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
+
+   return designer
 end
 
-#### Online functions ####
-# Simple
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, grid::Grid, designer::EACDesigner, ω_optim::Scenarios, parameters::NamedTuple)
-    ϵ = 0.1
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
-    end
-end
-# Multi-energy
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto,
-    heater::Heater, designer::EACDesigner, ω_optim::Scenarios, parameters::NamedTuple)
+### Online
+function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EACDesigner)
     ϵ = 0.1
 
     # Liion
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
+    if isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ
+        designer.u.liion[y,s] = des.liion.Erated[y,s]
     end
 
     # Electrolyzer
-    if elyz.soh[end,y,s] < ϵ
-        designer.u.u_elyz[y,s] = elyz.powerMax[y,s]
+    if isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ
+        designer.u.elyz[y,s] = des.elyz.powerMax[y,s]
     end
 
     # FuelCell
-    if fc.soh[end,y,s] < ϵ
-        designer.u.u_fc[y,s] = fc.powerMax[y,s]
+    if isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ
+        designer.u.fc[y,s] = des.fc.powerMax[y,s]
     end
 end

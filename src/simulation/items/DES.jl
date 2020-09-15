@@ -1,24 +1,24 @@
 # Distributed energy system
 mutable struct GlobalParameters
     ns::Int64 # number of [nh, ny] scenarios
-    Δh::Int64 # Operations time step in hours
-    H::Int64 # Operation horizon in hours
-    Δy::Int64 # Investment time step in years
-    Y::Int64 # Investment horizon in years
-    τ::Float64 # Discount rate
-    τ_share::Float64 # Share of renewables [0,1]
+    Δh::Int64 # operations time step in hours
+    nh::Int64 # number of operation stages
+    Δy::Int64 # investment time step in years
+    ny::Int64 # number of investment stages
+    τ::Float64 # discount rate
+    τ_share::Float64 # share of renewables [0,1]
 
     GlobalParameters(;ns = 1,
                 Δh = 1,
-                H = 8760,
+                nh = 8760,
                 Δy = 1,
-                Y = 20,
+                ny = 20,
                 τ = 0.045,
                 τ_share = 0.) =
-                new(ns, Δh, H, Δy, Y, τ, τ_share)
+                new(ns, Δh, nh, Δy, ny, τ, τ_share)
 end
 
-mutable struct DES
+mutable struct DistributedEnergySystem
     parameters::GlobalParameters
     # Loads
     ld_E::Union{Nothing, Load}
@@ -35,27 +35,22 @@ mutable struct DES
     fc::Union{Nothing, FuelCell}
     # Grid
     grid::Union{Nothing, Grid}
-    # Controller
-    controller::Union{Nothing, AbstractController}
-    designer::Union{Nothing, AbstractDesigner}
 end
 
-function DES(; ld_E = nothing,
-            ld_H = nothing,
-            pv = nothing,
-            liion = nothing,
-            tes = nothing,
-            h2tank = nothing,
-            heater = nothing,
-            elyz = nothing,
-            fc = nothing,
-            grid = nothing,
-            controller = DummyController(),
-            designer = DummyDesigner(),
-            parameters = GlobalParameters())
+function DistributedEnergySystem(; ld_E = nothing,
+                                   ld_H = nothing,
+                                   pv = nothing,
+                                   liion = nothing,
+                                   tes = nothing,
+                                   h2tank = nothing,
+                                   heater = nothing,
+                                   elyz = nothing,
+                                   fc = nothing,
+                                   grid = nothing,
+                                   parameters = GlobalParameters())
     # Parameters
-    nh = length(parameters.Δh : parameters.Δh : parameters.H)
-    ny = length(parameters.Δy : parameters.Δy : parameters.Y)
+    nh = parameters.nh
+    ny = parameters.ny
     ns = parameters.ns
 
     # Loads
@@ -73,10 +68,6 @@ function DES(; ld_E = nothing,
     isa(fc, FuelCell) ? preallocate!(fc, nh, ny, ns) : nothing
     # Grid
     isa(grid, Grid) ? preallocate!(grid, nh, ny, ns) : nothing
-    # Controller
-    preallocate!(controller, nh, ny, ns)
-    # Designer
-    preallocate!(designer, nh, ny, ns)
 
-    return DES(parameters, ld_E, ld_H, pv, liion, tes, h2tank, heater, elyz, fc, grid, controller, designer)
+    return DistributedEnergySystem(parameters, ld_E, ld_H, pv, liion, tes, h2tank, heater, elyz, fc, grid)
 end

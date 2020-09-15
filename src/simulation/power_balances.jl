@@ -3,7 +3,9 @@
     constraints
 =#
 
-function compute_power_balances!(h::Int64, y::Int64, s::Int64, des::DES)
+#TODO rajouter fonction add_to_powerbalance!(power_balance, power)
+
+function compute_power_balances!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
     # Hydrogen
     check_hydrogen!(h, y, s, des)
@@ -14,7 +16,7 @@ function compute_power_balances!(h::Int64, y::Int64, s::Int64, des::DES)
     # Electricity
     check_electricity!(h, y, s, des)
 end
-function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DES)
+function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
     isa(des.h2tank, H2Tank) ? h2tank = des.h2tank.power_H2[h,y,s] : h2tank = 0.
     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H2[h,y,s] : elyz = 0.
@@ -39,9 +41,9 @@ function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DES)
 
     end
 end
-function check_heat!(h::Int64, y::Int64, s::Int64, des::DES)
+function check_heat!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
-    isa(des.ld_H, Load) ? ld_H = des.ld_H.power_H[h,y,s] : ld_H = 0.
+    isa(des.ld_H, Load) ? ld_H = des.ld_H.power[h,y,s] : ld_H = 0.
     isa(des.heater, Heater) ? heater = des.heater.power_H[h,y,s] : heater = 0.
     isa(des.tes, ThermalSto) ? tes = des.tes.power_H[h,y,s] : tes = 0.
     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H[h,y,s] : elyz = 0.
@@ -62,7 +64,7 @@ function check_heat!(h::Int64, y::Int64, s::Int64, des::DES)
         # print("Warning! Thermal load not fully supplied")
     end
 end
-function check_electricity!(h::Int64, y::Int64, s::Int64, des::DES)
+function check_electricity!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
     isa(des.ld_E, Load) ? ld_E = des.ld_E.power[h,y,s] : ld_E = 0.
     isa(des.pv, Source) ? pv = des.pv.power_E[h,y,s] : pv = 0.

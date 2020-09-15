@@ -18,16 +18,21 @@ include(joinpath("simulation","items","sources.jl"))
 include(joinpath("simulation","items","loads.jl"))
 include(joinpath("simulation","items","abstract.jl"))
 include(joinpath("simulation","items","DES.jl"))
+export DistributedEnergySystem, Source, Liion, ThermalSto, H2Tank, Electrolyzer, FuelCell, Heater, Grid, Load
 # Simulation
 include(joinpath("simulation","informations.jl"))
 include(joinpath("simulation","dynamics.jl"))
 include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
+export simulate!
 # Scenarios
 include(joinpath("scenarios","scenario_reductions.jl"))
 include(joinpath("scenarios","clustering.jl"))
 include(joinpath("scenarios","markov.jl"))
 include(joinpath("scenarios","utils.jl"))
+export Scenarios
+# Optimization
+include(joinpath("optimization","utils.jl"))
 # Anticipative optimization
 include(joinpath("optimization","anticipative","anticipative_controller.jl"))
 include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
@@ -41,10 +46,14 @@ include(joinpath("optimization","designer","eac_td.jl"))
 include(joinpath("optimization","designer","eac_stoch.jl"))
 include(joinpath("optimization","designer","eac_stoch_td.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
+export DummyDesigner, EACDesigner
+export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","rule_based.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
+export DummyController, RuleBasedController
+export initialize_controller!
 # Post-processing
 include(joinpath("postprocessing","indicators.jl"))
 include(joinpath("postprocessing","plots.jl"))
