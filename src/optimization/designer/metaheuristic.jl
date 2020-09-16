@@ -1,96 +1,125 @@
 #=
     Designer based on a metaheuristic
 =#
-#TODO ajouter controller dans les options de metheuristic
-mutable struct MetaHeuristicDesigner <: AbstractMultiStageDesigner
-    u::NamedTuple
-    parameters::Dict{String, Any}
-    results
-    MetaHeuristicDesigner() = new()
+
+mutable struct MetaheuristicOptions
+    method::Metaheuristics.AbstractMetaheuristic
+    controller::AbstractController
+    iterations::Int64
+    scenario_reduction::String
+    s::Int64
+
+    MetaheuristicOptions(; method = Metaheuristics.Clearing(),
+                           controller = RBC(),
+                           iterations = 10,
+                           scenario_reduction = "manual",
+                           s = 1) =
+                           new(method, controller, iterations, scenario_reduction, s)
+
 end
 
-#### Offline functions ####
-# Simple
-function initialize_designer(ld::Load, pv::Source, liion::Liion,
-     controller::AbstractController, designer::MetaHeuristicDesigner, grid::Grid, ω_optim::Scenarios,
-     parameters::NamedTuple)
+mutable struct Metaheuristic <: AbstractMultiStageDesigner
+    options::MetaheuristicOptions
+    u::NamedTuple
+    results::Metaheuristics.MetaheuristicResults
 
-     # Parameters
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
+    Metaheuristic(; options = MetaheuristicOptions()) = new(options)
+end
+
+### Offline
+function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω_optim::Scenarios)
 
      # Scenario reduction from the optimization scenario pool
      ω_meta = scenarios_reduction(designer, ω_optim)
 
      # Define the objective function from global variables
-     function objective_function(u::Array{Float64,1})
+     function fobj(decisions::Array{Float64,1})
+         # Initialize DES
+         des_meta = deepcopy(des)
 
-          # Initialize controller
-          dummy_designer = DummyDesigner()
+         # Initialize controller
+         controller_meta = initialize_controller!(des_meta, designer.options.controller, ω_meta)
 
-          # Initialize designer
-          initialize_designer(ld, pv, liion, dummy_designer, grid, ω_meta, parameters)
-          dummy_designer.u.u_pv[1], dummy_designer.u.u_liion[1],  = u[1], u[2]
+         # Initialize with the dummy designer
+         designer_meta = initialize_designer!(des_meta, DummyDesigner(), ω_meta)
 
-          # Simulate
-          simulate(ld, pv, liion, controller, dummy_designer, grid, ω_meta, ω_meta, parameters)
+         # Initialize with the decisions variables
+         isa(des.pv, Source) ? designer_meta.u.pv[1] = decisions[1] : nothing
+         isa(des.liion, Liion) ? designer_meta.u.liion[1] = decisions[2]  : nothing
+         isa(des.h2tank, H2Tank) ? designer_meta.u.h2tank[1] = decisions[3]  : nothing
+         isa(des.elyz, Electrolyzer) ? designer_meta.u.elyz[1] = decisions[4]  : nothing
+         isa(des.fc, FuelCell) ? designer_meta.u.fc[1] = decisions[5]  : nothing
+         isa(des.tes, ThermalSto) ? designer_meta.u.tes[1] = decisions[6]  : nothing
 
-          # Compute cost indicators
-          costs = compute_economics(ld, pv, liion, dummy_designer, grid, parameters)
+         # Simulate
+         simulate!(des_meta, controller_meta, designer_meta, ω_meta)
 
-          # Compute tech indicators
-          tech = compute_tech_indicators(ld, grid)
+         # Compute cost indicators
+         costs_meta = compute_economics(des_meta, designer_meta)
 
-          # Objective - algorithm find the maximum
-          obj = costs.npv[1] - 1e10 * max(0., grid.τ_energy - minimum(tech.τ_self[2:end,:]))
+         # Compute tech indicators
+         tech_meta = compute_tech_indicators(des_meta)
+
+         # Objective - algorithm find the maximum
+         obj = costs_meta.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(tech_meta.τ_share[2:end,:]))
 
          return obj
      end
 
-     # Initialize decision variables and bounds
-     lb = [designer.parameters["lb"].pv, designer.parameters["lb"].liion]
-     ub = [designer.parameters["ub"].pv, designer.parameters["ub"].liion]
+     # Bounds
+     lb, ub = Float64[], Float64[]
+     if isa(des.pv, Source)
+         push!(lb, 0.) ; push!(ub, 1000.)
+     end
+     if isa(des.liion, Liion)
+         push!(lb, 0.) ; push!(ub, 1000.)
+     end
+     if isa(des.h2tank, H2Tank)
+         push!(lb, 0.) ; push!(ub, 50000.)
+     end
+     if isa(des.elyz, Electrolyzer)
+         push!(lb, 0.) ; push!(ub, 50.)
+     end
+     if isa(des.fc, FuelCell)
+         push!(lb, 0.) ; push!(ub, 50.)
+     end
+     if isa(des.tes, ThermalSto)
+         push!(lb, 0.) ; push!(ub, 1000.)
+     end
 
-     # Compute investment decisions
-     designer.results = Metaheuristics.optimize(objective_function, lb, ub,
-                                                Metaheuristics.Clearing(),
-                                                options = Metaheuristics.Options(iterations=10, multithreads=true, itmax_unchanged=5))
+     # Optimize
+     designer.results = Metaheuristics.optimize(fobj, lb, ub,
+                                                designer.options.method,
+                                                options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true))
 
-     # Formatting variables to simulation
-     designer.u = (
-     u_pv = repeat(vcat(designer.results.minimizer[1], zeros(ny-1,1)), 1, ns),
-     u_liion = repeat(vcat(designer.results.minimizer[2], zeros(ny-1,1)), 1, ns),
-     )
+     # Preallocate and assigned values
+     preallocate!(designer, des.parameters.ny, des.parameters.ns)
+     isa(des.pv, Source) ? designer.u.pv[1,:] .= designer.results.minimizer[1] : nothing
+     isa(des.liion, Liion) ? designer.u.liion[1,:] .= designer.results.minimizer[2] : nothing
+     isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= designer.results.minimizer[3] : nothing
+     isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= designer.results.minimizer[4] : nothing
+     isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= designer.results.minimizer[5] : nothing
+     isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= designer.results.minimizer[5] : nothing
 
+     return designer
 end
 
-#### Online functions ####
-# Simple
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, grid::Grid, designer::MetaHeuristicDesigner, ω_optim::Scenarios, parameters::NamedTuple)
-    ϵ = 0.1
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
-    end
-end
-# Multi-energy
-function compute_investment_decisions(y::Int64, s::Int64, ld::Load, pv::Source,
-    liion::Liion, h2tank::H2Tank, elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto,
-    heater::Heater, designer::MetaHeuristicDesigner, ω_optim::Scenarios, parameters::NamedTuple)
+### Online
+function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
     ϵ = 0.1
 
     # Liion
-    if liion.soh[end,y,s] < ϵ
-        designer.u.u_liion[y,s] = liion.Erated[y,s]
+    if isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ
+        designer.u.liion[y,s] = des.liion.Erated[y,s]
     end
 
     # Electrolyzer
-    if elyz.soh[end,y,s] < ϵ
-        designer.u.u_elyz[y,s] = elyz.powerMax[y,s]
+    if isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ
+        designer.u.elyz[y,s] = des.elyz.powerMax[y,s]
     end
 
     # FuelCell
-    if fc.soh[end,y,s] < ϵ
-        designer.u.u_fc[y,s] = fc.powerMax[y,s]
+    if isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ
+        designer.u.fc[y,s] = des.fc.powerMax[y,s]
     end
 end

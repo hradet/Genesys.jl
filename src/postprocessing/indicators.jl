@@ -65,15 +65,15 @@ end
 
 ### Techno ###
 mutable struct Indicators
-     τ_self::Array{Float64,2}
+     τ_share::Array{Float64,2}
      τ_autoconso
 end
 
 function compute_tech_indicators(des::DistributedEnergySystem)
     # Self-sufficiency
-    τ_self = dropdims(1. .- sum(max.(0., des.grid.power_E), dims=1) ./ sum(des.ld_E.power, dims=1), dims=1)
+    τ_share = dropdims(1. .- sum(max.(0., des.grid.power_E), dims=1) ./ sum(des.ld_E.power, dims=1), dims=1)
     # Self-consumption
     # TODO
 
-    return Indicators(τ_self, nothing)
+    return Indicators(τ_share, nothing)
 end

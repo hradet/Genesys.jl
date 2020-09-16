@@ -44,7 +44,7 @@ include(joinpath("optimization","designer","eac.jl"))
 include(joinpath("optimization","designer","eac_stoch.jl"))
 include(joinpath("optimization","designer","eac_stoch_td.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export DummyDesigner, EAC, EACStoch
+export DummyDesigner, EAC, EACStoch, Metaheuristic
 export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))
