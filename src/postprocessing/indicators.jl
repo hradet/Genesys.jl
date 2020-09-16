@@ -17,14 +17,14 @@ function compute_economics(des::DistributedEnergySystem, designer::AbstractDesig
      # Discount factor
      γ = 1. ./ (1. + des.parameters.τ) .^ range(1, length = des.parameters.ny, step = des.parameters.Δy)
 
-    # Investment cost
-    capex = compute_capex(des, designer)
+    # Discounted capex
+    capex = γ .* compute_capex(des, designer)
 
-    # Operation cost
-    opex = compute_opex(des)
+    # Discounted opex
+    opex = γ .* compute_opex(des)
 
-    # Cash flow
-    cf = γ .* (- capex .+ opex)
+    # Discounted cash flow
+    cf = - capex .+ opex
 
     # Discounted NPV each year
     cumulative_npv = cumsum(cf, dims = 1)
