@@ -2,118 +2,111 @@
     Model predictive control controller
 =#
 
-mutable struct MPCController <: AbstractController
+mutable struct MPCOptions
+    solver
+    horizon::Int64
+
+    MPCOptions(; solver = CPLEX, horizon = 24) = new(solver, horizon)
+end
+
+mutable struct MPC <: AbstractController
+    options::MPCOptions
     u::NamedTuple
     model::JuMP.Model
-    parameters::Dict{String, Any}
-    MPCController() = new()
+    markovchains
+    history::Scenarios
+    MPC(; options = MPCOptions()) = new(options)
 end
 
-#### Models ####
-# Simple
-function mpc_model(ld::Load, pv::Source, liion::Liion, controller::MPCController,
-     grid::Grid, parameters::NamedTuple)
+### Model
+function build_model!(des::DistributedEnergySystem, controller::MPC, ω_optim::Scenarios)
 
      # Sets
-     nh = length(1:parameters.Δh:controller.parameters["horizon"]) # Number of hours
+     nh = controller.options.horizon
 
      # Model definition
-     m = Model(CPLEX.Optimizer)
+     m = Model(controller.options.solver.Optimizer)
      set_optimizer_attribute(m,"CPX_PARAM_SCRIND", 0)
 
-     # Variables
-     @variables(m, begin
-     # Operation decisions variables
-     p_liion_ch[1:nh] <= 0.
-     p_liion_dch[1:nh] >= 0.
-     p_g_out[1:nh] <= 0.
-     p_g_in[1:nh] >= 0.
-     # State variables
-     soc_liion[1:nh+1]
-     # Variables to be updated
-     p_net[1:nh]
-     E_liion
-     soc_init
-     end)
+     # Build model
+     if isa(des.liion, Liion)
+         # Variables
+         @variables(m, begin
+         # Operation decisions variables
+         p_liion_ch[1:nh] <= 0.
+         p_liion_dch[1:nh] >= 0.
+         p_g_in[1:nh] >= 0.
+         p_g_out[1:nh] <= 0.
+         # State variables
+         soc_liion[1:nh+1]
+         # Variables to be fixed
+         p_net[1:nh]
+         r_liion
+         soc_ini
+         end)
+         # Constraints
+         @constraints(m, begin
+         # Power bounds
+         [h in 1:nh], p_liion_dch[h] <= des.liion.α_p_dch * r_liion
+         [h in 1:nh], p_liion_ch[h] >= -des.liion.α_p_ch * r_liion
+         # SoC bounds
+         [h in 1:nh+1], soc_liion[h] <= des.liion.α_soc_max * r_liion
+         [h in 1:nh+1], soc_liion[h] >= des.liion.α_soc_min * r_liion
+         # Dynamics
+         [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1 - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * des.liion.η_ch + p_liion_dch[h] / des.liion.η_dch) * des.parameters.Δh
+         # Power balance
+         [h in 1:nh], p_net[h] <= p_g_in[h] + p_g_out[h] + p_liion_ch[h] + p_liion_dch[h]
+         # Initial and final conditions
+         soc_liion[1] == soc_ini
+         end)
+     end
 
-     # Constraints
-     @constraints(m, begin
-     # Power bounds
-     [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * E_liion
-     [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * E_liion
-     # SoC bounds
-     [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * E_liion
-     [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * E_liion
-     # Dynamics
-     [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1 - liion.η_self * parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * parameters.Δh
-     # Power balance
-     [h in 1:nh], p_net[h] <= p_g_out[h] + p_g_in[h] + p_liion_ch[h] + p_liion_dch[h]
-     # Initial and final conditions
-     soc_liion[1] == soc_init
-     end)
-
-     return m
+     # Store model
+     controller.model = m
 end
 
-#### Offline functions ####
-# Simple
-function initialize_controller(ld::Load, pv::Source, liion::Liion, controller::MPCController,
-     grid::Grid, ω_optim::Scenarios, parameters::NamedTuple)
+### Offline
+function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω_optim::Scenarios)
 
-     # Parameters
-     nh = size(ld.power_E,1) # number of hours
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
-
-     # Initialize model
-     controller.model = mpc_model(ld, pv, liion, controller, grid, parameters)
+     # Build model
+     build_model!(des, controller, ω_optim)
 
      # Compute markov chain for scenario generation
-     controller.parameters["markovchains"] = compute_markovchains(ω_optim)
+     controller.markovchains = compute_markovchains(ω_optim)
 
-     # Initialize operation decisions
-     controller.u = (
-     u_liion =  convert(SharedArray,zeros(nh,ny,ns)),
-     )
+     # Store the optimization scenario to the controller history field
+     controller.history = ω_optim
+
+     # Preallocate
+     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
+
+     return controller
 end
 
-#### Online functions ####
-# Simple
-function compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Load, pv::Source,
-     liion::Liion, grid::Grid, controller::MPCController, ω_optim::Scenarios, parameters::NamedTuple)
+### Online
+function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::MPC)
+
      # Parameters
-     window = h:parameters.Δh:min(parameters.H, h + controller.parameters["horizon"] - 1)
-     n_zeros = length(1:parameters.Δh:controller.parameters["horizon"]) - length(window)
+     window = h:min(des.parameters.nh, h + controller.options.horizon - 1)
+     n_zeros = controller.options.horizon - length(window)
 
      # Compute forecasts and add zeros if needed
-     # PV
-     pv_fcst = compute_scenario(controller.parameters["markovchains"].pv_E, pv.power_E[h,y,s] / pv.powerMax[y,s],
-      ω_optim.timestamp[h], y, controller.parameters["horizon"]-1)
-      # Laod
-     ld_E_fcst = compute_scenario(controller.parameters["markovchains"].ld_E.wk, controller.parameters["markovchains"].ld_E.wkd,
-     ld.power_E[h,y,s], ω_optim.timestamp[h], y, controller.parameters["horizon"]-1)
-     # Power net
-     power_net_fcst = ld_E_fcst .- pv.powerMax[y,s] .* pv_fcst
-     # Grid
-     C_grid_in_fcst = vcat(ω_optim.values.C_grid_in[window,y,s], zeros(n_zeros))
-     C_grid_out_fcst = vcat(ω_optim.values.C_grid_out[window,y,s], zeros(n_zeros))
+     pv = compute_scenario(controller.markovchains.pv_E, des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], controller.history.timestamp[h], y, controller.options.horizon - 1)
+     ld_E = compute_scenario(controller.markovchains.ld_E.wk, controller.markovchains.ld_E.wkd, des.ld_E.power[h,y,s], controller.history.timestamp[h], y, controller.options.horizon - 1)
+     C_grid_in = vcat(controller.history.values.C_grid_in[window,y,s], zeros(n_zeros))
+     C_grid_out = vcat(controller.history.values.C_grid_out[window,y,s], zeros(n_zeros))
 
-     # Fix net power
-     fix.(controller.model[:p_net], power_net_fcst)
-
-     # Fix initial state
-     fix(controller.model[:soc_init], liion.soc[h,y,s] * liion.Erated[y,s])
-
-     # Fix battery capacity
-     fix(controller.model[:E_liion], liion.Erated[y,s])
+     # Fix variables
+     fix.(controller.model[:p_net], ld_E .- des.pv.powerMax[y,s] .* pv)
+     fix(controller.model[:soc_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
+     fix(controller.model[:r_liion], des.liion.Erated[y,s])
 
      # Objective function
-     @objective(controller.model, Min,
-      sum(controller.model[:p_g_in] .* C_grid_in_fcst + controller.model[:p_g_out] .* C_grid_out_fcst) * parameters.Δh)
+     @objective(controller.model, Min, sum(controller.model[:p_g_in] .* C_grid_in + controller.model[:p_g_out] .* C_grid_out) * des.parameters.Δh)
 
      # Optimize
      optimize!(controller.model)
 
-     # Operation decision - we only kept the first value
-     controller.u.u_liion[h,y,s] = value.(controller.model[:p_liion_ch] .+ controller.model[:p_liion_dch])[1]
+     # Operation decision - we only keep the first value
+     controller.u.liion[h,y,s] = value.(controller.model[:p_liion_ch] .+ controller.model[:p_liion_dch])[1]
 end

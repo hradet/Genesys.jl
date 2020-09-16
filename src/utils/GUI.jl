@@ -166,11 +166,6 @@ function loadGUI(controller_flag::String, designer_flag::String; ns = 1)
         "reduction" => "manual",
         "idx_scenario" => 1,
         "idx_year" => 1),
-    eac_td = Dict(
-        "reduction" => "manual",
-        "idx_scenario" => 1,
-        "idx_year" => 1,
-        "ntd" => 5),
     eac_stoch = Dict(
         "reduction" => "manual",
         "idx_scenario" => 1,
@@ -188,8 +183,6 @@ function loadGUI(controller_flag::String, designer_flag::String; ns = 1)
         "constraints" => (λ = 1e10,),
         "iteration" => 10,
         "reltol" => 0.05),
-    metaheuristic_stoch = Dict(),
-    rb = Dict(),
     )
 
     #---------------------------------------------------------------------------

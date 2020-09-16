@@ -40,19 +40,17 @@ include(joinpath("optimization","anticipative","anticipative_onestage.jl"))
 include(joinpath("optimization","anticipative","anticipative_onestage_online_update.jl"))
 # Investment optimization
 include(joinpath("optimization","designer","dummy.jl"))
-include(joinpath("optimization","designer","rule_based.jl"))
 include(joinpath("optimization","designer","eac.jl"))
-include(joinpath("optimization","designer","eac_td.jl"))
 include(joinpath("optimization","designer","eac_stoch.jl"))
 include(joinpath("optimization","designer","eac_stoch_td.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export DummyDesigner, EACDesigner
+export DummyDesigner, EAC
 export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))
-include(joinpath("optimization","controller","rule_based.jl"))
+include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
-export DummyController, RuleBasedController
+export DummyCcontroller, RBC, MPC
 export initialize_controller!
 # Post-processing
 include(joinpath("postprocessing","indicators.jl"))

@@ -12,16 +12,16 @@ mutable struct EACOptions
   EACOptions(; solver = CPLEX, scenario_reduction = "manual", share_constraint = true, s = 1, y = 1) = new(solver, scenario_reduction, share_constraint, s, y)
 end
 
-mutable struct EACDesigner <: AbstractOneStageDesigner
+mutable struct EAC <: AbstractOneStageDesigner
     options::EACOptions
     u::NamedTuple
     model::JuMP.Model
 
-    EACDesigner(; options = EACOptions()) = new(options)
+    EAC(; options = EACOptions()) = new(options)
 end
 
 ### Model
-function build_model!(des::DistributedEnergySystem, designer::EACDesigner, ω_optim::Scenarios)
+function build_model!(des::DistributedEnergySystem, designer::EAC, ω_optim::Scenarios)
 
     #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
 
@@ -29,7 +29,7 @@ function build_model!(des::DistributedEnergySystem, designer::EACDesigner, ω_op
     nh = des.parameters.nh # Number of hours
 
     # Model definition
-    m = Model(CPLEX.Optimizer)
+    m = Model(designer.options.solver.Optimizer)
 
     # Initialize expressions
     isa(des.ld_E, Load) ? power_balance_E = AffExpr.(- ω_optim.values.ld_E) : nothing
@@ -253,7 +253,7 @@ function build_model!(des::DistributedEnergySystem, designer::EACDesigner, ω_op
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::EACDesigner, ω_optim::Scenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_optim::Scenarios)
 
    # Scenario reduction from the optimization scenario pool
    ω_eac = scenarios_reduction(designer, ω_optim)
@@ -277,7 +277,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::EACDesigne
 end
 
 ### Online
-function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EACDesigner)
+function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EAC)
     ϵ = 0.1
 
     # Liion

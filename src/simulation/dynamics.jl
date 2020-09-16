@@ -34,9 +34,8 @@ function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, des::Distribu
 
     if isa(des.h2tank, H2Tank)
         des.h2tank.soc[h+1,y,s], des.h2tank.power_H2[h,y,s] =
-        compute_operation_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[h,y,s]), - (des.fc.power_H2[h,y,s] + des.elyz.power_H2[h,y,s]), des.parameters.Δh)
+        compute_operation_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[h,y,s]), controller.u.h2tank[h,y,s], des.parameters.Δh)
     end
-    #TODO tank ne doit pas que dépendre de elyz + fc
 end
 function compute_investment_dynamics!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
 

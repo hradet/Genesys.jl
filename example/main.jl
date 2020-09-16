@@ -17,25 +17,19 @@ data = load(joinpath("data","input_data_stochastic.jld"))
 
 # Initialize DES
 DES = DistributedEnergySystem(ld_E = Load(),
-                              ld_H = Load(),
                               pv = Source(),
                               liion = Liion(),
-                              tes = ThermalSto(),
-                              h2tank = H2Tank(),
-                              elyz = Electrolyzer(),
-                              fc = FuelCell(),
-                              heater = Heater(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.9))
+                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.8))
 
 # Initialize controller
 controller = initialize_controller!(DES,
-                                    RuleBasedController(),
+                                    MPC(),
                                     ω_optim)
 
 # Initialize designer
 designer = initialize_designer!(DES,
-                                EACDesigner(),
+                                EAC(),
                                 ω_optim)
 
 # Simulate
