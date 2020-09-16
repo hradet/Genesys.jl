@@ -131,7 +131,6 @@ function plot_soh(des::DistributedEnergySystem; s=1)
     hours = (1:len) / 8760
 
     if isa(des.liion, Liion)
-        println("ok")
         soh_liion = reshape(des.liion.soh[:,:,s],:,1)
     else
         soh_liion = zeros(len)

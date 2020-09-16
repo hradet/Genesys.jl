@@ -71,10 +71,10 @@ end
 # One stage stochastic designer reduction
 function scenarios_reduction(designer::AbstractOneStageStochasticDesigner, ω::Scenarios)
 
-    if designer.parameters["reduction"] == "manual"
+    if designer.options.scenario_reduction == "manual"
         # Year and scenario indexes are manually chosen
-        y = designer.parameters["idx_years"]
-        s = designer.parameters["idx_scenario"]
+        y = designer.options.range_y
+        s = designer.options.s
     else
         #TODO !! so far, year and scenario indexes are randomly chosen
         y, s = size(ω.values.ld_E,2), 1
@@ -104,9 +104,9 @@ end
 # Multistage designer reduction
 function scenarios_reduction(designer::AbstractMultiStageDesigner, ω::Scenarios)
 
-    if designer.parameters["reduction"]== "manual"
+    if designer.options.scenario_reduction == "manual"
         # Scenario index is manually chosen
-        s = designer.parameters["idx_scenario"]
+        s = designer.options.s
     else
         # Scenario index is randomly chosen to 1
         s = 1
@@ -136,9 +136,9 @@ end
 # Multistage stochastic designer reduction
 function scenarios_reduction(designer::AbstractMultiStageStochasticDesigner, ω::Scenarios)
 
-    if designer.parameters["reduction"] == "manual"
+    if designer.options.scenario_reduction == "manual"
         # Scenario indexes are manually chosen
-        s = designer.parameters["idx_scenarios"]
+        s = designer.options.range_s
     else
         # TODO !! so far, scenario indexes are randomly chosen
         s = size(ω.values.ld_E,3)

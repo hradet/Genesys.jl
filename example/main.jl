@@ -24,12 +24,12 @@ DES = DistributedEnergySystem(ld_E = Load(),
 
 # Initialize controller
 controller = initialize_controller!(DES,
-                                    MPC(),
+                                    RBC(),
                                     ω_optim)
 
 # Initialize designer
 designer = initialize_designer!(DES,
-                                EAC(),
+                                EACStoch(),
                                 ω_optim)
 
 # Simulate
