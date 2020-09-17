@@ -27,7 +27,7 @@ mutable struct EACStoch <: AbstractOneStageStochasticDesigner
 end
 
 ### Models
-function build_model!(des::DistributedEnergySystem, designer::EACStoch, ω_optim::Scenarios)
+function build_model(des::DistributedEnergySystem, designer::EACStoch, ω_optim::AbstractScenarios)
 
     # Sets
     nh = size(ω_optim.values.ld_E,1) # Number of hours
@@ -258,18 +258,17 @@ function build_model!(des::DistributedEnergySystem, designer::EACStoch, ω_optim
     # Objective
     @objective(m, Min, capex + opex)
 
-    # Store model
-    designer.model = m
+    return m
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::EACStoch, ω_optim::Scenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::EACStoch, ω_optim::AbstractScenarios)
 
      # Scenario reduction from the optimization scenario pool
      ω_eac_stoch = scenarios_reduction(designer, ω_optim)
 
      # Initialize model
-     designer.model = build_model!(des, designer, ω_eac_stoch)
+     designer.model = build_model(des, designer, ω_eac_stoch)
 
      # Compute investment decisions
      optimize!(designer.model)

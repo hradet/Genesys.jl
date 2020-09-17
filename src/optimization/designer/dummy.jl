@@ -8,7 +8,7 @@ mutable struct DummyDesigner <: AbstractDesigner
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::DummyDesigner, ω::Scenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::DummyDesigner, ω::AbstractScenarios)
     # Preallocation
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
     return designer

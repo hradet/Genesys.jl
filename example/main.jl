@@ -1,9 +1,5 @@
-# Genesys
-using Genesys
-# Lecture CSV
-using CSV, DataFrames, JLD, Dates
-# Plot
-using Seaborn
+# Load packages
+using Genesys, CSV, DataFrames, JLD, Dates, Seaborn
 pygui(true)
 
 # Parameters
@@ -29,7 +25,7 @@ controller = initialize_controller!(DES,
 
 # Initialize designer
 designer = initialize_designer!(DES,
-                                EACStoch(),
+                                EAC(),
                                 ω_optim)
 
 # Simulate

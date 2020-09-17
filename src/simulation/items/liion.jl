@@ -13,7 +13,6 @@
      α_soc_max::Float64
      lifetime::Float64
      nCycle::Float64
-     dod::Float64
      # Initial conditions
      Erated_ini::Float64
      soc_ini::Float64
@@ -35,11 +34,10 @@
         α_soc_max = 0.8,
         lifetime = 12,
         nCycle = 2500,
-        dod = 0.6,
         Erated_ini = 0.,
         soc_ini = 0.5,
         soh_ini = 1.) =
-        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, nCycle, dod, Erated_ini, soc_ini, soh_ini)
+        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, nCycle, Erated_ini, soc_ini, soh_ini)
  end
 
 ### Preallocation
@@ -71,7 +69,7 @@
      soc_next = x_liion.soc * (1. - liion.η_self * Δh) - (power_ch * liion.η_ch + power_dch / liion.η_dch) * Δh / x_liion.Erated
 
      # SoH dynamic
-     soh_next = x_liion.soh - (power_dch - power_ch) * Δh / (2. * liion.nCycle * liion.dod * x_liion.Erated)
+     soh_next = x_liion.soh - (power_dch - power_ch) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * x_liion.Erated)
 
      # SoC and SoH constraints and corrections
      overshoot = (round(soc_next;digits=3) < liion.α_soc_min) || (round(soc_next;digits=3) > liion.α_soc_max) || (soh_next < 0)

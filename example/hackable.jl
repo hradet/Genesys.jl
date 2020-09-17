@@ -14,81 +14,66 @@ or you can define your own controller and designer and modify the associated fun
 =#
 
 # Define your own controller and designer
-mutable struct DummyController <: Genesys.AbstractController
-    u
-    DummyController() = new()
+mutable struct foo <: Genesys.AbstractController
+    u::NamedTuple
+    foo() = new()
 end
-mutable struct DummyDesigner <: Genesys.AbstractDesigner
-    u
-    DummyDesigner() = new()
-end
-
-# Define offline computations
-function Genesys.initialize_designer(ld::Genesys.Load, pv::Genesys.Source,
-    liion::Genesys.Liion, designer::DummyDesigner,
-     grid::Genesys.Grid, ω_optim::Genesys.Scenarios, parameters::NamedTuple)
-     # Parameters
-     nh = size(ld.power_E,1) # number of simulation hours in one year
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
-
-     # Initialize controller and designer policies
-     # The policy must be initialize at this place...
-
-     # Initialize decisions variables
-     designer.u = (
-     u_liion = zeros(ny,ns),
-     u_pv = zeros(ny,ns),
-     )
+mutable struct bar <: Genesys.AbstractDesigner
+    u::NamedTuple
+    bar() = new()
 end
 
-function Genesys.initialize_controller(ld::Genesys.Load, pv::Genesys.Source,
-    liion::Genesys.Liion, controller::DummyController,
-     grid::Genesys.Grid, ω_optim::Genesys.Scenarios, parameters::NamedTuple)
-     # Parameters
-     nh = size(ld.power_E,1) # number of simulation hours in one year
-     ny = size(ld.power_E,2) # number of simulation years
-     ns = size(ld.power_E,3) # number of scenarios
-
-     # Initialize controller and designer policies
-     # The policy must be initialize at this place...
-
-     # Initialize decisions variables
-     controller.u = (
-     u_liion = zeros(nh,ny,ns),
-     )
+# Define offline functions
+function Genesys.initialize_controller!(des::DistributedEnergySystem, controller::foo, ω::Scenarios)
+    # Preallocation
+    Genesys.preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
+    return controller
 end
 
-# Define online functions to compute decisions
-function Genesys.compute_operation_decisions(h::Int64, y::Int64, s::Int64, ld::Genesys.Load,
-    pv::Genesys.Source, liion::Genesys.Liion, grid::Genesys.Grid, controller::DummyController,
-    ω_optim::Genesys.Scenarios, parameters::NamedTuple)
-    return 0
+function Genesys.initialize_designer!(des::DistributedEnergySystem, designer::bar, ω::Scenarios)
+    # Preallocation
+    Genesys.preallocate!(designer, des.parameters.ny, des.parameters.ns)
+    return designer
 end
-function Genesys.compute_investment_decisions(y::Int64, s::Int64, ld::Genesys.Load, pv::Genesys.Source,
-     liion::Genesys.Liion ,grid::Genesys.Grid,
-     designer::DummyDesigner, ω_optim::Genesys.Scenarios, parameters::NamedTuple)
-    return 0, 0
+
+# Define online functions
+function Genesys.compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::foo)
+    return controller
+end
+function Genesys.compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::bar)
+    return designer
 end
 
 #=
 Let's simulate the microgrid with the dummies controller and designer...
 =#
 
-# GUI loading
-outputGUI = Genesys.loadGUI("", "")
+# Parameters
+const nh, ny, ns = 8760, 20, 1
 
-# Initialization without any controller and designer
-ld, pv, liion, _, _, _, _, _, _, _, grid, ω_optim, ω_simu = Genesys.initialization(outputGUI)
+# Load data
+data = load(joinpath("data","input_data_stochastic.jld"))
 
-# Intialize the controller and designer
-dummy_controller, dummy_designer = DummyController(), DummyDesigner()
+# Initialize scenarios
+ω_optim, ω_simu = Scenarios(data["ω_optim"], nh, ny, ns), Scenarios(data["ω_simu"],  nh, ny, ns)
 
-# Initialize designer
-Genesys.initialize_designer(ld, pv, liion, dummy_designer, grid, ω_optim, outputGUI["parameters"])
+# Initialize DES
+DES = DistributedEnergySystem(ld_E = Load(),
+                              pv = Source(),
+                              liion = Liion(),
+                              grid = Grid(),
+                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns))
 
 # Initialize controller
-Genesys.initialize_controller(ld, pv, liion, dummy_controller, grid, ω_optim, outputGUI["parameters"])
+controller = initialize_controller!(DES,
+                                    foo(),
+                                    ω_optim)
+
+# Initialize designer
+designer = initialize_designer!(DES,
+                                bar(),
+                                ω_optim)
 
 # Simulate
-Genesys.simulate(ld, pv, liion, dummy_controller, dummy_designer, grid, ω_optim, ω_simu, outputGUI["parameters"])
+@elapsed simulate!(DES, controller, designer, ω_simu,
+                          options = Genesys.Options(mode="serial"))

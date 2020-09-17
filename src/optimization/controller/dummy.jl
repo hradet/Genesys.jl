@@ -8,7 +8,7 @@ mutable struct DummyController <: AbstractController
 end
 
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::DummyController, ω::Scenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::DummyController, ω::AbstractScenarios)
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
     return controller

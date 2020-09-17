@@ -21,7 +21,7 @@ mutable struct EAC <: AbstractOneStageDesigner
 end
 
 ### Model
-function build_model!(des::DistributedEnergySystem, designer::EAC, ω_optim::Scenarios)
+function build_model(des::DistributedEnergySystem, designer::EAC, ω_optim::AbstractScenarios)
 
     #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
 
@@ -248,18 +248,17 @@ function build_model!(des::DistributedEnergySystem, designer::EAC, ω_optim::Sce
     # Objective
     @objective(m, Min, capex + opex)
 
-    # Store model
-    designer.model = m
+    return m
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_optim::Scenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_optim::AbstractScenarios)
 
    # Scenario reduction from the optimization scenario pool
    ω_eac = scenarios_reduction(designer, ω_optim)
 
    # Build model
-   build_model!(des, designer, ω_eac)
+   designer.model = build_model(des, designer, ω_eac)
 
    # Compute investment decisions
    optimize!(designer.model)

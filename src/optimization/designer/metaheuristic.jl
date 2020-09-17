@@ -27,7 +27,7 @@ mutable struct Metaheuristic <: AbstractMultiStageDesigner
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω_optim::Scenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω_optim::AbstractScenarios)
 
      # Scenario reduction from the optimization scenario pool
      ω_meta = scenarios_reduction(designer, ω_optim)

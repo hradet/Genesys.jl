@@ -14,12 +14,12 @@ mutable struct MPC <: AbstractController
     u::NamedTuple
     model::JuMP.Model
     markovchains
-    history::Scenarios
+    history::AbstractScenarios
     MPC(; options = MPCOptions()) = new(options)
 end
 
 ### Model
-function build_model!(des::DistributedEnergySystem, controller::MPC, ω_optim::Scenarios)
+function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::AbstractScenarios)
 
      # Sets
      nh = controller.options.horizon
@@ -61,15 +61,14 @@ function build_model!(des::DistributedEnergySystem, controller::MPC, ω_optim::S
          end)
      end
 
-     # Store model
-     controller.model = m
+     return m
 end
 
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω_optim::Scenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω_optim::AbstractScenarios)
 
      # Build model
-     build_model!(des, controller, ω_optim)
+     controller.model = build_model(des, controller, ω_optim)
 
      # Compute markov chain for scenario generation
      controller.markovchains = compute_markovchains(ω_optim)

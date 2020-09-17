@@ -25,24 +25,12 @@ include(joinpath("simulation","dynamics.jl"))
 include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
 export simulate!
-# Scenarios
-include(joinpath("scenarios","scenario_reductions.jl"))
-include(joinpath("scenarios","clustering.jl"))
-include(joinpath("scenarios","markov.jl"))
-include(joinpath("scenarios","utils.jl"))
-export Scenarios
 # Optimization
 include(joinpath("optimization","utils.jl"))
-# Anticipative optimization
-include(joinpath("optimization","anticipative","anticipative_controller.jl"))
-include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
-include(joinpath("optimization","anticipative","anticipative_onestage.jl"))
-include(joinpath("optimization","anticipative","anticipative_onestage_online_update.jl"))
 # Investment optimization
 include(joinpath("optimization","designer","dummy.jl"))
 include(joinpath("optimization","designer","eac.jl"))
 include(joinpath("optimization","designer","eac_stoch.jl"))
-include(joinpath("optimization","designer","eac_stoch_td.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
 export DummyDesigner, EAC, EACStoch, Metaheuristic
 export initialize_designer!
@@ -52,6 +40,19 @@ include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
 export DummyCcontroller, RBC, MPC
 export initialize_controller!
+# Anticipative optimization
+include(joinpath("optimization","anticipative","controller.jl"))
+include(joinpath("optimization","anticipative","multistages.jl"))
+include(joinpath("optimization","anticipative","eac.jl"))
+include(joinpath("optimization","anticipative","eac_online.jl"))
+export Anticipative, AnticipativeMultiStages, AnticipativeEAC, AnticipativeEACOnline
+export offline_optimization!
+# Scenarios
+include(joinpath("scenarios","scenario_reductions.jl"))
+include(joinpath("scenarios","clustering.jl"))
+include(joinpath("scenarios","markov.jl"))
+include(joinpath("scenarios","utils.jl"))
+export Scenarios
 # Post-processing
 include(joinpath("postprocessing","indicators.jl"))
 include(joinpath("postprocessing","plots.jl"))

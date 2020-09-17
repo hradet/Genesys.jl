@@ -96,7 +96,7 @@ function policy_2(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, co
 end
 
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::RBC, ω::Scenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::RBC, ω::AbstractScenarios)
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
 
