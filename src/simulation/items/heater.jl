@@ -17,13 +17,13 @@ mutable struct Heater
      # Inner constructor
      Heater(; η_E_H = 1.,
              lifetime = 25.,
-             powerMax_ini = 1000.) =
+             powerMax_ini = 30.) =
              new(η_E_H, lifetime, powerMax_ini)
 end
 
 ### Preallocation
 function preallocate!(heater::Heater, nh::Int64, ny::Int64, ns::Int64)
-     heater.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; heater.powerMax[1,:] .= heater.powerMax_ini
+     heater.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; heater.powerMax .= heater.powerMax_ini
      heater.power_E = convert(SharedArray,zeros(nh, ny, ns))
      heater.power_H = convert(SharedArray,zeros(nh, ny, ns))
      heater.C_heater = convert(SharedArray,zeros(ny, ns))

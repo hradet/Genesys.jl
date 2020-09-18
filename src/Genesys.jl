@@ -44,8 +44,7 @@ export initialize_controller!
 include(joinpath("optimization","anticipative","controller.jl"))
 include(joinpath("optimization","anticipative","multistages.jl"))
 include(joinpath("optimization","anticipative","eac.jl"))
-include(joinpath("optimization","anticipative","eac_online.jl"))
-export Anticipative, AnticipativeMultiStages, AnticipativeEAC, AnticipativeEACOnline
+export Anticipative, AnticipativeMultiStages, AnticipativeEAC
 export offline_optimization!
 # Scenarios
 include(joinpath("scenarios","scenario_reductions.jl"))

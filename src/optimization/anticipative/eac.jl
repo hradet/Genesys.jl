@@ -24,11 +24,20 @@ function offline_optimization!(des::DistributedEnergySystem, designer::Anticipat
     controller = Anticipative()
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
     isa(des.liion, Liion) ? controller.u.liion .= value.(designer.model[:p_liion_ch] + designer.model[:p_liion_dch]) : nothing
+    isa(des.h2tank, H2Tank) ? controller.u.h2tank .= value.(designer.model[:p_h2tank_ch] + designer.model[:p_h2tank_dch]) : nothing
+    isa(des.tes, ThermalSto) ? controller.u.tes .= value.(designer.model[:p_tes_ch] + designer.model[:p_tes_dch]) : nothing
+    isa(des.elyz, Electrolyzer) ? controller.u.elyz .= value.(designer.model[:p_elyz_E]) : nothing
+    isa(des.fc, FuelCell) ? controller.u.fc .= value.(designer.model[:p_fc_E]) : nothing
+    isa(des.heater, Heater) ? controller.u.heater .= value.(designer.model[:p_heater_E]) : nothing
 
     # Preallocate and assigned values to the designer
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
-    isa(des.liion, Liion) ? designer.u.liion[1] = value.(designer.model[:r_liion]) : nothing
-    isa(des.pv, Source) ? designer.u.pv[1] = value.(designer.model[:r_pv]) : nothing
+    isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
+    isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
+    isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
+    isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
+    isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
+    isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
 
     return controller, designer
 end

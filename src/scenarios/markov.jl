@@ -260,17 +260,22 @@ function compute_markovchains(ω_optim::Scenarios)
     # TODO : ajouter struct avec mc, nscenarios, nstate
     # Clustering data
     pv = clustering_month(ω_optim.values.pv_E, ω_optim.timestamp)
-    ld_wk = clustering_month_week(ω_optim.values.ld_E, ω_optim.timestamp)
-    ld_wkd = clustering_month_weekend(ω_optim.values.ld_E, ω_optim.timestamp)
+    ld_E_wk = clustering_month_week(ω_optim.values.ld_E, ω_optim.timestamp)
+    ld_E_wkd = clustering_month_weekend(ω_optim.values.ld_E, ω_optim.timestamp)
+    ld_H_wk = clustering_month_week(ω_optim.values.ld_H, ω_optim.timestamp)
+    ld_H_wkd = clustering_month_weekend(ω_optim.values.ld_H, ω_optim.timestamp)
     # Compute markov chain
-    n_state = minimum(vcat(size.(pv[:,1],2), size.(ld_wk[:,1],2), size.(ld_wkd[:,1],2)))-1
+    n_state = minimum(vcat(size.(pv[:,1],2), size.(ld_E_wk[:,1],2), size.(ld_E_wkd[:,1],2)))-1
     mc_pv = compute_markovchain(pv, n_state)
-    mc_ld_wk = compute_markovchain(ld_wk, n_state)
-    mc_ld_wkd = compute_markovchain(ld_wkd, n_state)
+    mc_ld_E_wk = compute_markovchain(ld_E_wk, n_state)
+    mc_ld_E_wkd = compute_markovchain(ld_E_wkd, n_state)
+    mc_ld_H_wk = compute_markovchain(ld_H_wk, n_state)
+    mc_ld_H_wkd = compute_markovchain(ld_H_wkd, n_state)
     # Store in a Namedtuple
     markovchains = (
     pv_E = mc_pv,
-    ld_E = (wk = mc_ld_wk, wkd = mc_ld_wkd),
+    ld_E = (wk = mc_ld_E_wk, wkd = mc_ld_E_wkd),
+    ld_H = (wk = mc_ld_H_wk, wkd = mc_ld_H_wkd),
     )
 
     return markovchains
