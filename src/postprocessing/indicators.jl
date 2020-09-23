@@ -65,16 +65,19 @@ end
 
 ### Techno ###
 mutable struct Indicators
-     τ_share::Array{Float64,2}
-     lpsp_H::Array{Float64,2}
+     τ_share
+     lpsp_H
      τ_autoconso
 end
 
 function compute_tech_indicators(des::DistributedEnergySystem)
-    # Self-sufficiency
-    τ_share = dropdims(1. .- sum(max.(0., des.grid.power_E), dims=1) ./ sum(des.ld_E.power, dims=1), dims=1)
+    # Share of renewables
+    ld_tot = zeros(des.parameters.ny, des.parameters.ns)
+    isa(des.ld_E, Load) ? ld_tot .+= dropdims(sum(des.ld_E.power, dims=1), dims=1) : nothing
+    isa(des.ld_H, Load) ? ld_tot .+= dropdims(sum(des.ld_H.power ./ des.heater.η_E_H, dims=1), dims=1) : nothing
+    τ_share = 1. .- dropdims(sum(max.(0., des.grid.power_E), dims=1), dims=1) ./ ld_tot
     # LPSP
-    lpsp_H = dropdims(sum(max.(0., des.ld_H.power .- des.heater.power_H .- des.fc.power_H .- des.elyz.power_H), dims=1) ./ sum(des.ld_H.power, dims=1), dims=1)
+    isa(des.ld_H, Load) ? lpsp_H = dropdims(sum(max.(0., des.ld_H.power .- des.heater.power_H .- des.fc.power_H .- des.elyz.power_H .- des.tes.power_H), dims=1) ./ sum(des.ld_H.power, dims=1), dims=1) : lpsp_H = nothing
     # Self-consumption
     # TODO
 

@@ -79,6 +79,7 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::Ab
         [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * des.liion.η_ch + p_liion_dch[h] / des.liion.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_liion[1] == soc_liion_ini
+        soc_liion[nh] >= soc_liion_ini
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_liion_ch .+ p_liion_dch) : nothing
@@ -107,6 +108,7 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::Ab
         [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - des.tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * des.tes.η_ch + p_tes_dch[h] / des.tes.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_tes[1] == soc_tes_ini
+        soc_tes[nh] >= soc_tes_ini
         end)
         # Power balance
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, p_tes_ch .+ p_tes_dch) : nothing
@@ -135,6 +137,7 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::Ab
         [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - des.h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * des.h2tank.η_ch + p_h2tank_dch[h] / des.h2tank.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_h2tank[1] == soc_h2tank_ini
+        soc_h2tank[nh] >= soc_h2tank_ini
         end)
         # Power balances
         add_to_expression!.(power_balance_H2, p_h2tank_ch .+ p_h2tank_dch)
