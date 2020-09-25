@@ -2,7 +2,7 @@
     Scenario reduction functions
 =#
 mutable struct Scenarios <: AbstractScenarios
-     timestamp::Array{DateTime,1}
+     timestamp::Array{DateTime,3}
      values::NamedTuple
      proba::Array{Float64,1}
 end
