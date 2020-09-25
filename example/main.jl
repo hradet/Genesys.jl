@@ -3,10 +3,10 @@ using Genesys, CSV, DataFrames, JLD, Dates, Seaborn
 pygui(true)
 
 # Parameters
-const nh, ny, ns = 8760, 20, 1
+const nh, ny, ns = 8760, 20, 20
 
 # Load data
-data = load(joinpath("data","input_data_stochastic.jld"))
+data = load(joinpath("data","scenarios_ausgrid.jld"))
 
 # Initialize scenarios
 ω_optim, ω_simu = Scenarios(data["ω_optim"], nh, ny, ns), Scenarios(data["ω_simu"],  nh, ny, ns)
