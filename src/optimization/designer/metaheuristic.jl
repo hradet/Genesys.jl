@@ -7,14 +7,18 @@ mutable struct MetaheuristicOptions
     controller::AbstractController
     iterations::Int64
     scenario_reduction::String
+    share_constraint::Bool
+    reopt::Bool
     s::Int64
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
                            controller = RBC(),
                            iterations = 10,
                            scenario_reduction = "manual",
+                           share_constraint = true,
+                           reopt = false,
                            s = 1) =
-                           new(method, controller, iterations, scenario_reduction, s)
+                           new(method, controller, iterations, scenario_reduction, share_constraint, reopt, s)
 
 end
 
@@ -61,7 +65,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
          tech_meta = compute_tech_indicators(des_meta)
 
          # Objective - algorithm find the maximum
-         obj = costs_meta.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(tech_meta.τ_share[2:end,:]))
+        designer.option.share_constraint ? obj = costs_meta.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(tech_meta.τ_share[2:end,:])) : obj = costs_meta.npv[1]
 
          return obj
      end
@@ -108,18 +112,13 @@ end
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
     ϵ = 0.1
 
-    # Liion
-    if isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ
-        designer.u.liion[y,s] = des.liion.Erated[y,s]
-    end
-
-    # Electrolyzer
-    if isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ
-        designer.u.elyz[y,s] = des.elyz.powerMax[y,s]
-    end
-
-    # FuelCell
-    if isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ
-        designer.u.fc[y,s] = des.fc.powerMax[y,s]
+    if designer.options.reopt
+        # Do we need to reoptimize ?
+        (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
+        println("Re-optimization not yet implemented...")
+    else
+        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = des.liion.Erated[y,s] : nothing
+        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = des.elyz.powerMax[y,s] : nothing
+        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = des.fc.powerMax[y,s] : nothing
     end
 end

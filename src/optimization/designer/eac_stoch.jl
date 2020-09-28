@@ -7,6 +7,7 @@ mutable struct EACStochOptions
   risk
   scenario_reduction::String # scenario reduction technique "manual" or "auto"
   share_constraint::Bool
+  reopt::Bool
   s::Int64 # scenario index for the manual reduction technique
   range_y::UnitRange{Int64} # year range for the manual reduction technique
 
@@ -14,14 +15,16 @@ mutable struct EACStochOptions
                     risk = "esperance",
                     scenario_reduction = "manual",
                     share_constraint = true,
+                    reopt=false,
                     s = 1, range_y = 1:20) =
-                    new(solver, risk, scenario_reduction, share_constraint, s, range_y)
+                    new(solver, risk, scenario_reduction, share_constraint, reopt, s, range_y)
 end
 
 mutable struct EACStoch <: AbstractOneStageStochasticDesigner
     options
     u::NamedTuple
     model::JuMP.Model
+    history::AbstractScenarios
 
     EACStoch(; options = EACStochOptions()) = new(options)
 end
@@ -273,6 +276,9 @@ function initialize_designer!(des::DistributedEnergySystem, designer::EACStoch, 
      # Compute investment decisions
      optimize!(designer.model)
 
+     # Save history for online reoptimization
+     designer.history = ω_optim
+
      # Preallocate and assigned values
      preallocate!(designer, des.parameters.ny, des.parameters.ns)
      isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
@@ -289,18 +295,38 @@ end
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EACStoch)
     ϵ = 0.1
 
-    # Liion
-    if isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ
-        designer.u.liion[y,s] = des.liion.Erated[y,s]
-    end
+    if designer.options.reopt
+        # Do we need to reoptimize ?
+        (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
 
-    # Electrolyzer
-    if isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ
-        designer.u.elyz[y,s] = des.elyz.powerMax[y,s]
-    end
+        # Update designer options with current year for scenario reduction
+        designer.options.range_y = y:des.parameters.ny
 
-    # FuelCell
-    if isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ
-        designer.u.fc[y,s] = des.fc.powerMax[y,s]
+        # Scenario reduction from the optimization scenario pool
+        ω_eac_stoch = scenarios_reduction(designer, designer.history)
+
+        # Build model
+        designer.model = build_model(des, designer, ω_eac_stoch)
+
+        # Fix variables
+        isa(des.pv, Source) ? fix(designer.model[:r_pv], des.pv.powerMax[y,s], force=true) : nothing
+        isa(des.h2tank, H2Tank) ? fix(designer.model[:r_h2tank], des.h2tank.Erated[y,s], force=true) : nothing
+        isa(des.tes, ThermalSto) ? fix(designer.model[:r_tes], des.tes.Erated[y,s], force=true) : nothing
+        isa(des.liion, Liion) && des.liion.soh[end,y,s] >= ϵ ? fix(designer.model[:r_liion], des.liion.Erated[y,s], force=true) : nothing
+        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] >= ϵ ? fix(designer.model[:r_elyz], des.elyz.powerMax[y,s], force=true) : nothing
+        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] >= ϵ ? fix(designer.model[:r_fc], des.fc.powerMax[y,s], force=true) : nothing
+
+        # Compute investment decisions
+        optimize!(designer.model)
+
+        # Preallocate and assigned values
+        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = value(designer.model[:r_liion]) : nothing
+        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = value(designer.model[:r_elyz]) : nothing
+        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = value(designer.model[:r_fc]) : nothing
+
+    else
+        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = des.liion.Erated[y,s] : nothing
+        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = des.elyz.powerMax[y,s] : nothing
+        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = des.fc.powerMax[y,s] : nothing
     end
 end
