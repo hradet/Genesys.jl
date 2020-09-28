@@ -1,6 +1,6 @@
 # Genesys
 
-A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES). The `simulate!` function includes multi-stage investment periods which could also be included into the resolution methods.  
+A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods which could also be included into the resolution methods.  
 
 When the design method is "single-stage" (investment decisions are only made the first year), either technologies are supposed to be replaced with the same first year capacities or the design optimization is rerun everytime a technology need to be replaced with updated investment information during the simulation.  
 
