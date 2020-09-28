@@ -1,6 +1,10 @@
 # Genesys
 
-A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES). The `simulate!` function includes multi-stage investment periods which could also be included into the resolution methods. When the design method is "single-stage" (investment decisions are only made the first year), technologies are supposed to be replaced with the same first year capacities to account for replacement costs during simulation. Note that **_out-of-sample_** assesment is made possible as we can optimize and simulate with different scenarios.
+A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES). The `simulate!` function includes multi-stage investment periods which could also be included into the resolution methods.  
+
+When the design method is "single-stage" (investment decisions are only made the first year), either technologies are supposed to be replaced with the same first year capacities or the design optimization is rerun everytime a technology need to be replaced with updated investment information during the simulation.  
+
+Note that **_out-of-sample_** assesment is made possible as we can optimize and simulate with different scenarios.
 
 # Installation
 In order to use the package, follow the [managing package guideline](https://julialang.github.io/Pkg.jl/v1/managing-packages/) for uneregistred packages.
@@ -28,10 +32,10 @@ We provide a simple example with the dummy controller and designer.
 using Genesys, CSV, DataFrames, JLD, Dates
 
 # Constant
-const nh, ny, ns = 8760, 20, 1
+const nh, ny, ns = 8760, 20, 1 # nh = operation stages, ny = investment stages, ns = scenarios
 
 # Load data
-data = load(joinpath("data","input_data_stochastic.jld"))
+data = load(joinpath("data","ausgrid_scenarios.jld"))
 
 # Initialize scenarios
 ω_optim, ω_simu = Scenarios(data["ω_optim"], nh, ny, ns), Scenarios(data["ω_simu"],  nh, ny, ns)
