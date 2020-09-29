@@ -1,101 +1,196 @@
-# This file includes all the plot functions for both DES
+# This file includes all the plot functions for the DES
 
-# Simple
-function plot_operation(ld::Load, pv::Source, liion::Liion, grid::Grid, parameters::NamedTuple; y=2, s=1)
+function plot_operation(des::DistributedEnergySystem ; y=2, s=1)
     # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="deep", font="serif")
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.5)
 
     # Parameters
-    hours = (parameters.Δh:parameters.Δh:parameters.H) / parameters.Δh
+    nh = des.parameters.nh
+    Δh = des.parameters.Δh
+    hours = range(1, length = nh, step = Δh) / Δh
+
+    isa(des.ld_E, Load) ? ld_E = des.ld_E.power[:,y,s] : ld_E = zeros(nh)
+    isa(des.ld_H, Load) ? ld_H = des.ld_H.power[:,y,s] : ld_H = zeros(nh)
+    isa(des.pv, Source) ? pv = des.pv.power_E[:,y,s] : pv = zeros(nh)
+    isa(des.grid, Grid) ? grid = des.grid.power_E[:,y,s] : grid = zeros(nh)
+    if isa(des.liion, Liion)
+        liion = des.liion.power_E[:,y,s]
+        soc_liion = des.liion.soc[1:end-1,y,s]
+    else
+        liion, soc_liion = zeros(nh), zeros(nh)
+    end
+    if isa(des.tes, ThermalSto)
+        tes = des.tes.power_H[:,y,s]
+        soc_tes = des.tes.soc[1:end-1,y,s]
+    else
+        tes, soc_tes = zeros(nh), zeros(nh)
+    end
+    if isa(des.h2tank, H2Tank)
+        h2tank = des.h2tank.power_H2[:,y,s]
+        soc_h2tank = des.h2tank.soc[1:end-1,y,s]
+    else
+        h2tank, soc_h2tank = zeros(nh), zeros(nh)
+    end
+    if isa(des.elyz, Electrolyzer)
+        elyz_E = des.elyz.power_E[:,y,s]
+        elyz_H = des.elyz.power_H[:,y,s]
+    else
+        elyz_E, elyz_H = zeros(nh), zeros(nh)
+    end
+    if isa(des.fc, FuelCell)
+        fc_E = des.fc.power_E[:,y,s]
+        fc_H = des.fc.power_H[:,y,s]
+    else
+        fc_E, fc_H = zeros(nh), zeros(nh)
+    end
+    if isa(des.heater, Heater)
+        heater_E = des.heater.power_E[:,y,s]
+        heater_H = des.heater.power_H[:,y,s]
+    else
+        heater_E, heater_H = zeros(nh), zeros(nh)
+    end
 
     # Plots
-    figure("Operation")
+    figure("POWERS")
     # Node E
     sp=subplot(211)
-    plot(hours,ld.power_E[:,y,s],label="ld_E_TOT", color=(0., 0.098, 0.196))
-    plot(hours,pv.power_E[:,y,s],label="pv", color= (1., 0.784, 0.588))
-    plot(hours,liion.power_E[:,y,s],label="liion", color=(0., 0.588, 0.314))
-    plot(hours,grid.power_E[:,y,s],label="grid", color=(0.588, 0.588, 0.588))
-    ylabel("POWER (kW)", weight="bold")
-
-    subplot(212, sharex=sp)
-    plot(hours,liion.soc[1:end-1,y,s], color=(0., 0.588, 0.314))
-    ylabel("BATTERY SOC", weight="bold")
-end
-function plot_investment(designer::AbstractDesigner, parameters::NamedTuple; s=1)
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
-
-    # Years
-    years = (parameters.Δy:parameters.Δy:parameters.Y) / parameters.Δy
-
-    # Bar plot
-    figure("SIZING")
-    sp=subplot(211)
-    bar(years, designer.u.u_pv[:,s], color="sandybrown")
-    ylabel("SOLAR \n PEAK POWER (kWp)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), #ylim(0,120)
-    setp(sp.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    subplot(212)
-    bar(years, designer.u.u_liion[:,s], color="steelblue")
-    ylabel("BATTERY \n CAPACITY(kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"),
-    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-end
-function plot_soh(liion; s=1)
-    # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=2.5)
-    # Parameters
-    nh = size(liion.power_E,1)
-    hours = collect(1:length(reshape(liion.soh[:,:,s],:,1))) / nh
-
-    # Liion
-    figure("SoH")
-    plot(hours,reshape(liion.soh[:,:,s],:,1), linewidth=3, color = "darkred")
-    ylabel("BATTERY SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
-    xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
-end
-
-# Multi-energy
-function plot_operation(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
-     elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
-     grid::Grid, parameters::NamedTuple; y=2, s=1)
-    # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="deep", font="serif")
-
-    # Parameters
-    hours = (parameters.Δh:parameters.Δh:parameters.H) / parameters.Δh
-
-    # Plots
-    figure("Operation")
-    # Node E
-    sp=subplot(321)
-    plot(hours,ld.power_E[:,y,s],label="ld_E", color=(0., 0.098, 0.196), linestyle="--")
-    plot(hours,ld.power_E[:,y,s]-heater.power_E[:,y,s],label="ld_E_TOT", color=(0., 0.098, 0.196))
-    plot(hours,pv.power_E[:,y,s],label="pv", color= (1., 0.784, 0.588))
-    plot(hours,liion.power_E[:,y,s],label="liion", color=(0., 0.588, 0.314))
-    plot(hours,elyz.power_E[:,y,s] + fc.power_E[:,y,s],label="h2hub", color=(0.39, 1., 0.71))
-    plot(hours,grid.power_E[:,y,s],label="grid", color=(0.588, 0.588, 0.588))
+    plot(hours, ld_E, label="ld_E", color=(0., 0.098, 0.196), linestyle="--")
+    plot(hours, ld_E - heater_E, label="ld_E_TOT", color=(0., 0.098, 0.196))
+    plot(hours, pv, label="pv", color= (1., 0.784, 0.588))
+    plot(hours, liion, label="liion", color=(0., 0.588, 0.314))
+    plot(hours, elyz_E + fc_E, label="h2hub", color=(0.39, 1., 0.71))
+    plot(hours, grid, label="grid", color=(0.588, 0.588, 0.588))
     ylabel("ELEC. POWER (kW)", weight="bold")
-
-    subplot(322, sharex=sp)
-    plot(hours,liion.soc[1:end-1,y,s], color=(0., 0.588, 0.314))
-    ylabel("BATTERY SOC", weight="bold")
-
-    subplot(324, sharex=sp)
-    plot(hours,h2tank.soc[1:end-1,y,s], color=(0.39, 1., 0.71))
-    ylabel("H2 SOC", weight="bold")
-
     # Node H
-    sp=subplot(323, sharex=sp)
-    plot(hours,ld.power_H[:,y,s],label="ld_H", color=(0., 0.098, 0.196))
-    plot(hours,elyz.power_H[:,y,s] + fc.power_H[:,y,s],label="h2hub", color=(1., 0.588, 0.588))
-    plot(hours,tes.power_H[:,y,s],label="tes", color=(1., 0., 0.))
-    plot(hours,heater.power_H[:,y,s],label="heater", color=(0.39, 0., 0.))
+    sp=subplot(212, sharex=sp)
+    plot(hours, ld_H, label="ld_H", color=(0., 0.098, 0.196))
+    plot(hours, elyz_H + fc_H, label="h2hub", color=(1., 0.588, 0.588))
+    plot(hours, tes, label="tes", color=(1., 0., 0.))
+    plot(hours, heater_H, label="heater", color=(0.39, 0., 0.))
     ylabel("HEAT. POWER (kW)", weight="bold")
 
-    subplot(326, sharex=sp)
-    plot(hours,tes.soc[1:end-1,y,s], color=(1., 0., 0.))
+    figure("SoC")
+    subplot(311, sharex=sp)
+    plot(hours, soc_liion, color=(0., 0.588, 0.314))
+    ylabel("BATTERY SOC", weight="bold")
+
+    subplot(312, sharex=sp)
+    plot(hours, soc_h2tank, color=(0.39, 1., 0.71))
+    ylabel("H2 SOC", weight="bold")
+
+    subplot(313, sharex=sp)
+    plot(hours, soc_tes, color=(1., 0., 0.))
     ylabel("TES SOC", weight="bold")
     xlabel("HOURS", weight="bold")
 end
+function plot_investment(des::DistributedEnergySystem, designer::AbstractDesigner; s=1)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.)
+
+    # Years
+    years = range(1, length=des.parameters.ny, step=des.parameters.Δy) / des.parameters.Δy
+
+    # Bar plot
+    figure("SIZING")
+    # PV
+    sp=subplot(321)
+    bar(years, designer.u.pv[:,s], color="sandybrown")
+    ylabel("SOLAR \n PEAK POWER (kWp)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    setp(sp.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+    # H2 Tank
+    sp1=subplot(322, sharex=sp)
+    bar(years, designer.u.h2tank[:,s], color="lightgreen")
+    ylabel("H2 \n CAPACITY (kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    setp(sp1.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+    # Liion
+    sp2=subplot(323, sharex=sp)
+    bar(years, designer.u.liion[:,s], color="steelblue")
+    ylabel("BATTERY \n CAPACITY(kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+    # Electrolyzer
+    sp3=subplot(324, sharex=sp)
+    bar(years, designer.u.elyz[:,s], color="lightgreen")
+    setp(sp3.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+    ylabel("ELYZ \n MAX. POWER (kW)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    # TES
+    subplot(325, sharex=sp)
+    bar(years, designer.u.tes[:,s], color="lightcoral")
+    ylabel("TES \n CAPACITY (kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+    # Fuel cell
+    subplot(326, sharex=sp)
+    bar(years, designer.u.fc[:,s], color="lightgreen")
+    ylabel("FC \n MAX. POWER (kW)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
+    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
+end
+function plot_soh(des::DistributedEnergySystem; s=1)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.5)
+    # Parameters
+    len = (des.parameters.nh + 1 ) * (des.parameters.ny + 1)
+    hours = (1:len) / 8760
+
+    if isa(des.liion, Liion)
+        soh_liion = reshape(des.liion.soh[:,:,s],:,1)
+    else
+        soh_liion = zeros(len)
+    end
+    if isa(des.elyz, Electrolyzer)
+        soh_elyz = reshape(des.elyz.soh[:,:,s],:,1)
+    else
+        soh_elyz = zeros(len)
+    end
+    if isa(des.fc, FuelCell)
+        soh_fc = reshape(des.fc.soh[:,:,s],:,1)
+    else
+        soh_fc = zeros(len)
+    end
+
+    figure("SoH")
+    # Liion
+    sp=subplot(311)
+    plot(hours, soh_liion, linewidth=3, color = "darkred")
+    ylabel("BATTERY SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
+    # Electrolyzer
+    subplot(312, sharex=sp)
+    plot(hours, soh_elyz, linewidth=3, color = "darkred")
+    ylabel("ELYZ SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
+    # Fuel Cell
+    subplot(313, sharex=sp)
+    plot(hours, soh_fc, linewidth=3, color = "darkred")
+    ylabel("FC SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
+    xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
+end
+# Economics
+function plot_costs(costs::Costs; s=1)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
+
+    # Horizon
+    years = 1:size(costs.capex, 1)
+
+    # Plots
+    figure("CASH FLOWS")
+    bar(years, costs.capex[:,s] ./ 1000, label="Investment", color="steelblue")
+    bar(years, costs.opex[:,s] ./ 1000, label="Income", color="coral")
+    ylabel("CASH FLOWS (k€)", weight = "bold"), yticks(weight = "bold")
+    xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
+    legend(fontsize="xx-large", edgecolor="inherit")
+    grid()
+
+    figure("CUMULATIVE NPV")
+    bar(years, costs.cumulative_npv[:,s] ./ 1000, color="steelblue")
+    ylabel("CUMULATIVE NPV (k€)", weight = "bold"), yticks(weight = "bold")
+    xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
+    grid()
+
+    figure("NPV")
+    hist(costs.npv / 1000, color="darkred")
+    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+    xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+end
+
+# Discarded
 function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank,
      elyz::Electrolyzer, fc::FuelCell, tes::ThermalSto, heater::Heater,
      grid::Grid; y=2, s=1, hmin=1, hmax=8760)
@@ -175,101 +270,4 @@ function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
     xlabel("HOURS", weight="black", size="large"), xticks(weight="black")
     legend(fontsize="large",edgecolor="inherit")
     sp.grid()
-end
-function plot_investment_multi_energy(designer::AbstractDesigner, parameters::NamedTuple; s=1)
-    # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1)
-
-    # Years
-    years = (parameters.Δy:parameters.Δy:parameters.Y) / parameters.Δy
-
-    # Bar plot
-    figure("SIZING")
-    # PV
-    sp=subplot(321)
-    bar(years, designer.u.u_pv[:,s], color="sandybrown")
-    ylabel("SOLAR \n PEAK POWER (kWp)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    setp(sp.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    # H2 Tank
-    sp1=subplot(322, sharex=sp)
-    bar(years, designer.u.u_tank[:,s], color="lightgreen")
-    ylabel("H2 \n CAPACITY (kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    setp(sp1.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    # Liion
-    sp2=subplot(323, sharex=sp)
-    bar(years, designer.u.u_liion[:,s], color="steelblue")
-    ylabel("BATTERY \n CAPACITY(kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    # Electrolyzer
-    sp3=subplot(324, sharex=sp)
-    bar(years, designer.u.u_elyz[:,s], color="lightgreen")
-    setp(sp3.get_xticklabels(), visible=false), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    ylabel("ELYZ \n MAX. POWER (kW)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    # TES
-    subplot(325, sharex=sp)
-    bar(years, designer.u.u_tes[:,s], color="lightcoral")
-    ylabel("TES \n CAPACITY (kWh)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-    # Fuel cell
-    subplot(326, sharex=sp)
-    bar(years, designer.u.u_fc[:,s], color="lightgreen")
-    ylabel("FC \n MAX. POWER (kW)", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(bottom=0)
-    xlabel("YEARS", weight = "black", size = "large"), xlim(0,20), xticks(0:2:20, weight = "black", size = "large")
-end
-function plot_soh(liion::Liion, elyz::Electrolyzer, fc::FuelCell; s=1)
-    # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
-    # Parameters
-    nh = size(liion.power_E,1)
-    hours = collect(1:length(reshape(liion.soh[:,:,s],:,1))) / nh
-
-    # Liion
-    figure("SoH")
-    # Liion
-    sp=subplot(311)
-    plot(hours,reshape(liion.soh[:,:,s],:,1),linewidth=3, color = "darkred")
-    ylabel("BATTERY SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
-    # Electrolyzer
-    subplot(312, sharex=sp)
-    plot(hours,reshape(elyz.soh[:,:,s],:,1),linewidth=3, color = "darkred")
-    ylabel("ELYZ SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
-    # Fuel Cell
-    subplot(313, sharex=sp)
-    plot(hours,reshape(fc.soh[:,:,s],:,1),linewidth=3, color = "darkred")
-    ylabel("FC SOH", weight = "black", size = "large"), yticks(weight = "black", size = "medium"), ylim(0,1)
-    xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
-end
-
-# Economics
-function plot_economics(costs::Costs, parameters::NamedTuple; s=1)
-    # Seaborn configuration
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif",font_scale = 2.5)
-
-    # Horizon
-    Y = length(costs.capex[:,s])
-    γ = 1. ./ (1. + parameters.τ) .^ (1:parameters.Y) # discount factor
-
-    # Plots
-    figure("CASH FLOWS")
-    bar(1:Y, -γ .* costs.capex[:,s] ./ 1000, label="Investment", color="steelblue")
-    bar(1:Y, γ .* costs.opex[:,s] ./ 1000, label="Income", color="coral")
-    ylabel("CASH FLOWS (k€)", weight = "bold"), yticks(weight = "bold")
-    xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
-    legend(fontsize="xx-large", edgecolor="inherit")
-    grid()
-
-    figure("CUMULATIVE NPV")
-    bar(1:Y, costs.cumulative_npv[:,s] ./ 1000, color="steelblue")
-    ylabel("CUMULATIVE NPV (k€)", weight = "bold"), yticks(weight = "bold")
-    xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
-    grid()
-end
-function plot_npv(costs)
-    Seaborn.set(context="notebook",style="ticks",palette="muted", font="serif", font_scale=1.5)
-
-    # Histogram
-    figure("NPV")
-    hist(costs.npv / 1000, color="darkred")
-    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
-    xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 end
