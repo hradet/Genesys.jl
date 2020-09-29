@@ -1,52 +1,62 @@
 module Genesys
 
 # Optimisation
-using JuMP, CPLEX
+using JuMP, CPLEX, Metaheuristics
 # Math
 using Statistics, Clustering, Distributions
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
-include(joinpath("simulation","components","liion.jl"))
-include(joinpath("simulation","components","tes.jl"))
-include(joinpath("simulation","components","h2tank.jl"))
-include(joinpath("simulation","components","electrolyzer.jl"))
-include(joinpath("simulation","components","fuel_cell.jl"))
-include(joinpath("simulation","components","heater.jl"))
-include(joinpath("simulation","components","grid.jl"))
-include(joinpath("simulation","components","sources.jl"))
-include(joinpath("simulation","components","loads.jl"))
-include(joinpath("simulation","components","abstract.jl"))
+include(joinpath("simulation","items","liion.jl"))
+include(joinpath("simulation","items","tes.jl"))
+include(joinpath("simulation","items","h2tank.jl"))
+include(joinpath("simulation","items","electrolyzer.jl"))
+include(joinpath("simulation","items","fuel_cell.jl"))
+include(joinpath("simulation","items","heater.jl"))
+include(joinpath("simulation","items","grid.jl"))
+include(joinpath("simulation","items","sources.jl"))
+include(joinpath("simulation","items","loads.jl"))
+include(joinpath("simulation","items","abstract.jl"))
+include(joinpath("simulation","items","DES.jl"))
+export DistributedEnergySystem, Source, Liion, ThermalSto, H2Tank, Electrolyzer, FuelCell, Heater, Grid, Load
 # Simulation
 include(joinpath("simulation","informations.jl"))
 include(joinpath("simulation","dynamics.jl"))
 include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
+export simulate!
+# Optimization
+include(joinpath("optimization","utils.jl"))
+# Investment optimization
+include(joinpath("optimization","designer","dummy.jl"))
+include(joinpath("optimization","designer","eac.jl"))
+include(joinpath("optimization","designer","eac_stoch.jl"))
+include(joinpath("optimization","designer","metaheuristic.jl"))
+export DummyDesigner, EAC, EACStoch, Metaheuristic
+export initialize_designer!
+# Operation optimization
+include(joinpath("optimization","controller","dummy.jl"))
+include(joinpath("optimization","controller","rb.jl"))
+include(joinpath("optimization","controller","mpc.jl"))
+export DummyCcontroller, RBC, MPC
+export initialize_controller!
+# Anticipative optimization
+include(joinpath("optimization","anticipative","controller.jl"))
+include(joinpath("optimization","anticipative","multistages.jl"))
+include(joinpath("optimization","anticipative","eac.jl"))
+export Anticipative, AnticipativeMultiStages, AnticipativeEAC
+export offline_optimization!
 # Scenarios
 include(joinpath("scenarios","scenario_reductions.jl"))
+include(joinpath("scenarios","clustering.jl"))
+include(joinpath("scenarios","markov.jl"))
 include(joinpath("scenarios","utils.jl"))
-include(joinpath("scenarios","markov_functions.jl"))
-include(joinpath("scenarios","time_blocks_functions.jl"))
-include(joinpath("scenarios","typical_days_functions.jl"))
-# Anticipative optimization
-include(joinpath("optimization","anticipative","anticipative_controller.jl"))
-include(joinpath("optimization","anticipative","anticipative_multistage.jl"))
-include(joinpath("optimization","anticipative","anticipative_onestage.jl"))
-include(joinpath("optimization","anticipative","anticipative_onestage_online_update.jl"))
-include(joinpath("optimization","anticipative","utils.jl"))
-# Investment optimization
-include(joinpath("optimization","investment","rule_based.jl"))
-include(joinpath("optimization","investment","eac.jl"))
-include(joinpath("optimization","investment","eac_stoch.jl"))
-# Operation optimization
-include(joinpath("optimization","operation","rule_based.jl"))
-include(joinpath("optimization","operation","mpc.jl"))
+export Scenarios
 # Post-processing
-include(joinpath("postprocessing","economics.jl"))
+include(joinpath("postprocessing","indicators.jl"))
 include(joinpath("postprocessing","plots.jl"))
-include(joinpath("postprocessing","save_functions.jl"))
+include(joinpath("postprocessing","saves.jl"))
 # Utils
-include(joinpath("utils","initialization.jl"))
-include(joinpath("utils","virtual_GUI.jl"))
+include(joinpath("utils","GUI.jl"))
 
 end
