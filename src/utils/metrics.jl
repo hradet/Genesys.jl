@@ -3,7 +3,7 @@
     indicators
  =#
 
-### Economics
+
  mutable struct Costs
       capex::Array{Float64,2}
       opex::Array{Float64,2}
@@ -12,7 +12,28 @@
       npv::Array{Float64,1}
  end
 
-function compute_economics(des::DistributedEnergySystem, designer::AbstractDesigner)
+ mutable struct Metrics
+     costs::Costs
+     τ_share::Array{Float64,2}
+     lpsp_H::Union{Nothing, Array{Float64,2}}
+ end
+
+ function compute_metrics(des::DistributedEnergySystem, designer::AbstractDesigner)
+     ### Econmics
+     costs = compute_costs(des, designer)
+
+     ### Share of renewables
+     ld_tot = zeros(des.parameters.ny, des.parameters.ns)
+     isa(des.ld_E, Load) ? ld_tot .+= dropdims(sum(des.ld_E.power, dims=1), dims=1) : nothing
+     isa(des.ld_H, Load) ? ld_tot .+= dropdims(sum(des.ld_H.power ./ des.heater.η_E_H, dims=1), dims=1) : nothing
+     τ_share = 1. .- dropdims(sum(max.(0., des.grid.power_E), dims=1), dims=1) ./ ld_tot
+
+     ### LPSP
+     isa(des.ld_H, Load) ? lpsp_H = dropdims(sum(max.(0., des.ld_H.power .- des.heater.power_H .- des.fc.power_H .- des.elyz.power_H .- des.tes.power_H), dims=1) ./ sum(des.ld_H.power, dims=1), dims=1) : lpsp_H = nothing
+
+     return Metrics(costs, τ_share, lpsp_H)
+ end
+function compute_costs(des::DistributedEnergySystem, designer::AbstractDesigner)
 
      # Discount factor
      γ = 1. ./ (1. + des.parameters.τ) .^ range(1, length = des.parameters.ny, step = des.parameters.Δy)
@@ -61,25 +82,4 @@ function compute_capex(des::DistributedEnergySystem, designer::AbstractDesigner)
     isa(des.fc, FuelCell) ? capex .+= designer.u.fc .* des.fc.C_fc : nothing
 
     return capex
-end
-
-### Techno ###
-mutable struct Indicators
-     τ_share
-     lpsp_H
-     τ_autoconso
-end
-
-function compute_tech_indicators(des::DistributedEnergySystem)
-    # Share of renewables
-    ld_tot = zeros(des.parameters.ny, des.parameters.ns)
-    isa(des.ld_E, Load) ? ld_tot .+= dropdims(sum(des.ld_E.power, dims=1), dims=1) : nothing
-    isa(des.ld_H, Load) ? ld_tot .+= dropdims(sum(des.ld_H.power ./ des.heater.η_E_H, dims=1), dims=1) : nothing
-    τ_share = 1. .- dropdims(sum(max.(0., des.grid.power_E), dims=1), dims=1) ./ ld_tot
-    # LPSP
-    isa(des.ld_H, Load) ? lpsp_H = dropdims(sum(max.(0., des.ld_H.power .- des.heater.power_H .- des.fc.power_H .- des.elyz.power_H .- des.tes.power_H), dims=1) ./ sum(des.ld_H.power, dims=1), dims=1) : lpsp_H = nothing
-    # Self-consumption
-    # TODO
-
-    return Indicators(τ_share, lpsp_H, nothing)
 end

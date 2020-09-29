@@ -25,7 +25,3 @@ controller, designer = offline_optimization!(DES,
 
 # Simulate
 @elapsed simulate!(DES, controller, designer, ω_simu)
-
-# Postprocessing
-costs = Genesys.compute_economics(DES, designer)
-tech = Genesys.compute_tech_indicators(DES)

@@ -58,14 +58,11 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
          # Simulate
          simulate!(des_meta, controller_meta, designer_meta, ω_meta)
 
-         # Compute cost indicators
-         costs_meta = compute_economics(des_meta, designer_meta)
-
-         # Compute tech indicators
-         tech_meta = compute_tech_indicators(des_meta)
+         # Compute metrics
+         metrics_meta = compute_metrics(des_meta, designer_meta)
 
          # Objective - algorithm find the maximum
-        designer.option.share_constraint ? obj = costs_meta.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(tech_meta.τ_share[2:end,:])) : obj = costs_meta.npv[1]
+        designer.option.share_constraint ? obj = metrics_meta.costs.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(metrics_meta.τ_share[2:end,:])) : obj = metrics_meta.costs.npv[1]
 
          return obj
      end

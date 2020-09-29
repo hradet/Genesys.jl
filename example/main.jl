@@ -32,10 +32,11 @@ designer = initialize_designer!(DES,
 @elapsed simulate!(DES, controller, designer, ω_simu,
                           options = Genesys.Options(mode="serial"))
 
-# Postprocessing
-costs = Genesys.compute_economics(DES, designer)
-tech = Genesys.compute_tech_indicators(DES)
-Genesys.plot_operation(DES)
-Genesys.plot_investment(DES, designer)
-Genesys.plot_soh(DES)
-Genesys.plot_costs(costs)
+# Compute the metrics
+metrics = compute_metrics(DES, designer)
+
+# Plot functions
+plot_operation(DES)
+plot_investment(DES, designer)
+plot_soh(DES)
+plot_costs(metrics.costs)
