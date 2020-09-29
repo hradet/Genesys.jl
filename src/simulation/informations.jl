@@ -6,11 +6,20 @@
 
 function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, ω::AbstractScenarios)
 
-    isa(des.ld_E, Load) ? des.ld_E.power[h,y,s] = ω.values.ld_E[h,y,s] : nothing
+    if isa(des.ld_E, Load)
+        des.ld_E.power[h,y,s] = ω.values.ld_E[h,y,s]
+        des.ld_E.timestamp[h,y,s] = ω.timestamp[h,y,s]
+    end
 
-    isa(des.ld_H, Load) ? des.ld_H.power[h,y,s] = ω.values.ld_H[h,y,s] : nothing
+    if isa(des.ld_H, Load)
+         des.ld_H.power[h,y,s] = ω.values.ld_H[h,y,s]
+         des.ld_H.timestamp[h,y,s] = ω.timestamp[h,y,s]
+     end
 
-    isa(des.pv, Source) ? des.pv.power_E[h,y,s] = des.pv.powerMax[y,s] * ω.values.pv_E[h,y,s] : nothing
+    if isa(des.pv, Source)
+        des.pv.power_E[h,y,s] = des.pv.powerMax[y,s] * ω.values.pv_E[h,y,s]
+        des.pv.timestamp[h,y,s] = ω.timestamp[h,y,s]
+    end
 
     if isa(des.grid, Grid)
         des.grid.C_grid_in[h,y,s] = ω.values.C_grid_in[h,y,s]

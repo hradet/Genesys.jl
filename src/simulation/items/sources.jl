@@ -9,6 +9,7 @@ mutable struct Source
      # Variables
      power_E::AbstractArray{Float64,3}
      powerMax::AbstractArray{Float64,2}
+     timestamp::Array{DateTime,3}
      # Eco
      C_pv::AbstractArray{Float64,2}
      # Inner constructor
@@ -19,7 +20,9 @@ end
 function preallocate!(pv::Source, nh::Int64, ny::Int64, ns::Int64)
      pv.power_E = convert(SharedArray,zeros(nh, ny, ns))
      pv.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; pv.powerMax[1,:] .= pv.powerMax_ini
+     pv.timestamp = Array{DateTime}(undef,(nh, ny, ns))
      pv.C_pv = convert(SharedArray,zeros(ny, ns))
+
  end
 
  ### Operation dynamic

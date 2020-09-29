@@ -19,11 +19,9 @@ function clustering_month(data, timestamp)
     # Pre_allocate
     data_cluster = Array{Array{Float64,2}}(undef, nm, ny)
 
-    for y in 1:ny
-        for m in 1:nm
-            # We cluster data by month
-            data_cluster[m,y] = reshape(data[(Dates.month.(timestamp) .== m), y, :], 24, :)
-        end
+    for y in 1:ny, m in 1:nm
+        # We cluster data by month
+        data_cluster[m,y] = reshape(data[:,y,:][Dates.month.(timestamp[:,y,:]) .== m], 24, :)
     end
 
     return data_cluster
@@ -42,11 +40,9 @@ function clustering_month_week(data, timestamp)
     # Pre_allocate
     data_cluster= Array{Array{Float64,2}}(undef, nm, ny)
 
-    for y in 1:ny
-        for m in 1:nm
-            # We cluster week days using the "not" operator
-            data_cluster[m,y] = reshape(data[ (Dates.month.(timestamp) .== m) .& .~isweekend(timestamp), y, :], 24, :)
-        end
+    for y in 1:ny, m in 1:nm
+        # We cluster week days using the "not" operator
+        data_cluster[m,y] = reshape(data[:,y,:][(Dates.month.(timestamp[:,y,:]) .== m) .& .~isweekend(timestamp[:,y,:])], 24, :)
     end
 
     return data_cluster
@@ -65,11 +61,9 @@ function clustering_month_weekend(data, timestamp)
     # Pre_allocate
     data_cluster = Array{Array{Float64,2}}(undef, nm, ny)
 
-    for y in 1:ny
-        for m in 1:nm
-            # We cluster weekend days
-            data_cluster[m,y] = reshape(data[ (Dates.month.(timestamp) .== m) .& isweekend(timestamp), y, :], 24, :)
-        end
+    for y in 1:ny, m in 1:nm
+        # We cluster weekend days
+        data_cluster[m,y] = reshape(data[:,y,:][(Dates.month.(timestamp[:,y,:]) .== m) .& isweekend(timestamp[:,y,:])], 24, :)
     end
 
     return data_cluster

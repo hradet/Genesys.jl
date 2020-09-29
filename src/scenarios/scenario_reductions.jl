@@ -31,7 +31,7 @@ function Scenarios(outputGUI::Dict{}, nh::Int64, ny::Int64, ns::Int64)
     # Probabilities - uniform
     proba = 1 / ns * ones(ns)
 
-    return Scenarios(outputGUI["timestamp"],values, proba)
+    return Scenarios(outputGUI["timestamp"][1:nh, 1:ny, 1:ns],values, proba)
 end
 
 # Scenario Reduction functions

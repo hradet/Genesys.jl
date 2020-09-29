@@ -243,16 +243,16 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      window = h:min(des.parameters.nh, h + controller.options.horizon - 1)
      n_zeros = controller.options.horizon - length(window)
 
-     # Compute forecasts and add zeros if needed
-     pv = compute_scenario(controller.markovchains.pv_E, des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], controller.history.timestamp[h], y, controller.options.horizon - 1)
-     ld_E = compute_scenario(controller.markovchains.ld_E.wk, controller.markovchains.ld_E.wkd, des.ld_E.power[h,y,s], controller.history.timestamp[h], y, controller.options.horizon - 1)
-     ld_H = compute_scenario(controller.markovchains.ld_H.wk, controller.markovchains.ld_H.wkd, des.ld_H.power[h,y,s], controller.history.timestamp[h], y, controller.options.horizon - 1)
-     C_grid_in = vcat(controller.history.values.C_grid_in[window,y,s], zeros(n_zeros))
-     C_grid_out = vcat(controller.history.values.C_grid_out[window,y,s], zeros(n_zeros))
-
-     # Fix variables
-     isa(des.ld_E, Load) ? fix.(controller.model[:p_net_E], ld_E .- des.pv.powerMax[y,s] .* pv) : nothing
-     isa(des.ld_H, Load) ? fix.(controller.model[:p_net_H], ld_H) : nothing
+     # Compute forecasts and fix variables
+     if isa(des.ld_E, Load)
+         pv = compute_scenario(controller.markovchains.pv_E, des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.pv.timestamp[h,y,s], y, controller.options.horizon - 1)
+         ld_E = compute_scenario(controller.markovchains.ld_E.wk, controller.markovchains.ld_E.wkd, des.ld_E.power[h,y,s], des.ld_E.timestamp[h,y,s], y, controller.options.horizon - 1)
+         fix.(controller.model[:p_net_E], ld_E .- des.pv.powerMax[y,s] .* pv)
+     end
+     if isa(des.ld_H, Load)
+         ld_H = compute_scenario(controller.markovchains.ld_H.wk, controller.markovchains.ld_H.wkd, des.ld_H.power[h,y,s], des.ld_H.timestamp[h,y,s], y, controller.options.horizon - 1)
+         fix.(controller.model[:p_net_H], ld_H)
+     end
      if isa(des.liion, Liion)
          fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
          fix(controller.model[:r_liion], des.liion.Erated[y,s])
@@ -267,9 +267,10 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      end
      isa(des.elyz, Electrolyzer) ? fix(controller.model[:r_elyz], des.elyz.powerMax[y,s]) : nothing
      isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
+     C_grid_in = vcat(controller.history.values.C_grid_in[window,y,s], zeros(n_zeros))
+     C_grid_out = vcat(controller.history.values.C_grid_out[window,y,s], zeros(n_zeros))
 
      # Objective function
-     #TODO add a final cost to avoid to discharge the storages
      @objective(controller.model, Min, sum(controller.model[:p_g_in] .* C_grid_in + controller.model[:p_g_out] .* C_grid_out) * des.parameters.Δh)
 
      # Optimize
