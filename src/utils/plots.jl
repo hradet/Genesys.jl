@@ -183,11 +183,22 @@ function plot_costs(costs::Costs; s=1)
     ylabel("CUMULATIVE NPV (k€)", weight = "bold"), yticks(weight = "bold")
     xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
     grid()
+end
+# Statistics
+function plot_statistics(metrics::Metrics)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
 
     figure("NPV")
-    hist(costs.npv / 1000, color="darkred")
+    hist(metrics.costs.npv / 1000, color="sandybrown")
     ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
     xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+
+    figure("SHARE OF RENEW.")
+    hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+    xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+
 end
 
 # Discarded
