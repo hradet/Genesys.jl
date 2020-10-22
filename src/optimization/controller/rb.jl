@@ -21,12 +21,12 @@ end
 mutable struct RBC <: AbstractController
     options::RBCOptions
     u::NamedTuple
-    π::Function
+
     RBC(; options = RBCOptions()) = new(options)
 end
 
 ### Policies
-function policy_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
+function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
     # Control parameters
     ϵ = 1e-2
 
@@ -91,7 +91,7 @@ function policy_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, co
     controller.u.fc[h,y,s] = u_fc_E
     controller.u.h2tank[h,y,s] = u_fc_E / des.fc.η_H2_E + u_elyz_E * des.elyz.η_E_H2
 end
-function policy_2(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
+function π_2(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
     controller.u.liion[h,y,s] = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 end
 
@@ -100,17 +100,15 @@ function initialize_controller!(des::DistributedEnergySystem, controller::RBC, �
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
 
-    # Chose policy TODO : better way !
-    if isa(des.ld_H, Load)
-        controller.π = policy_1
-    else
-        controller.π = policy_2
-    end
-
     return controller
 end
 
 ### Online
 function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
-    controller.π(h, y, s, des, controller)
+    # Chose policy TODO : better way !
+    if isa(des.ld_H, Load)
+        return π_1(h, y, s, des, controller)
+    else
+        return π_2(h, y, s, des, controller)
+    end
 end

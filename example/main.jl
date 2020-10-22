@@ -3,7 +3,7 @@ using Genesys, CSV, DataFrames, JLD, Dates, Seaborn
 pygui(true)
 
 # Parameters
-const nh, ny, ns = 8760, 20, 100
+const nh, ny, ns = 8760, 20, 10
 
 # Load data
 data = load(joinpath("data","scenarios_ausgrid.jld"))
