@@ -16,7 +16,7 @@ DES = DistributedEnergySystem(ld_E = Load(),
                               pv = Source(),
                               liion = Liion(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.5))
 
 # Initialize controller
 controller = initialize_controller!(DES,

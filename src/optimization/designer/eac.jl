@@ -261,26 +261,11 @@ end
 ### Offline
 function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_optim::AbstractScenarios)
 
-   # Scenario reduction from the optimization scenario pool
-   ω_eac = scenarios_reduction(designer, ω_optim)
-
-   # Build model
-   designer.model = build_model(des, designer, ω_eac)
-
-   # Compute investment decisions
-   optimize!(designer.model)
-
-   # Save history for online reoptimization
+   # Save history for online optimization
    designer.history = ω_optim
 
-   # Preallocate and assigned values
+   # Preallocate
    preallocate!(designer, des.parameters.ny, des.parameters.ns)
-   isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
-   isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
-   isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
-   isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
-   isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
-   isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
 
    return designer
 end
@@ -290,7 +275,25 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
     # Parameters
     ϵ = 0.1
 
-    if designer.options.reopt
+    if s == 1 && y == 1
+        # Scenario reduction from the optimization scenario pool
+        ω_eac = scenarios_reduction(designer, designer.history)
+
+        # Build model
+        designer.model = build_model(des, designer, ω_eac)
+
+        # Compute investment decisions
+        optimize!(designer.model)
+
+        # Assign values
+        isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
+        isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
+        isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
+        isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
+        isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
+        isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
+
+    elseif designer.options.reopt # reoptimization
         # Do we need to reoptimize ?
         (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
 
@@ -313,15 +316,15 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
 
         # Compute investment decisions
         optimize!(designer.model)
-        
-        # Preallocate and assigned values
+
+        # Assign values
         isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = value(designer.model[:r_liion]) : nothing
         isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = value(designer.model[:r_elyz]) : nothing
         isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = value(designer.model[:r_fc]) : nothing
 
     else
-        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = des.liion.Erated[y,s] : nothing
-        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = des.elyz.powerMax[y,s] : nothing
-        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = des.fc.powerMax[y,s] : nothing
+        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = designer.u.liion[1,s] : nothing
+        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = designer.u.elyz[1,s] : nothing
+        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
     end
 end
