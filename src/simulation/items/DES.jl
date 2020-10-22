@@ -8,11 +8,9 @@ mutable struct GlobalParameters
     τ::Float64 # discount rate
     τ_share::Float64 # share of renewables [0,1]
 
-    GlobalParameters(;ns = 1,
+    GlobalParameters(nh, ny, ns;
                 Δh = 1,
-                nh = 8760,
                 Δy = 1,
-                ny = 20,
                 τ = 0.045,
                 τ_share = 0.) =
                 new(ns, Δh, nh, Δy, ny, τ, τ_share)
@@ -47,7 +45,7 @@ function DistributedEnergySystem(; ld_E = nothing,
                                    elyz = nothing,
                                    fc = nothing,
                                    grid = nothing,
-                                   parameters = GlobalParameters())
+                                   parameters = GlobalParameters(8760, 20, 1))
     # Parameters
     nh = parameters.nh
     ny = parameters.ny

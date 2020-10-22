@@ -16,7 +16,7 @@ DES = DistributedEnergySystem(ld_E = Load(),
                               pv = Source(),
                               liion = Liion(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
 
 # Initialize controller
 controller = initialize_controller!(DES,
@@ -40,3 +40,4 @@ plot_operation(DES)
 plot_investment(DES, designer)
 plot_soh(DES)
 plot_costs(metrics.costs)
+plot_statistics(metrics)

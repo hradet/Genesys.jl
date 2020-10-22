@@ -16,7 +16,7 @@ DES = DistributedEnergySystem(ld_E = Load(),
                               pv = Source(),
                               liion = Liion(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
 
 # Offline computations
 controller, designer = offline_optimization!(DES,
