@@ -77,5 +77,5 @@ function check_electricity!(h::Int64, y::Int64, s::Int64, des::DistributedEnergy
     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_E[h,y,s] : elyz = 0.
     isa(des.fc, FuelCell) ? fc = des.fc.power_E[h,y,s] : fc = 0.
     # Power grid
-    des.grid.power_E[h,y,s] = ld_E - pv - liion - elyz - fc - heater
+    isa(des.grid, Grid) ? des.grid.power_E[h,y,s] = ld_E - pv - liion - elyz - fc - heater : nothing
 end
