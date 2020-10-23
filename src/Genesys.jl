@@ -57,7 +57,7 @@ include(joinpath("utils","metrics.jl"))
 include(joinpath("utils","plots.jl"))
 include(joinpath("utils","saves.jl"))
 include(joinpath("utils","GUI.jl"))
-export compute_metrics
+export Metrics
 export plot_operation, plot_investment, plot_soh, plot_costs, plot_statistics
 
 end

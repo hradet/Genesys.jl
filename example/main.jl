@@ -33,7 +33,7 @@ designer = initialize_designer!(DES,
                           options = Genesys.Options(mode="serial"))
 
 # Compute the metrics
-metrics = compute_metrics(DES, designer)
+metrics = Metrics(DES, designer)
 
 # Plot functions
 plot_operation(DES)

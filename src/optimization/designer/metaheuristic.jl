@@ -9,16 +9,18 @@ mutable struct MetaheuristicOptions
     scenario_reduction::String
     share_constraint::Bool
     reopt::Bool
+    obj::String
     s::Int64
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
                            controller = RBC(),
-                           iterations = 10,
+                           iterations = 20,
                            scenario_reduction = "manual",
                            share_constraint = true,
                            reopt = false,
+                           obj = "npv",
                            s = 1) =
-                           new(method, controller, iterations, scenario_reduction, share_constraint, reopt, s)
+                           new(method, controller, iterations, scenario_reduction, share_constraint, reopt, obj, s)
 
 end
 
@@ -54,11 +56,45 @@ function fobj(decisions, des, designer, ω)
     # Simulate
     simulate!(1, des_m, controller_m, designer_m, ω)
 
-    # Compute metrics
-    metrics_m = compute_metrics(1, des_m, designer_m)
+    # Metrics
+    metrics_m = Metrics(1, des_m, designer_m)
 
     # Objective - algorithm find the maximum
    designer.options.share_constraint ? obj = metrics_m.costs.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(metrics_m.τ_share[2:end,:])) : obj = metrics_m.costs.npv[1]
+
+    return obj
+end
+function fobj_eac(decisions, des, designer, ω)
+    # Initialize DES
+    des_m = deepcopy(des)
+
+    # Initialize controller
+    controller_m = initialize_controller!(des_m, designer.options.controller, ω)
+
+    # Initialize with the dummy designer
+    designer_m = initialize_designer!(des_m, DummyDesigner(), ω)
+
+    # Initialize with the decisions variables
+    #TODO bug si il en manque un dans le lot... decision 4 devient decision 3...
+    isa(des.pv, Source) ? designer_m.u.pv[1,:] .= decisions[1] : nothing
+    isa(des.liion, Liion) ? designer_m.u.liion[1,:] .= decisions[2]  : nothing
+    isa(des.h2tank, H2Tank) ? designer_m.u.h2tank[1,:] .= decisions[3]  : nothing
+    isa(des.elyz, Electrolyzer) ? designer_m.u.elyz[1,:] .= decisions[4]  : nothing
+    isa(des.fc, FuelCell) ? designer_m.u.fc[1,:] .= decisions[5]  : nothing
+    isa(des.tes, ThermalSto) ? designer_m.u.tes[1,:] .= decisions[6]  : nothing
+
+    # Simulate
+    for y in 1:2
+        simulate!(y, 1, des_m, controller_m, designer_m, ω)
+    end
+
+    # Metrics
+    τ_share = compute_share(2, 1, des_m)
+    capex = compute_capex_eac(1, 1, des_m, designer_m)
+    opex = compute_opex_eac(2, 1, des_m)
+
+    # Objective - algorithm find the maximum
+   designer.options.share_constraint ? obj = - capex - opex - 1e32 * max(0., des.parameters.τ_share - τ_share) : obj = - capex - opex
 
     return obj
 end
@@ -91,7 +127,13 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
                                                    designer.options.method,
                                                    options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
         ) do decisions
-            fobj(decisions, des, designer, ω_meta)
+            if designer.options.obj == "npv"
+                fobj(decisions, des, designer, ω_meta)
+            elseif designer.options.obj == "eac"
+                fobj_eac(decisions, des, designer, ω_meta)
+            else
+                println("Obj unknown...")
+            end
           end
 
         # Assign values

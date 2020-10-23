@@ -13,7 +13,7 @@
  end
 
  # Compute costs
-function compute_costs(des::DistributedEnergySystem, designer::AbstractDesigner)
+function Costs(des::DistributedEnergySystem, designer::AbstractDesigner)
 
      # Discount factor
      γ = 1. ./ (1. + des.parameters.τ) .^ range(1, length = des.parameters.ny, step = des.parameters.Δy)
@@ -36,7 +36,7 @@ function compute_costs(des::DistributedEnergySystem, designer::AbstractDesigner)
     return Costs(capex, opex, cf, cumulative_npv, npv)
 end
 # Compute costs for a given scenario s
-function compute_costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
+function Costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
 
      # Discount factor
      γ = 1. ./ (1. + des.parameters.τ) .^ range(1, length = des.parameters.ny, step = des.parameters.Δy)
@@ -91,6 +91,11 @@ function compute_opex(s::Int64, des::DistributedEnergySystem)
 
     return opex
 end
+# OPEX for eac
+function compute_opex_eac(y::Int64, s::Int64, des::DistributedEnergySystem)
+    opex =  sum(max.(0., des.grid.power_E[:,y,s]) .* des.grid.C_grid_in[:,y,s] - min.(0., des.grid.power_E[:,y,s]) .* des.grid.C_grid_out[:,y,s]) * des.parameters.Δh
+    return opex
+end
 
 # CAPEX
 function compute_capex(des::DistributedEnergySystem, designer::AbstractDesigner)
@@ -120,6 +125,43 @@ function compute_capex(s::Int64, des::DistributedEnergySystem, designer::Abstrac
 
     return capex
 end
+# CAPEX for eac
+function compute_capex_eac(y::Int64, s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
+    # Preallocation
+    capex = 0.
+
+    if isa(des.pv, Source)
+        Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.pv.lifetime) / ((des.parameters.τ + 1.) ^ des.pv.lifetime - 1.)
+        capex += Γ_pv * designer.u.pv[y,s] * des.pv.C_pv[y,s]
+    end
+
+    if isa(des.liion, Liion)
+        Γ_liion = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.liion.lifetime) / ((des.parameters.τ + 1.) ^ des.liion.lifetime - 1.)
+        capex += Γ_liion * designer.u.liion[y,s] * des.liion.C_liion[y,s]
+    end
+
+    if isa(des.tes, ThermalSto)
+        Γ_tes = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.tes.lifetime) / ((des.parameters.τ + 1.) ^ des.tes.lifetime - 1.)
+        capex += Γ_tes * designer.u.tes[y,s] * des.tes.C_tes[y,s]
+    end
+
+    if isa(des.h2tank, H2Tank)
+        Γ_h2tank = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.h2tank.lifetime) / ((des.parameters.τ + 1.) ^ des.h2tank.lifetime - 1.)
+        capex += Γ_h2tank * designer.u.h2tank[y,s] * des.h2tank.C_tank[y,s]
+    end
+
+    if isa(des.elyz, Electrolyzer)
+        Γ_elyz= (des.parameters.τ * (des.parameters.τ + 1.) ^ des.elyz.lifetime) / ((des.parameters.τ + 1.) ^ des.elyz.lifetime - 1.)
+        capex += Γ_elyz * designer.u.elyz[y,s] * des.elyz.C_elyz[y,s]
+    end
+
+    if isa(des.fc, FuelCell)
+        Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.fc.lifetime) / ((des.parameters.τ + 1.) ^ des.fc.lifetime - 1.)
+        capex += Γ_fc * designer.u.fc[y,s] * des.fc.C_fc[y,s]
+    end
+
+    return capex
+end
 
 # Share of renewables
 function compute_share(des::DistributedEnergySystem)
@@ -145,6 +187,18 @@ function compute_share(s::Int64, des::DistributedEnergySystem)
 
     return τ_share
 end
+# Share of renewables for a given year y of a givn scenario s
+function compute_share(y::Int64, s::Int64, des::DistributedEnergySystem)
+    # Total demand
+    ld_tot = 0.
+    isa(des.ld_E, Load) ? ld_tot += sum(des.ld_E.power[:,y,s]) : nothing
+    isa(des.ld_H, Load) ? ld_tot += sum(des.ld_H.power[:,y,s]) ./ des.heater.η_E_H : nothing
+
+    # Share of renew.
+    τ_share = 1. .- sum(max.(0., des.grid.power_E[:,y,s])) ./ ld_tot
+
+    return τ_share
+end
 
 mutable struct LPSP
     lpsp_E::Union{Nothing, Array{Float64,1}, Array{Float64,2}}
@@ -152,7 +206,7 @@ mutable struct LPSP
 end
 
 # LPSP
-function compute_lpsp(des::DistributedEnergySystem)
+function LPSP(des::DistributedEnergySystem)
 
     # Elec.
     isa(des.ld_E, Load) ? ld_E = des.ld_E.power : ld_E = 0.
@@ -177,7 +231,7 @@ function compute_lpsp(des::DistributedEnergySystem)
     return LPSP(lpsp_E, lpsp_H)
 end
 # LPSP for a given scenario s
-function compute_lpsp(s::Int64, des::DistributedEnergySystem)
+function LPSP(s::Int64, des::DistributedEnergySystem)
 
     # Elec.
     isa(des.ld_E, Load) ? ld_E = des.ld_E.power[:,:,s] : ld_E = 0.
@@ -203,7 +257,15 @@ function compute_lpsp(s::Int64, des::DistributedEnergySystem)
 end
 
 # Equivalent annual cost
-function compute_eac()
+function compute_eac(y::Int64, s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
+    # CAPEX
+    capex = compute_capex_eac(y, s, des, designer)
+
+    # OPEX
+    opex = compute_opex_eac(y, s, des)
+
+    return capex + opex
+end
 
 mutable struct Metrics
     costs::Costs
@@ -212,28 +274,28 @@ mutable struct Metrics
 end
 
 # Compute indicators
-function compute_metrics(des::DistributedEnergySystem, designer::AbstractDesigner)
+function Metrics(des::DistributedEnergySystem, designer::AbstractDesigner)
     ### Econmics
-    costs = compute_costs(des, designer)
+    costs = Costs(des, designer)
 
     ### Share of renewables
     τ_share = compute_share(des)
 
     ### LPSP
-    lpsp = compute_lpsp(des)
+    lpsp = LPSP(des)
 
     return Metrics(costs, τ_share, lpsp)
 end
 # Compute indicators for a given scenario s
-function compute_metrics(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
+function Metrics(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
     ### Econmics
-    costs = compute_costs(s, des, designer)
+    costs = Costs(s, des, designer)
 
     ### Share of renewables
     τ_share = compute_share(s, des)
 
     ### LPSP
-    lpsp = compute_lpsp(s, des)
+    lpsp = LPSP(s, des)
 
     return Metrics(costs, τ_share, lpsp)
 end
