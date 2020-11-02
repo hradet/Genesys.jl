@@ -2,7 +2,7 @@
     Designer based on the equivalent annual cost (EAC) with multiple scenarios
 =#
 
-mutable struct EACStochOptions
+mutable struct MILPStochOptions
   solver
   risk
   scenario_reduction::String # scenario reduction technique "manual" or "auto"
@@ -11,7 +11,7 @@ mutable struct EACStochOptions
   s::Int64 # scenario index for the manual reduction technique
   range_y::UnitRange{Int64} # year range for the manual reduction technique
 
-  EACStochOptions(; solver = CPLEX,
+  MILPStochOptions(; solver = CPLEX,
                     risk = "esperance",
                     scenario_reduction = "manual",
                     share_constraint = true,
@@ -20,17 +20,17 @@ mutable struct EACStochOptions
                     new(solver, risk, scenario_reduction, share_constraint, reopt, s, range_y)
 end
 
-mutable struct EACStoch <: AbstractOneStageStochasticDesigner
-    options
+mutable struct MILPStoch <: AbstractOneStageStochasticDesigner
+    options::MILPStochOptions
     u::NamedTuple
     model::JuMP.Model
     history::AbstractScenarios
 
-    EACStoch(; options = EACStochOptions()) = new(options)
+    MILPStoch(; options = MILPStochOptions()) = new(options)
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::EACStoch, ω_optim::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::MILPStoch, ω_optim::AbstractScenarios)
 
     # Sets
     nh = size(ω_optim.values.ld_E,1) # Number of hours
@@ -265,7 +265,7 @@ function build_model(des::DistributedEnergySystem, designer::EACStoch, ω_optim:
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::EACStoch, ω_optim::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::MILPStoch, ω_optim::AbstractScenarios)
 
      # Save history for online optimization
      designer.history = ω_optim
@@ -277,7 +277,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::EACStoch, 
 end
 
 ### Online
-function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EACStoch)
+function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::MILPStoch)
     ϵ = 0.1
 
     if s == 1 && y == 1

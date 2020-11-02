@@ -2,7 +2,7 @@
     Equivalent annual cost (EAC) designer based on a single year
 =#
 
-mutable struct EACOptions
+mutable struct MILPOptions
   solver
   scenario_reduction::String # scenario reduction technique "manual" or "auto"
   share_constraint::Bool
@@ -10,7 +10,7 @@ mutable struct EACOptions
   s::Int64 # scenario index for the manual reduction technique
   y::Int64 # year index for the manual reduction technique
 
-  EACOptions(; solver = CPLEX,
+  MILPOptions(; solver = CPLEX,
                scenario_reduction = "manual",
                share_constraint = true,
                reopt = false,
@@ -18,19 +18,20 @@ mutable struct EACOptions
                new(solver, scenario_reduction, share_constraint, reopt, s, y)
 end
 
-mutable struct EAC <: AbstractOneStageDesigner
-    options::EACOptions
+mutable struct MILP <: AbstractOneStageDesigner
+    options::MILPOptions
     u::NamedTuple
     model::JuMP.Model
     history::AbstractScenarios
 
-    EAC(; options = EACOptions()) = new(options)
+    MILP(; options = MILPOptions()) = new(options)
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, designer::EAC, ω_optim::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::AbstractScenarios)
 
     #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
+    # ou ecrire un seul probleme et fixer les variables de design à 0...
 
     # Sets
     nh = des.parameters.nh # Number of hours
@@ -259,7 +260,7 @@ function build_model(des::DistributedEnergySystem, designer::EAC, ω_optim::Abst
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_optim::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω_optim::AbstractScenarios)
 
    # Save history for online optimization
    designer.history = ω_optim
@@ -271,7 +272,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::EAC, ω_op
 end
 
 ### Online
-function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::EAC)
+function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::MILP)
     # Parameters
     ϵ = 0.1
 

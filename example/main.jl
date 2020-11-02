@@ -25,7 +25,7 @@ controller = initialize_controller!(DES,
 
 # Initialize designer
 designer = initialize_designer!(DES,
-                                EAC(),
+                                MILP(),
                                 ω_optim)
 
 # Simulate
