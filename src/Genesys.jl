@@ -29,10 +29,10 @@ export simulate!
 include(joinpath("optimization","utils.jl"))
 # Investment optimization
 include(joinpath("optimization","designer","dummy.jl"))
-include(joinpath("optimization","designer","eac.jl"))
-include(joinpath("optimization","designer","eac_stoch.jl"))
+include(joinpath("optimization","designer","milp.jl"))
+include(joinpath("optimization","designer","milp_stoch.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export DummyDesigner, EAC, EACStoch, Metaheuristic
+export DummyDesigner, MILP, MILPStoch, Metaheuristic
 export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))

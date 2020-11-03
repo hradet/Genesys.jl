@@ -10,12 +10,12 @@ mutable struct RBCOptions
     β_max_elyz
 
     RBCOptions(; β_min_tes = 0.2,
-                       β_max_tes = 0.9,
-                       β_min_fc = 0.25,
-                       β_max_fc = 0.3,
-                       β_min_elyz = 0.4,
-                       β_max_elyz = 0.45) =
-                       new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz)
+                 β_max_tes = 0.9,
+                 β_min_fc = 0.25,
+                 β_max_fc = 0.3,
+                 β_min_elyz = 0.45,
+                 β_max_elyz = 0.5) =
+                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz)
 end
 
 mutable struct RBC <: AbstractController
@@ -33,7 +33,7 @@ function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     # Net power elec
     p_net_E = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 
-    # H2 - Ullberg, 2004
+    # H2 - Ulleberg, 2004
     if p_net_E <= 0
         # FC is off
         u_fc_E, p_fc_H = 0., 0.

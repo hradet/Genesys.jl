@@ -54,7 +54,7 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
      =#
 
      # Power constraint and correction
-     fc.α_p * x_fc.powerMax <= u_fc <= x_fc.powerMax ? power_E = u_fc : power_E = 0.
+     fc.α_p * x_fc.powerMax <= u_fc && x_fc.soh * fc.nHoursMax / Δh > 1. ? power_E = min(u_fc, x_fc.powerMax) : power_E = 0.
 
      # Power computations
      power_H2 = - power_E / fc.η_H2_E
@@ -62,10 +62,6 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
 
      # SoH computation
      soh_next = x_fc.soh - (power_E > 0.) * Δh / fc.nHoursMax
-
-     # SoH constraint and correction
-     soh_next < 0. ? power_E = power_H = power_H2 = 0. : nothing
-     soh_next < 0. ? soh_next = x_fc.soh : nothing
 
      return power_E, power_H, power_H2, soh_next
 end

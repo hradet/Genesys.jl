@@ -54,7 +54,7 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
     =#
 
     # Power constraint and correction
-    elyz.α_p * x_elyz.powerMax <= -u_elyz <= x_elyz.powerMax ? power_E = u_elyz : power_E = 0
+    elyz.α_p * x_elyz.powerMax >= u_elyz && x_elyz.soh * elyz.nHoursMax / Δh > 1. ? power_E = max(u_elyz, -x_elyz.powerMax) : power_E = 0
 
     # Power computations
     power_H2 = - power_E * elyz.η_E_H2
@@ -62,10 +62,6 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
 
     # SoH computation
     soh_next = x_elyz.soh - (power_E < 0.) * Δh / elyz.nHoursMax
-
-    # SoH constraint and correction
-    soh_next < 0. ? power_E = power_H = power_H2 = 0. : nothing
-    soh_next < 0. ? soh_next = x_elyz.soh : nothing
 
     return power_E, power_H, power_H2, soh_next
 end

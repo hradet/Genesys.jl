@@ -30,7 +30,7 @@ mutable struct H2Tank
         α_soc_min = 0.,
         α_soc_max = 1.,
         lifetime = 25,
-        Erated_ini = 0.,
+        Erated_ini = 1e-6,
         soc_ini = 0.5) =
         new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
 end
@@ -44,7 +44,7 @@ function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Float64, Δh::Int64)
+function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple, u_h2tank::Float64, Δh::Int64)
      #=
      INPUT :
              x_h2 = (Erated[y], soc[h,y]) tuple
@@ -55,17 +55,12 @@ function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Floa
      =#
 
      # Power constraint and correction
-     0. <= u_h2 <= h2tank.α_p_dch * x_h2.Erated ? power_dch = u_h2 : power_dch = 0.
-     0. <= -u_h2 <= h2tank.α_p_ch * x_h2.Erated ? power_ch = u_h2 : power_ch = 0.
+     # Control power constraint and correction
+      power_dch = max(min(u_h2tank, h2tank.α_p_dch * x_h2tank.Erated, h2tank.η_dch * (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * x_h2tank.Erated / Δh), 0.)
+      power_ch = min(max(u_h2tank, -h2tank.α_p_ch * x_h2tank.Erated, (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * x_h2tank.Erated / Δh / h2tank.η_ch), 0.)
 
-     # SoC dynamic
-     soc_next = x_h2.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2.Erated
-
-     # State variable bounds
-     overshoot = (round(soc_next;digits=3) < h2tank.α_soc_min) || (round(soc_next;digits=3) > h2tank.α_soc_max)
-
-     overshoot ? soc_next = max(x_h2.soc * (1. - h2tank.η_self * Δh), h2tank.α_soc_min) : nothing
-     overshoot ? power_ch = power_dch = 0. : nothing
+      # SoC dynamic
+      soc_next = x_h2tank.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2tank.Erated
 
      return soc_next, power_ch + power_dch
 end

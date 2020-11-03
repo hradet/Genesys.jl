@@ -3,7 +3,7 @@
 =#
 
 mutable struct AnticipativeEAC <: AbstractOneStageStochasticDesigner
-    options::EACStochOptions
+    options::MILPStochOptions
     u::NamedTuple
     model::JuMP.Model
     AnticipativeEAC(; options = EACStochOptions()) = new(options)

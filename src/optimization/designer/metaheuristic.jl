@@ -59,7 +59,13 @@ function fobj_npv(decisions, des, designer, ω_m)
     metrics_m = Metrics(1, des_m, designer_m)
 
     # Objective - algorithm find the maximum
-   designer.options.share_constraint ? obj = metrics_m.costs.npv[1] - 1e32 * max(0., des.parameters.τ_share - minimum(metrics_m.τ_share[2:end,:])) : obj = metrics_m.costs.npv[1]
+   obj = metrics_m.costs.npv[1]
+
+   # Add the LPSP constraint for the heat
+   isa(des.ld_H, Load) ? obj -= 1e32 * max(0., maximum(metrics_m.lpsp.lpsp_H[2:end,:]) - 0.05) : nothing
+
+   # Add the share constraint
+   designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - minimum(metrics_m.τ_share[2:end,:])) : nothing
 
     return obj
 end
@@ -87,7 +93,13 @@ function fobj_eac(decisions, des, designer, ω_m)
     end
 
     # Objective - algorithm find the maximum
-   designer.options.share_constraint ? obj = - compute_annualised_capex(1, 1, des_m, designer_m) - compute_grid_cost(2, 1, des_m) - 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m)) : obj = - compute_annualised_capex(1, 1, des_m, designer_m) - compute_grid_cost(2, 1, des_m)
+   obj = - compute_annualised_capex(1, 1, des_m, designer_m) - compute_grid_cost(2, 1, des_m)
+
+   # Add the LPSP constraint for the heat
+   isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., Genesys.LPSP(2, 1, des_m).lpsp_H - 0.05) : nothing
+
+   # Add the share constraint
+   designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m)) : nothing
 
     return obj
 end

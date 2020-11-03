@@ -30,7 +30,7 @@ mutable struct ThermalSto
           α_soc_min = 0.,
           α_soc_max = 1.,
           lifetime = 25,
-          Erated_ini = 0.,
+          Erated_ini = 1e-6,
           soc_ini = 0.5) =
           new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
 end
@@ -54,18 +54,12 @@ function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::F
             power = the real battery power in kW
     =#
 
-    # Power constraint and correction
-    0. <= u_tes <= tes.α_p_dch * x_tes.Erated ? power_dch = u_tes : power_dch = 0.
-    0. <= -u_tes <= tes.α_p_ch * x_tes.Erated ? power_ch = u_tes : power_ch = 0.
+    # Control power constraint and correction
+    power_dch = max(min(u_tes, tes.α_p_dch * x_tes.Erated, tes.η_dch * (x_tes.soc * (1. - tes.η_self * Δh) - tes.α_soc_min) * x_tes.Erated / Δh), 0.)
+    power_ch = min(max(u_tes, -tes.α_p_ch * x_tes.Erated, (x_tes.soc * (1. - tes.η_self * Δh) - tes.α_soc_max) * x_tes.Erated / Δh / tes.η_ch), 0.)
 
     # SoC dynamic
     soc_next = x_tes.soc * (1. - tes.η_self * Δh) - (power_ch * tes.η_ch + power_dch / tes.η_dch) * Δh / x_tes.Erated
-
-    # State variable bounds
-    overshoot = (round(soc_next;digits=3) < tes.α_soc_min) || (round(soc_next;digits=3) > tes.α_soc_max)
-
-    overshoot ? soc_next = max(x_tes.soc * (1. - tes.η_self * Δh), tes.α_soc_min) : nothing
-    overshoot ? power_ch = power_dch = 0. : nothing
 
     return soc_next, power_ch + power_dch
 end
