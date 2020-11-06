@@ -98,6 +98,9 @@ function fobj_eac(decisions, des, designer, ω_m)
    # Add the LPSP constraint for the heat
    isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., Genesys.LPSP(2, 1, des_m).lpsp_H - 0.05) : nothing
 
+   # Add the soc constraint for the seasonal storage
+   obj -= 1e32 * max(0., des_m.h2tank.soc[1,2,1] - des_m.h2tank.soc[end,2,1])
+
    # Add the share constraint
    designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m)) : nothing
 

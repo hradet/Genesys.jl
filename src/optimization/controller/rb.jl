@@ -103,7 +103,11 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
 
     if p_net_E < 0
         # Elyz
-        u_elyz_E, elyz_H, elyz_H2, _ = compute_operation_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[h,y,s]), p_net_E, des.parameters.Δh)
+        if des.h2tank.soc[h,y,s] < 0.8
+            u_elyz_E, elyz_H, elyz_H2, _ = compute_operation_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[h,y,s]), p_net_E, des.parameters.Δh)
+        else
+            u_elyz_E, elyz_H, elyz_H2 = 0., 0., 0.
+        end
         # Liion
         u_liion = compute_operation_dynamics(des.liion, (Erated = des.liion.Erated[y,s], soc = des.liion.soc[h,y,s], soh = des.liion.soh[h,y,s]), p_net_E - u_elyz_E, des.parameters.Δh)[3]
         # FC
@@ -114,25 +118,24 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         # Elyz
         u_elyz_E, elyz_H, elyz_H2 = 0., 0., 0.
         # FC
-        u_fc_E, fc_H, fc_H2, _ = compute_operation_dynamics(des.fc, (powerMax = des.fc.powerMax[y,s], soh = des.fc.soh[h,y,s]), p_net_E - u_liion, des.parameters.Δh)
+        if des.h2tank.soc[h,y,s] > 0.2
+            u_fc_E, fc_H, fc_H2, _ = compute_operation_dynamics(des.fc, (powerMax = des.fc.powerMax[y,s], soh = des.fc.soh[h,y,s]), p_net_E - u_liion, des.parameters.Δh)
+        else
+            u_fc_E, fc_H, fc_H2 = 0., 0., 0.
+        end
     end
 
     # Net power heating post H2
     p_net_H = des.ld_H.power[h,y,s] - fc_H - elyz_H
 
     if p_net_H < 0
-        # if p_net_E - u_elyz_E - u_fc_E - u_liion < 0
-        #     u_heater_E, heater_H = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), p_net_E, des.parameters.Δh)
-        # else
-        #     u_heater_E, heater_H = 0., 0.
-        # end
         # TES
         u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
         u_heater_E, heater_H = 0., 0.
     else
         # TES
         u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
-        # Heater TODO
+        # Heater
         u_heater_E, heater_H = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), - (p_net_H - u_tes) / des.heater.η_E_H, des.parameters.Δh)
     end
 
