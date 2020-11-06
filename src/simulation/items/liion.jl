@@ -87,7 +87,7 @@ end
      =#
 
      # Model
-     if round(u_liion) > 0.
+     if u_liion > 1e-2
          E_next = u_liion
          soc_next = liion.soc[1,1,1]
          soh_next =  1.

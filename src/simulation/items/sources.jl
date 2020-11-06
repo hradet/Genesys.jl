@@ -38,7 +38,7 @@ function preallocate!(pv::Source, nh::Int64, ny::Int64, ns::Int64)
      =#
 
      # Model
-     if round(u_pv) > 0.
+     if u_pv > 1e-2
          powerMax_next = u_pv
      else
          powerMax_next = x_pv.powerMax

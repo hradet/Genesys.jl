@@ -77,7 +77,7 @@ function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank:
      =#
 
      # Model
-     if round(u_tank) > 0.
+     if u_tank > 1e-2
          E_next = u_tank
          soc_next = h2tank.soc[1,1,1]
      else

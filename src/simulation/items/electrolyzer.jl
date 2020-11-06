@@ -78,7 +78,7 @@ function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_e
     =#
 
     # Model
-    if round(u_elyz) > 0.
+    if u_elyz > 1e-2
         powerMax_next = u_elyz
         soh_next = 1.
     else

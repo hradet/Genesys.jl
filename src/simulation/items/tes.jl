@@ -76,7 +76,7 @@ function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::
     =#
 
     # Model
-    if round(u_tes) > 0.
+    if u_tes > 1e-2
         E_next = u_tes
         soc_next = tes.soc[1,1,1]
     else

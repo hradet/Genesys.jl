@@ -78,7 +78,7 @@ function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union
      =#
 
      # Model
-     if round(u_fc) > 0.
+     if u_fc > 1e-2
          powerMax_next = u_fc
          soh_next = 1.
      else
