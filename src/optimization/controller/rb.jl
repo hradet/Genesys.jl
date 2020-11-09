@@ -98,12 +98,16 @@ function π_2(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     controller.u.liion[h,y,s] = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 end
 function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
+    # Control parameters
+    β_min_tank, β_max_tank = 0.2, 0.8
+
+
     # Net power elec
     p_net_E = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 
     if p_net_E < 0
         # Elyz
-        if des.h2tank.soc[h,y,s] < 0.8
+        if des.h2tank.soc[h,y,s] < β_max_tank
             u_elyz_E, elyz_H, elyz_H2, _ = compute_operation_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[h,y,s]), p_net_E, des.parameters.Δh)
         else
             u_elyz_E, elyz_H, elyz_H2 = 0., 0., 0.
@@ -118,7 +122,7 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         # Elyz
         u_elyz_E, elyz_H, elyz_H2 = 0., 0., 0.
         # FC
-        if des.h2tank.soc[h,y,s] > 0.2
+        if des.h2tank.soc[h,y,s] > β_min_tank
             u_fc_E, fc_H, fc_H2, _ = compute_operation_dynamics(des.fc, (powerMax = des.fc.powerMax[y,s], soh = des.fc.soh[h,y,s]), p_net_E - u_liion, des.parameters.Δh)
         else
             u_fc_E, fc_H, fc_H2 = 0., 0., 0.
@@ -129,10 +133,12 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     p_net_H = des.ld_H.power[h,y,s] - fc_H - elyz_H
 
     if p_net_H < 0
+        # TODO Rajouter chargement du stockage si surplus elec
         # TES
         u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
         u_heater_E, heater_H = 0., 0.
     else
+        # TODO Si surplus elec, alors directement les utiliser pour couvrir le besoin en chaud !
         # TES
         u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
         # Heater
