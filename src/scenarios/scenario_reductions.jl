@@ -2,7 +2,7 @@
     Scenario reduction functions
 =#
 mutable struct Scenarios <: AbstractScenarios
-     timestamp::Array{DateTime,3}
+     timestamp::Union{Array{DateTime,1}, Array{DateTime,2}, Array{DateTime,3}}
      values::NamedTuple
      proba::Array{Float64,1}
 end
@@ -66,7 +66,7 @@ function scenarios_reduction(designer::AbstractOneStageDesigner, ω::Scenarios)
     C_grid_out = ω.values.C_grid_out[:,y,s],
     )
 
-    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+    return Scenarios(ω.timestamp[:, y, s],values, [ω.proba[s]])
 end
 # One stage stochastic designer reduction
 function scenarios_reduction(designer::AbstractOneStageStochasticDesigner, ω::Scenarios)
@@ -99,7 +99,7 @@ function scenarios_reduction(designer::AbstractOneStageStochasticDesigner, ω::S
     C_grid_out = ω.values.C_grid_out[:,y,s],
     )
 
-    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+    return Scenarios(ω.timestamp[:, y, s],values, [ω.proba[s]])
 end
 # Multistage designer reduction
 function scenarios_reduction(designer::AbstractMultiStageDesigner, ω::Scenarios)
@@ -131,7 +131,7 @@ function scenarios_reduction(designer::AbstractMultiStageDesigner, ω::Scenarios
     C_grid_out = ω.values.C_grid_out[:,:,s],
     )
 
-    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+    return Scenarios(ω.timestamp[:,:,s],values, [ω.proba[s]])
 end
 # Multistage stochastic designer reduction
 function scenarios_reduction(designer::AbstractMultiStageStochasticDesigner, ω::Scenarios)
@@ -163,5 +163,5 @@ function scenarios_reduction(designer::AbstractMultiStageStochasticDesigner, ω:
     C_grid_out = ω.values.C_grid_out[:,:,s],
     )
 
-    return Scenarios(ω.timestamp,values, [ω.proba[s]])
+    return Scenarios(ω.timestamp[:,:,s],values, [ω.proba[s]])
 end

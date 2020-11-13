@@ -36,7 +36,7 @@ end
 # Objective functions
 function fobj_npv(decisions, des, designer, ω_m)
     # Initialize DES
-    des_m = deepcopy(des)
+    des_m = copy(des, des.parameters.nh, des.parameters.ny, 1)
 
     # Initialize controller
     controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
@@ -71,7 +71,10 @@ function fobj_npv(decisions, des, designer, ω_m)
 end
 function fobj_eac(decisions, des, designer, ω_m)
     # Initialize DES
-    des_m = deepcopy(des)
+    des_m = copy(des, des.parameters.nh, 2, 1)
+    ω_m.values.ld_E[:,2] .= ω_m.values.ld_E[:,1] # TODO virer pour mettre dans réduction de scenarios
+    ω_m.values.pv_E[:,2] .= ω_m.values.pv_E[:,1]
+    ω_m.values.ld_H[:,2] .= ω_m.values.ld_H[:,1]
 
     # Initialize controller
     controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
@@ -89,7 +92,7 @@ function fobj_eac(decisions, des, designer, ω_m)
 
     # Simulate
     for y in 1:2
-        simulate!(y, 1, des_m, controller_m, designer_m, ω_m, Options())
+        simulate!(y, 1, des_m, controller_m, designer_m, ω_m, Genesys.Options())
     end
 
     # Objective - algorithm find the maximum
@@ -99,7 +102,7 @@ function fobj_eac(decisions, des, designer, ω_m)
    isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., Genesys.LPSP(2, 1, des_m).lpsp_H - 0.05) : nothing
 
    # Add the soc constraint for the seasonal storage
-   obj -= 1e32 * max(0., des_m.h2tank.soc[1,2,1] - des_m.h2tank.soc[end,2,1])
+   isa(des_m.h2tank, H2Tank) ? obj -= 1e32 * max(0., des_m.h2tank.soc[1,2,1] - des_m.h2tank.soc[end,2,1]) : nothing
 
    # Add the share constraint
    designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m)) : nothing
@@ -131,6 +134,7 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         lb, ub = set_bounds(des)
 
         # Optimize
+        println("Starting design optimization...")
         designer.results = Metaheuristics.optimize(lb, ub,
                                                    designer.options.method,
                                                    options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
