@@ -9,7 +9,7 @@ const nh, ny, ns = 8760, 20, 10
 data = load(joinpath("data","scenarios_ausgrid.jld"))
 
 # Initialize scenarios
-ω_optim, ω_simu = Scenarios(data["ω_optim"], nh, ny, ns), Scenarios(data["ω_simu"],  nh, ny, ns)
+ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
 
 # Initialize DES
 DES = DistributedEnergySystem(ld_E = Load(),
