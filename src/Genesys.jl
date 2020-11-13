@@ -25,8 +25,6 @@ include(joinpath("simulation","dynamics.jl"))
 include(joinpath("simulation","power_balances.jl"))
 include(joinpath("simulation","simulations.jl"))
 export simulate!
-# Optimization
-include(joinpath("optimization","utils.jl"))
 # Investment optimization
 include(joinpath("optimization","designer","dummy.jl"))
 include(joinpath("optimization","designer","milp.jl"))
@@ -47,10 +45,9 @@ include(joinpath("optimization","anticipative","eac.jl"))
 export Anticipative, AnticipativeMultiStages, AnticipativeEAC
 export offline_optimization!
 # Scenarios
-include(joinpath("scenarios","scenario_reductions.jl"))
+include(joinpath("scenarios","scenarios.jl"))
 include(joinpath("scenarios","clustering.jl"))
 include(joinpath("scenarios","markov.jl"))
-include(joinpath("scenarios","utils.jl"))
 export Scenarios
 # Utils
 include(joinpath("utils","metrics.jl"))

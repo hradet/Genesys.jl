@@ -20,7 +20,7 @@ mutable struct H2Tank
      power_H2::AbstractArray{Float64,3}
      soc::AbstractArray{Float64,3}
      # Eco
-     C_tank::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      H2Tank(; α_p_ch = 1.5,
         α_p_dch = 1.5,
@@ -40,7 +40,7 @@ function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
    h2tank.Erated = convert(SharedArray,zeros(ny+1, ns)) ; h2tank.Erated[1,:] .= h2tank.Erated_ini
    h2tank.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
    h2tank.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; h2tank.soc[1,1,:] .= h2tank.soc_ini
-   h2tank.C_tank = convert(SharedArray,zeros(ny, ns))
+   h2tank.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic

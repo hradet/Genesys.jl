@@ -10,7 +10,7 @@ mutable struct AnticipativeMultiStagesOptions
     AnticipativeMultiStagesOptions(; solver = CPLEX, scenario_reduction = "manual", s = 1) = new(solver, scenario_reduction, s)
 end
 
-mutable struct AnticipativeMultiStages <: AbstractMultiStageDesigner
+mutable struct AnticipativeMultiStages <: AbstractDesigner
     options::AnticipativeMultiStagesOptions
     u::NamedTuple
     model::JuMP.Model
@@ -65,9 +65,9 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         [h in 1:nh, y in 1:ny], soc_liion[h+1,y] == soc_liion[h,y] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h,y] * des.liion.η_ch + p_liion_dch[h,y] / des.liion.η_dch) * des.parameters.Δh
         [h in 1:nh, y in 1:ny], soh_liion[h+1,y] == soh_liion[h,y] - (p_liion_dch[h,y] - p_liion_ch[h,y]) * des.parameters.Δh / (2. * (des.liion.α_soc_max - des.liion.α_soc_min) * des.liion.nCycle)
         # Power balance
-        [h in 1:nh, y in 1:ny], ω.values.ld_E[h,y] - pMax_pv[y] *  ω.values.pv_E[h,y] <= p_g_out[h,y] + p_g_in[h,y] + p_liion_ch[h,y] + p_liion_dch[h,y]
+        [h in 1:nh, y in 1:ny], ω.ld_E.power[h,y] - pMax_pv[y] *  ω.pv.power[h,y] <= p_g_out[h,y] + p_g_in[h,y] + p_liion_ch[h,y] + p_liion_dch[h,y]
         # Self-sufficiency constraint
-        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ω.values.ld_E[h,y] for h in 1:nh)
+        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ω.ld_E.power[h,y] for h in 1:nh)
         # Investment bounds
         [y in 1:ny], r_liion[y] <= 1000. * δ_inv_liion[y]
         [y in 1:ny], r_pv[y] <= 1000. * δ_inv_pv[y]
@@ -103,8 +103,8 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
     end
 
     # Objective
-    @objective(m, Min, sum( γ[y] * ( ω.values.C_liion[y] * r_liion[y] + ω.values.C_pv[y] * r_pv[y] +
-    sum( (p_g_in[h, y] * ω.values.C_grid_in[h,y] + p_g_out[h, y] * ω.values.C_grid_out[h,y]) * des.parameters.Δh for h=1:nh) ) for y=1:ny))
+    @objective(m, Min, sum( γ[y] * ( ω.liion.cost[y] * r_liion[y] + ω.pv.cost[y] * r_pv[y] +
+    sum( (p_g_in[h, y] * ω.grid.cost_in[h,y] + p_g_out[h, y] * ω.grid.cost_out[h,y]) * des.parameters.Δh for h=1:nh) ) for y=1:ny))
 
     return m
 end

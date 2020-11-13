@@ -20,7 +20,7 @@ mutable struct ThermalSto
      power_H::AbstractArray{Float64,3}
      soc::AbstractArray{Float64,3}
      # Eco
-     C_tes::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      ThermalSto(; α_p_ch = 1.5,
           α_p_dch = 1.5,
@@ -40,7 +40,7 @@ function preallocate!(tes::ThermalSto, nh::Int64, ny::Int64, ns::Int64)
    tes.Erated = convert(SharedArray,zeros(ny+1, ns)) ; tes.Erated[1,:] .= tes.Erated_ini
    tes.power_H = convert(SharedArray,zeros(nh, ny, ns))
    tes.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; tes.soc[1,1,:] .= tes.soc_ini
-   tes.C_tes = convert(SharedArray,zeros(ny, ns))
+   tes.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic

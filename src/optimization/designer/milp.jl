@@ -18,7 +18,7 @@ mutable struct MILPOptions
                new(solver, scenario_reduction, share_constraint, reopt, s, y)
 end
 
-mutable struct MILP <: AbstractOneStageDesigner
+mutable struct MILP <: AbstractDesigner
     options::MILPOptions
     u::NamedTuple
     model::JuMP.Model
@@ -28,7 +28,7 @@ mutable struct MILP <: AbstractOneStageDesigner
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
 
     #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
     # ou ecrire un seul probleme et fixer les variables de design à 0...
@@ -40,8 +40,8 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
     m = Model(designer.options.solver.Optimizer)
 
     # Initialize expressions
-    isa(des.ld_E, Load) ? power_balance_E = AffExpr.(- ω_optim.values.ld_E) : nothing
-    isa(des.ld_H, Load) ? power_balance_H = AffExpr.(- ω_optim.values.ld_H) : nothing
+    isa(des.ld_E, Load) ? power_balance_E = AffExpr.(- ω.ld_E.power) : nothing
+    isa(des.ld_H, Load) ? power_balance_H = AffExpr.(- ω.ld_H.power) : nothing
     power_balance_H2 = AffExpr.(zeros(nh))
     capex = AffExpr(0.)
 
@@ -76,7 +76,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_liion_ch .+ p_liion_dch) : nothing
         # CAPEX
-        add_to_expression!(capex, Γ_liion * ω_optim.values.C_liion[1] * r_liion)
+        add_to_expression!(capex, Γ_liion * ω.liion.cost[1] * r_liion)
     end
 
     if isa(des.tes, ThermalSto)
@@ -109,7 +109,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         # Power balance
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, p_tes_ch .+ p_tes_dch) : nothing
         # CAPEX
-        add_to_expression!(capex, Γ_tes * ω_optim.values.C_tes[1] * r_tes)
+        add_to_expression!(capex, Γ_tes * ω.tes.cost[1] * r_tes)
     end
 
     if isa(des.h2tank, H2Tank)
@@ -142,7 +142,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         # Power balances
         add_to_expression!.(power_balance_H2, p_h2tank_ch .+ p_h2tank_dch)
         # CAPEX
-        add_to_expression!.(capex, Γ_h2tank * ω_optim.values.C_tank[1] * r_h2tank)
+        add_to_expression!.(capex, Γ_h2tank * ω.h2tank.cost[1] * r_h2tank)
     end
 
     if isa(des.elyz, Electrolyzer)
@@ -165,7 +165,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, - des.elyz.η_E_H .* p_elyz_E) : nothing
         add_to_expression!.(power_balance_H2, - des.elyz.η_E_H2 * p_elyz_E)
         # CAPEX
-        add_to_expression!(capex, Γ_elyz * ω_optim.values.C_elyz[1] * r_elyz)
+        add_to_expression!(capex, Γ_elyz * ω.elyz.cost[1] * r_elyz)
     end
 
     if isa(des.fc, FuelCell)
@@ -188,7 +188,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, des.fc.η_H2_H / des.fc.η_H2_E .* p_fc_E) : nothing
         add_to_expression!.(power_balance_H2, - p_fc_E / des.fc.η_H2_E)
         # CAPEX
-        add_to_expression!(capex, Γ_fc * ω_optim.values.C_fc[1] * r_fc)
+        add_to_expression!(capex, Γ_fc * ω.fc.cost[1] * r_fc)
     end
 
     if isa(des.heater, Heater)
@@ -216,9 +216,9 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
         0 <= r_pv <= 1000
         end)
         # Power balance
-        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, r_pv * ω_optim.values.pv_E) : nothing
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, r_pv * ω.pv.power) : nothing
         # CAPEX
-        add_to_expression!(capex, Γ_pv * ω_optim.values.C_pv[1] * r_pv)
+        add_to_expression!(capex, Γ_pv * ω.pv.cost[1] * r_pv)
     end
 
     if isa(des.grid, Grid)
@@ -244,14 +244,12 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
 
     # Share of renewables constraint
     if designer.options.share_constraint
-        ld_tot = 0.
-        isa(des.ld_E, Load) ? ld_tot += sum(ω_optim.values.ld_E[h] for h in 1:nh) : nothing
-        isa(des.ld_H, Load) ? ld_tot += sum(ω_optim.values.ld_H[h] ./ des.heater.η_E_H for h in 1:nh) : nothing
-        @constraint(m, self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - des.parameters.τ_share) * ld_tot)
+        sum_ld = (isa(des.ld_E, Load) ? sum(ω.ld_E.power[h] for h in 1:nh) : 0) + (isa(des.ld_H, Load) ? sum(ω.ld_H.power[h] ./ des.heater.η_E_H for h in 1:nh) : 0)
+        @constraint(m, self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum_ld)
     end
 
     # OPEX
-    opex = @expression(m, sum((p_g_in[h] * ω_optim.values.C_grid_in[h] + p_g_out[h] * ω_optim.values.C_grid_out[h]) * des.parameters.Δh  for h in 1:nh))
+    opex = @expression(m, sum((p_g_in[h] * ω.grid.cost_in[h] + p_g_out[h] * ω.grid.cost_out[h]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
     @objective(m, Min, capex + opex)
@@ -260,10 +258,10 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω_optim::Abs
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω_optim::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
 
    # Save history for online optimization
-   designer.history = ω_optim
+   designer.history = ω
 
    # Preallocate
    preallocate!(designer, des.parameters.ny, des.parameters.ns)
@@ -278,10 +276,10 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
 
     if s == 1 && y == 1
         # Scenario reduction from the optimization scenario pool
-        ω_eac = scenarios_reduction(designer, designer.history)
+        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, 1, 1)
 
         # Build model
-        designer.model = build_model(des, designer, ω_eac)
+        designer.model = build_model(des, designer, ω)
 
         # Compute investment decisions
         optimize!(designer.model)
@@ -298,14 +296,11 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         # Do we need to reoptimize ?
         (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
 
-        # Update designer options with current year for scenario reduction
-        designer.options.y = y
-
         # Scenario reduction from the optimization scenario pool
-        ω_eac = scenarios_reduction(designer, designer.history)
+        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, y, 1)
 
         # Build model
-        designer.model = build_model(des, designer, ω_eac)
+        designer.model = build_model(des, designer, ω)
 
         # Fix variables
         isa(des.pv, Source) ? fix(designer.model[:r_pv], des.pv.powerMax[y,s], force=true) : nothing

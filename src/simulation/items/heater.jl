@@ -13,7 +13,7 @@ mutable struct Heater
      power_E::AbstractArray{Float64,3}
      power_H::AbstractArray{Float64,3}
      # Eco
-     C_heater::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      Heater(; η_E_H = 1.,
              lifetime = 25.,
@@ -26,7 +26,7 @@ function preallocate!(heater::Heater, nh::Int64, ny::Int64, ns::Int64)
      heater.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; heater.powerMax .= heater.powerMax_ini
      heater.power_E = convert(SharedArray,zeros(nh, ny, ns))
      heater.power_H = convert(SharedArray,zeros(nh, ny, ns))
-     heater.C_heater = convert(SharedArray,zeros(ny, ns))
+     heater.cost = convert(SharedArray,zeros(ny, ns))
 end
 
  ### Operation dynamic

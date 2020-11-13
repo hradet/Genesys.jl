@@ -19,7 +19,7 @@ mutable struct FuelCell
      power_H2::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
-     C_fc::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      FuelCell(; α_p = 8/100,
              η_H2_E = 0.4,
@@ -38,7 +38,7 @@ function preallocate!(fc::FuelCell, nh::Int64, ny::Int64, ns::Int64)
      fc.power_H = convert(SharedArray,zeros(nh, ny, ns))
      fc.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
      fc.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; fc.soh[1,1,:] .= fc.soh_ini
-     fc.C_fc = convert(SharedArray,zeros(ny, ns))
+     fc.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic

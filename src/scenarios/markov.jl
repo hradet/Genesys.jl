@@ -1,99 +1,120 @@
-
 mutable struct MarkovChain
     states
     transition_matrices
 end
 
+mutable struct MarkovChainOptions
+    algorithm::String
+    selection::String
 
-# Clustering functions
-# Clustering data by month
-function clustering_month(data, timestamp)
-    #=
-        Data are only clustered by month from the time array
-    =#
-
-    # Parameters
-    ny = size(data,2) # number of years
-    nm = 12 # number of month in one year
-
-    # Pre_allocate
-    data_cluster = Array{Array{Float64,2}}(undef, nm, ny)
-
-    for y in 1:ny, m in 1:nm
-        # We cluster data by month
-        data_cluster[m,y] = reshape(data[:,y,:][Dates.month.(timestamp[:,y,:]) .== m], 24, :)
-    end
-
-    return data_cluster
+    MarkovChainOptions(; algorithm = "kmeans", selection = "") = new(algorithm, selection)
 end
-# Clustering data by week for each month
-function clustering_month_week(data, timestamp)
-    #=
-        Data are clustered by week days for each month from the
-        time array
-    =#
 
-    # Parameters
-    ny = size(data,2) # number of years
-    nm = 12 # number of month in one year
+# True if t is a weeken day
+isweekend(t::Union{DateTime, Array{DateTime,1}, Array{DateTime,2}}) = (Dates.dayname.(t) .== "Saturday") .| (Dates.dayname.(t) .== "Sunday")
 
-    # Pre_allocate
-    data_cluster= Array{Array{Float64,2}}(undef, nm, ny)
+# Compute MarkovChain
+# Compute markov-chain from aggregated data
+function compute_markovchains(pv, ld_E, ld_H; n_state::Int64=0, options::MarkovChainOptions = MarkovChainOptions())
+    # Clustering by week and weekend for each month
+    pv_wk, pv_wkd = clustering_month_week(pv.power, pv.t, options.selection), clustering_month_weekend(pv.power, pv.t, options.selection)
+    ld_E_wk, ld_E_wkd = clustering_month_week(ld_E.power, ld_E.t, options.selection), clustering_month_weekend(ld_E.power, ld_E.t, options.selection)
+    ld_H_wk, ld_H_wkd = clustering_month_week(ld_H.power, ld_H.t, options.selection), clustering_month_weekend(ld_H.power, ld_H.t, options.selection)
 
-    for y in 1:ny, m in 1:nm
-        # We cluster week days using the "not" operator
-        data_cluster[m,y] = reshape(data[:,y,:][(Dates.month.(timestamp[:,y,:]) .== m) .& .~isweekend(timestamp[:,y,:])], 24, :)
-    end
+    # The number of states must be greater than 2 and lower than the minimum of week and weekend days
+    1 < n_state < min(minimum(size.(pv_wk,2)), minimum(size.(pv_wkd,2))) ? nothing : n_state = min(minimum(size.(pv_wk,2)), minimum(size.(pv_wkd,2))) - 1
 
-    return data_cluster
+    # Compute markov chains
+    mc_wk = compute_markovchain(pv_wk, ld_E_wk, ld_H_wk, n_state, options)
+    mc_wkd = compute_markovchain(pv_wkd, ld_E_wkd, ld_H_wkd, n_state, options)
+
+    return (wkd = mc_wkd, wk = mc_wk)
 end
-# Clustering data by weekend for each month
-function clustering_month_weekend(data, timestamp)
-    #=
-        Data are clustered by week-end days for each month from the
-        time array
-    =#
 
+# Compute markov-chain from aggregated data
+function compute_markovchain(pv, ld_E, ld_H, n_state::Int64, options::MarkovChainOptions)
     # Parameters
-    ny = size(data,2) # number of years
-    nm = 12 # number of month in one year
+    nh = 24
+    nm = size(pv,1)
 
-    # Pre_allocate
-    data_cluster = Array{Array{Float64,2}}(undef, nm, ny)
-
-    for y in 1:ny, m in 1:nm
-        # We cluster weekend days
-        data_cluster[m,y] = reshape(data[:,y,:][(Dates.month.(timestamp[:,y,:]) .== m) .& isweekend(timestamp[:,y,:])], 24, :)
-    end
-
-    return data_cluster
-end
-# Clustering states using k-means algorithm
-function clustering_states(data_day, n_state)
-    # Parameters
-    nh = size(data_day,1)
-    nd = size(data_day,2)
     # Pre-allocate
-    sequence = zeros(Int64, nh, nd)
-    states = zeros(nh, n_state)
+    states = [zeros(nh, 3, n_state) for m in 1:nm]
+    transition_matrices = [zeros(n_state, n_state, nh - 1) for m in 1:nm]
 
-    # For each hour, we extract markov states and the corresponding sequence
-    for h in 1 : nh
-        cluster = kmeans(convert(Array{Float64,2},reshape(data_day[h,:],1,:)), n_state)
-        states[h,:], sequence[h,:] = cluster.centers, cluster.assignments
+    # For each month, we compute the markov states and transition matrices
+    for m in 1:nm
+        # For each hour, we extract markov states using k-means from aggregated data to keep the synchronicity
+        states[m], sequences = compute_markov_states(pv[m], ld_E[m], ld_H[m], n_state, options)
+        # We compute the transition matrices between consecutive hours using the sequences
+        transition_matrices[m] = compute_transition_matrices_between_hours(sequences, n_state)
     end
 
-    return states, sequence
+    return MarkovChain(states, transition_matrices)
+end
+
+# Clustering states using k-means algorithm
+function compute_markov_states(pv, ld_E, ld_H, n_state::Int64, options::MarkovChainOptions)
+    # Parameters
+    nh = size(pv, 1)
+    nd = size(pv, 2)
+
+    # Pre-allocate
+    states = zeros(nh, 3, n_state)
+    sequences = zeros(Int64, nh, nd)
+
+    # Normalization
+    pv_n, ld_E_n, ld_H_n = pv ./ maximum(pv), ld_E ./ maximum(ld_E), ld_H ./ maximum(ld_H)
+
+    # Clustering
+    for h in 1:nh
+        if options.algorithm == "kmeans"
+            # Aggregate normalized data
+            data_agg = permutedims(hcat(pv_n[h,:], ld_E_n[h,:], ld_H_n[h,:]))
+            # Clustering
+            clusters = kmeans(data_agg, n_state)
+            # Store the states and sequences
+            states[h,:,:] = clusters.centers
+            sequences[h,:] = permutedims(clusters.assignments)
+        elseif options.algorithm == "kmeans_minmax"
+            # Aggregate normalized data
+            data_agg = permutedims(hcat(pv_n[h,:], ld_E_n[h,:], ld_H_n[h,:]))
+            # Clustering
+            clusters = kmeans(data_agg, n_state)
+            # Replace min max centers by the min max real values
+            clusters.centers[argmin(clusters.centers, dims=2)] = minimum(data_agg, dims=2)
+            clusters.centers[argmax(clusters.centers, dims=2)] = maximum(data_agg, dims=2)
+            # Store the states and sequences
+            states[h,:,:] = clusters.centers
+            sequences[h,:] = permutedims(clusters.assignments)
+        elseif options.algorithm == "kmedoids"
+            # Aggregate normalized data
+            data_agg = permutedims(hcat(pv_n[h,:], ld_E_n[h,:], ld_H_n[h,:]))
+            # Compute euclidean distance matrix
+            dist = pairwise(Euclidean(), data_agg, dims = 2 )
+            # Clustering
+            clusters = kmedoids(dist, n_state)
+            # Store the states and sequences
+            states[h,:,:] = data_agg[:, clusters.medoids]
+            sequences[h,:] = permutedims(clusters.assignments)
+        end
+    end
+
+    # Denormalization
+    states[:,1,:] .*= maximum(pv)
+    states[:,2,:] .*= maximum(ld_E)
+    states[:,3,:] .*= maximum(ld_H)
+
+    return states, sequences
 end
 
 # Transition matrix
 # Compute transition matrix between consecutive hours
-function compute_transition_between_hours(sequence, n_state::Int64)
+function compute_transition_matrices_between_hours(sequence, n_state::Int64)
     # Parameters
     nh = size(sequence, 1)
 
     # Pre-allocate
-    transition_matrix = zeros(n_state,n_state,nh-1)
+    transition_matrix = zeros(n_state, n_state, nh - 1)
 
     for h in 1:nh-1
         for (i,j) in zip(sequence[h, :], sequence[h+1, :])
@@ -118,159 +139,91 @@ function compute_transition_between_hours(sequence, n_state::Int64)
 
     return transition_matrix
 end
-# Compute transition matrix from a sequence
-function compute_transition_from_sequence(sequence, n_state::Int64)
 
-    transition_matrix = zeros(n_state,n_state) # n of state size square matrix
+# Clustering data by week for each month
+function clustering_month_week(data, t, flag::String)
+    # Parameters
+    nm = 12 # number of month in one year
 
-    # Compute number of transition
-    for (i,j) in zip(sequence[1:end-1],sequence[2:end])
-        transition_matrix[i,j] += 1
-    end
+    # Pre_allocate
+    data_cluster= Vector{Array{Float64,2}}(undef, nm)
 
-    # Convert into probabilities
-    for i in 1:nMarkovstate
-        sum_row = sum(transition_matrix[i,:])
-
-        if sum_row > 0 # to avoid zero division...
-            transition_matrix[i,:] = transition_matrix[i,:] ./ sum_row
-        elseif sum_row == 0
-            transition_matrix[i, i] = 1 # to avoid bug in Categorical...
+    for m in 1:nm
+        # We cluster week days using the "not" operator
+        if flag == "optim" # odd indices
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& .~isweekend(t)], 24, :)[:, isodd.(1:end)]
+        elseif flag == "simu" # even indices
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& .~isweekend(t)], 24, :)[:, iseven.(1:end)]
         else
-            print("Error! The sum couldn't be negative")
-            return
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& .~isweekend(t)], 24, :)
         end
     end
 
-    return transition_matrix
+    return data_cluster
 end
 
-# Compute MarkovChain
-# Compute markov-chain from clustered data
-function compute_markovchain(data, n_state::Int64)
+# Clustering data by weekend for each month
+function clustering_month_weekend(data, t, flag::String)
     # Parameters
-    nm = size(data,1)
-    ny = size(data,2)
+    nm = 12 # number of month in one year
+
+    # Pre_allocate
+    data_cluster = Vector{Array{Float64,2}}(undef, nm)
+
+    for m in 1:nm
+        # We cluster weekend days
+        if flag == "optim" # odd indices
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& isweekend(t)], 24, :)[:, isodd.(1:end)]
+        elseif flag == "simu" # even indices
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& isweekend(t)], 24, :)[:, iseven.(1:end)]
+        else
+            data_cluster[m] = reshape(data[(Dates.month.(t) .== m) .& isweekend(t)], 24, :)
+        end
+    end
+
+    return data_cluster
+end
+
+# Compute scenario from markov chains
+function compute_scenarios(markovchains, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
+    # Parameters
+    n_state = size(markovchains.wk.transition_matrices[1],1)
+    t = t0:Hour(1):t0+Hour(nstep-1)
 
     # Pre-allocate
-    states = Array{Array{Float64,2}}(undef, nm, ny)
-    transition_matrices = Array{Array{Float64,3}}(undef, nm, ny)
+    ω_pv = (t = repeat(t, 1, ny, ns),
+            power = zeros(nstep, ny, ns))
+    ω_ld_E = (t = repeat(t, 1, ny, ns),
+             power = zeros(nstep, ny, ns))
+    ω_ld_H = (t = repeat(t, 1, ny, ns),
+             power = zeros(nstep, ny, ns))
+    idx_s = zeros(Int64, nstep)
 
-    for y in 1:ny
-        # Compute transition matrices and states for each month
-        for m in 1:nm
-            # # For each hour, we extract markov states using k-means and the sequence
-            # needed to compute transition matrices between consecutive hours. The number
-            # of markostate must be < number of days...
-            states[m,y], sequence = clustering_states(data[m,y], min(n_state, size(data[m,y],2)-1))
-
-            # Compute transition matrix between consecutive hours for each month
-            transition_matrices[m,y] = compute_transition_between_hours(sequence, min(n_state, size(data[m,y],2)-1))
-        end
-    end
-
-    return MarkovChain(states, transition_matrices)
-end
-
-# Compute scenario from markov_chain
-# Compute a markov scenario
-function compute_scenario(mc::MarkovChain, state_init::Union{Int64,Float64}, time_init::DateTime, year::Int64, nstep::Int64)
-    # Initialize timestamp
-    timestamp = time_init:Hour(1):time_init+Hour(nstep)
-
-    # Initialize scenario with current value
-    scenario = zeros(length(timestamp))
-    scenario[1] = state_init
+    # Initialization
+    ω_pv.power[1,:,:] .= s0[1]
+    ω_ld_E.power[1,:,:] .= s0[2]
+    ω_ld_H.power[1,:,:] .= s0[3]
 
     # Initialize state with the closest value
-    idx_states = zeros(Int64, length(timestamp))
-    idx_states[1] = findmin(abs.(state_init .- mc.states[Dates.month(time_init), year][Dates.hour(time_init)+1, :]))[2] # hour starts at 0...
+    isweekend(t0) ? mc = markovchains.wkd : mc = markovchains.wk
+    Δ_s0 = [s0 .- mc.states[Dates.month(t0)][Dates.hour(t0)+1, :, :][:,state] for state in 1:n_state]
+    idx_s[1] = findmin(norm.(Δ_s0))[2]
 
     # Simulate
-    for k in 2:length(timestamp)
-        # Retrieve the current hour and month
-        hour, month = Dates.hour(timestamp[k])+1, Dates.month(timestamp[k])
-        # Build categorical distribution with transition matrices
-        distributions = [Categorical(mc.transition_matrices[month, year][s, :, max(1,hour-1)]) for s in 1:size(mc.transition_matrices[month,year],1)]
-        # Compute state index from the probability matrix
-        idx_states[k] = rand(distributions[idx_states[k-1]])
-        # Retrieve the associated values
-        scenario[k] = mc.states[month, year][hour, idx_states[k]]
-    end
-
-    return scenario
-end
-# Compute a markov scenario with multiple markov chain
-function compute_scenario(mc_wk::MarkovChain, mc_wkd::MarkovChain, state_init::Union{Int64,Float64}, time_init::DateTime, year::Int64, nstep::Int64)
-    # Initialize timestamp
-    timestamp = time_init:Hour(1):time_init+Hour(nstep)
-
-    # Initialize scenario with current value
-    scenario = zeros(length(timestamp))
-    scenario[1] = state_init
-
-    # Initialize state with the closest value
-    idx_states = zeros(Int64, length(timestamp))
-    isweekend(timestamp[1]) ? mc = mc_wkd : mc = mc_wk # test to chose the appropriate markov chain
-    idx_states[1] = findmin(abs.(state_init .- mc.states[Dates.month(time_init), year][Dates.hour(time_init)+1, :]))[2]
-
-    # Simulate
-    for k in 2:length(timestamp)
-        # Retrieve the current hour and month
-        hour, month = Dates.hour(timestamp[k])+1, Dates.month(timestamp[k])
+    for s in 1:ns, y in 1:ny, k in 2:nstep
+        # Retrieve the current hour and month - hour(t[1]) = 0...
+        h, m = Dates.hour(t[k]) + 1, Dates.month(t[k])
         # Test to chose the appropriate markov chain
-        isweekend(timestamp[k]) ? mc = mc_wkd : mc = mc_wk
+        isweekend(t[k]) ? mc = markovchains.wkd : mc = markovchains.wk
         # Build categorical distribution with transition matrices
-        distributions = [Categorical(mc.transition_matrices[month, year][s, :, max(1,hour-1)]) for s in 1:size(mc.transition_matrices[month,year],1)]
+        distributions = [Categorical(mc.transition_matrices[m][state, :, max(1, h - 1)]) for state in 1:n_state]
         # Compute state index from the probability matrix
-        idx_states[k] = rand(distributions[idx_states[k-1]])
+        idx_s[k] = rand(distributions[idx_s[k-1]])
         # Retrieve the associated values
-        scenario[k] = mc.states[month, year][hour, idx_states[k]]
+        ω_pv.power[k,y,s] = mc.states[m][h, 1, idx_s[k]]
+        ω_ld_E.power[k,y,s] = mc.states[m][h, 2, idx_s[k]]
+        ω_ld_H.power[k,y,s] = mc.states[m][h, 3, idx_s[k]]
     end
 
-    return scenario
-end
-# Compute scenarios from simple sequence
-function compute_scenario(mc::MarkovChain, state_init, horizon::Int64)
-    # init = NaN => initial state randomly chosen
-    @assert size(mc.transition_matrices)[1] == size(mc.transition_matrices)[2] # square required
-
-    # create vector of discrete RVs for each row
-    distributions = [Categorical(mc.transition_matrices[i, :]) for i in 1:size(mc.transition_matrices)[1]]
-
-    # setup the simulation
-    scenario = zeros(Int64, horizon)
-    scenario[1] = state_init # set the initial state
-
-    for k in 2:horizon
-        scenario[k] = rand(distributions[scenario[k-1]]) # draw new value from last state's transition distribution
-    end
-
-    return scenario
-end
-
-# Compute markovchains from scenarios
-function compute_markovchains(ω_optim::Scenarios)
-    # TODO : ajouter struct avec mc, nscenarios, nstate
-    # Clustering data
-    pv = clustering_month(ω_optim.values.pv_E, ω_optim.timestamp)
-    ld_E_wk = clustering_month_week(ω_optim.values.ld_E, ω_optim.timestamp)
-    ld_E_wkd = clustering_month_weekend(ω_optim.values.ld_E, ω_optim.timestamp)
-    ld_H_wk = clustering_month_week(ω_optim.values.ld_H, ω_optim.timestamp)
-    ld_H_wkd = clustering_month_weekend(ω_optim.values.ld_H, ω_optim.timestamp)
-    # Compute markov chain
-    n_state = minimum(vcat(size.(pv[:,1],2), size.(ld_E_wk[:,1],2), size.(ld_E_wkd[:,1],2)))-1
-    mc_pv = compute_markovchain(pv, n_state)
-    mc_ld_E_wk = compute_markovchain(ld_E_wk, n_state)
-    mc_ld_E_wkd = compute_markovchain(ld_E_wkd, n_state)
-    mc_ld_H_wk = compute_markovchain(ld_H_wk, n_state)
-    mc_ld_H_wkd = compute_markovchain(ld_H_wkd, n_state)
-    # Store in a Namedtuple
-    markovchains = (
-    pv_E = mc_pv,
-    ld_E = (wk = mc_ld_E_wk, wkd = mc_ld_E_wkd),
-    ld_H = (wk = mc_ld_H_wk, wkd = mc_ld_H_wkd),
-    )
-
-    return markovchains
+    return ω_pv, ω_ld_E, ω_ld_H
 end

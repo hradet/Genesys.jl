@@ -24,7 +24,7 @@ mutable struct MetaheuristicOptions
 
 end
 
-mutable struct Metaheuristic <: AbstractMultiStageDesigner
+mutable struct Metaheuristic <: AbstractDesigner
     options::MetaheuristicOptions
     u::NamedTuple
     results::Metaheuristics.MetaheuristicResults
@@ -72,9 +72,6 @@ end
 function fobj_eac(decisions, des, designer, ω_m)
     # Initialize DES
     des_m = copy(des, des.parameters.nh, 2, 1)
-    ω_m.values.ld_E[:,2] .= ω_m.values.ld_E[:,1] # TODO virer pour mettre dans réduction de scenarios
-    ω_m.values.pv_E[:,2] .= ω_m.values.pv_E[:,1]
-    ω_m.values.ld_H[:,2] .= ω_m.values.ld_H[:,1]
 
     # Initialize controller
     controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
@@ -111,10 +108,10 @@ function fobj_eac(decisions, des, designer, ω_m)
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω_optim::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω::AbstractScenarios)
 
     # Save history for online optimization
-    designer.history = ω_optim
+    designer.history = ω
 
     # Preallocate and assigned values
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
@@ -127,9 +124,6 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
     ϵ = 0.1
 
     if s == 1 && y == 1
-        # Scenario reduction from the optimization scenario pool
-        ω_meta = scenarios_reduction(designer, designer.history)
-
         # Bounds
         lb, ub = set_bounds(des)
 
@@ -140,9 +134,17 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
                                                    options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
         ) do decisions
             if designer.options.obj == "npv"
-                fobj_npv(decisions, des, designer, ω_meta)
+                # Scenario reduction
+                ω = scenarios_reduction(designer.history, 1:des.parameters.nh, 1:des.parameters.ny, 1)
+                # Objective
+                fobj_npv(decisions, des, designer, ω)
             elseif designer.options.obj == "eac"
-                fobj_eac(decisions, des, designer, ω_meta)
+                # Scenario reduction
+                ω = Genesys.scenarios_reduction(designer.history, 1:des.parameters.nh, 1, 1)
+                # Concatenation to simulate 2 years
+                ω = concatenate(ω, ω, dims=2)
+                # Objective
+                fobj_eac(decisions, des, designer, ω)
             else
                 println("Objective function unknown...")
             end
@@ -165,4 +167,33 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = designer.u.elyz[1,s] : nothing
         isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
     end
+end
+
+### Utils
+function set_bounds(des::DistributedEnergySystem)
+
+    lb, ub = zeros(6), zeros(6)
+    isa(des.pv, Source) ? ub[1] = 1000. : nothing
+    isa(des.liion, Liion) ? ub[2] = 1000. : nothing
+    isa(des.h2tank, H2Tank) ? ub[3] = 50000. : nothing
+    isa(des.elyz, Electrolyzer) ? ub[4] = 50. : nothing
+    isa(des.fc, FuelCell) ? ub[5] = 50. : nothing
+    isa(des.tes, ThermalSto) ? ub[6] = 1000. : nothing
+
+    return lb, ub
+end
+function copy(des::DistributedEnergySystem, nh::Int64, ny::Int64, ns::Int64)
+    des_copy = DistributedEnergySystem(ld_E = isa(des.ld_E, Load) ? Load() : nothing,
+                                  ld_H = isa(des.ld_H, Load) ? Load() : nothing,
+                                  pv = isa(des.pv, Source) ? Source() : nothing,
+                                  liion = isa(des.liion, Liion) ? Liion() : nothing,
+                                  tes = isa(des.tes, ThermalSto) ? ThermalSto() : nothing,
+                                  h2tank = isa(des.h2tank, H2Tank) ? H2Tank() : nothing,
+                                  elyz = isa(des.elyz, Electrolyzer) ? Electrolyzer() : nothing,
+                                  fc = isa(des.fc, FuelCell) ? FuelCell() : nothing,
+                                  heater = isa(des.heater, Heater) ? Heater() : nothing,
+                                  grid = isa(des.grid, Grid) ? Grid() : nothing,
+                                  parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = des.parameters.τ_share))
+
+    return des_copy
 end

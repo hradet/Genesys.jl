@@ -60,30 +60,30 @@ function Costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigne
 end
 
 # Baseline cost
-compute_baseline_cost(des::DistributedEnergySystem) = dropdims(sum(max.(0,  (isa(des.ld_E, Load) ? des.ld_E.power : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power ./ des.heater.η_E_H : 0.)) .* des.grid.C_grid_in .* des.parameters.Δh, dims=1), dims=1)
-compute_baseline_cost(s::Int64, des::DistributedEnergySystem) = dropdims(sum(max.(0, (isa(des.ld_E, Load) ? des.ld_E.power[:,:,s] : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power[:,:,s] ./ des.heater.η_E_H : 0.)) .* des.grid.C_grid_in[:,:,s] .* des.parameters.Δh, dims=1), dims=1)
+compute_baseline_cost(des::DistributedEnergySystem) = dropdims(sum(max.(0,  (isa(des.ld_E, Load) ? des.ld_E.power : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power ./ des.heater.η_E_H : 0.)) .* des.grid.cost_in .* des.parameters.Δh, dims=1), dims=1)
+compute_baseline_cost(s::Int64, des::DistributedEnergySystem) = dropdims(sum(max.(0, (isa(des.ld_E, Load) ? des.ld_E.power[:,:,s] : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power[:,:,s] ./ des.heater.η_E_H : 0.)) .* des.grid.cost_in[:,:,s] .* des.parameters.Δh, dims=1), dims=1)
 # Grid cost
-compute_grid_cost(des::DistributedEnergySystem) = dropdims(sum((max.(0., des.grid.power_E) .* des.grid.C_grid_in .- min.(0., des.grid.power_E) .* des.grid.C_grid_out) .* des.parameters.Δh, dims=1), dims=1)
-compute_grid_cost(s::Int64, des::DistributedEnergySystem) = dropdims(sum((max.(0., des.grid.power_E[:,:,s]) .* des.grid.C_grid_in[:,:,s] .- min.(0., des.grid.power_E[:,:,s]) .* des.grid.C_grid_out[:,:,s]) .* des.parameters.Δh, dims=1), dims=1)
-compute_grid_cost(y::Int64, s::Int64, des::DistributedEnergySystem) = sum((max.(0., des.grid.power_E[:,y,s]) .* des.grid.C_grid_in[:,y,s] .- min.(0., des.grid.power_E[:,y,s]) .* des.grid.C_grid_out[:,y,s]) .* des.parameters.Δh)
+compute_grid_cost(des::DistributedEnergySystem) = dropdims(sum((max.(0., des.grid.power_E) .* des.grid.cost_in .- min.(0., des.grid.power_E) .* des.grid.cost_out) .* des.parameters.Δh, dims=1), dims=1)
+compute_grid_cost(s::Int64, des::DistributedEnergySystem) = dropdims(sum((max.(0., des.grid.power_E[:,:,s]) .* des.grid.cost_in[:,:,s] .- min.(0., des.grid.power_E[:,:,s]) .* des.grid.cost_out[:,:,s]) .* des.parameters.Δh, dims=1), dims=1)
+compute_grid_cost(y::Int64, s::Int64, des::DistributedEnergySystem) = sum((max.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_in[:,y,s] .- min.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_out[:,y,s]) .* des.parameters.Δh)
 
 # CAPEX
 function compute_capex(des::DistributedEnergySystem, designer::AbstractDesigner)
-    return designer.u.pv .* (isa(des.pv, Source) ? des.pv.C_pv : 0.) .+
-            designer.u.liion .* (isa(des.liion, Liion) ? des.liion.C_liion : 0.) .+
-            designer.u.tes .* (isa(des.tes, ThermalSto) ? des.tes.C_tes : 0.) .+
-            designer.u.h2tank .* (isa(des.h2tank, H2Tank) ? des.h2tank.C_tank : 0.) .+
-            designer.u.elyz .* (isa(des.elyz, Electrolyzer) ? des.elyz.C_elyz : 0.) .+
-            designer.u.fc .* (isa(des.fc, FuelCell) ? des.fc.C_fc : 0.)
+    return designer.u.pv .* (isa(des.pv, Source) ? des.pv.cost : 0.) .+
+            designer.u.liion .* (isa(des.liion, Liion) ? des.liion.cost : 0.) .+
+            designer.u.tes .* (isa(des.tes, ThermalSto) ? des.tes.cost : 0.) .+
+            designer.u.h2tank .* (isa(des.h2tank, H2Tank) ? des.h2tank.cost : 0.) .+
+            designer.u.elyz .* (isa(des.elyz, Electrolyzer) ? des.elyz.cost : 0.) .+
+            designer.u.fc .* (isa(des.fc, FuelCell) ? des.fc.cost : 0.)
 end
 # CAPEX for a given scenario s
 function compute_capex(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
-    return designer.u.pv[:,s] .* (isa(des.pv, Source) ? des.pv.C_pv[:,s] : 0.) .+
-            designer.u.liion[:,s] .* (isa(des.liion, Liion) ? des.liion.C_liion[:,s] : 0.) .+
-            designer.u.tes[:,s] .* (isa(des.tes, ThermalSto) ? des.tes.C_tes[:,s] : 0.) .+
-            designer.u.h2tank[:,s] .* (isa(des.h2tank, H2Tank) ? des.h2tank.C_tank[:,s] : 0.) .+
-            designer.u.elyz[:,s] .* (isa(des.elyz, Electrolyzer) ? des.elyz.C_elyz[:,s] : 0.) .+
-            designer.u.fc[:,s] .* (isa(des.fc, FuelCell) ? des.fc.C_fc[:,s] : 0.)
+    return designer.u.pv[:,s] .* (isa(des.pv, Source) ? des.pv.cost[:,s] : 0.) .+
+            designer.u.liion[:,s] .* (isa(des.liion, Liion) ? des.liion.cost[:,s] : 0.) .+
+            designer.u.tes[:,s] .* (isa(des.tes, ThermalSto) ? des.tes.cost[:,s] : 0.) .+
+            designer.u.h2tank[:,s] .* (isa(des.h2tank, H2Tank) ? des.h2tank.cost[:,s] : 0.) .+
+            designer.u.elyz[:,s] .* (isa(des.elyz, Electrolyzer) ? des.elyz.cost[:,s] : 0.) .+
+            designer.u.fc[:,s] .* (isa(des.fc, FuelCell) ? des.fc.cost[:,s] : 0.)
 end
 # Annualised CAPEX
 function compute_annualised_capex(y::Int64, s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
@@ -92,32 +92,32 @@ function compute_annualised_capex(y::Int64, s::Int64, des::DistributedEnergySyst
 
     if isa(des.pv, Source)
         Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.pv.lifetime) / ((des.parameters.τ + 1.) ^ des.pv.lifetime - 1.)
-        capex += Γ_pv * designer.u.pv[y,s] * des.pv.C_pv[y,s]
+        capex += Γ_pv * designer.u.pv[y,s] * des.pv.cost[y,s]
     end
 
     if isa(des.liion, Liion)
         Γ_liion = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.liion.lifetime) / ((des.parameters.τ + 1.) ^ des.liion.lifetime - 1.)
-        capex += Γ_liion * designer.u.liion[y,s] * des.liion.C_liion[y,s]
+        capex += Γ_liion * designer.u.liion[y,s] * des.liion.cost[y,s]
     end
 
     if isa(des.tes, ThermalSto)
         Γ_tes = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.tes.lifetime) / ((des.parameters.τ + 1.) ^ des.tes.lifetime - 1.)
-        capex += Γ_tes * designer.u.tes[y,s] * des.tes.C_tes[y,s]
+        capex += Γ_tes * designer.u.tes[y,s] * des.tes.cost[y,s]
     end
 
     if isa(des.h2tank, H2Tank)
         Γ_h2tank = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.h2tank.lifetime) / ((des.parameters.τ + 1.) ^ des.h2tank.lifetime - 1.)
-        capex += Γ_h2tank * designer.u.h2tank[y,s] * des.h2tank.C_tank[y,s]
+        capex += Γ_h2tank * designer.u.h2tank[y,s] * des.h2tank.cost[y,s]
     end
 
     if isa(des.elyz, Electrolyzer)
         Γ_elyz = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.elyz.lifetime) / ((des.parameters.τ + 1.) ^ des.elyz.lifetime - 1.)
-        capex += Γ_elyz * designer.u.elyz[y,s] * des.elyz.C_elyz[y,s]
+        capex += Γ_elyz * designer.u.elyz[y,s] * des.elyz.cost[y,s]
     end
 
     if isa(des.fc, FuelCell)
         Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ des.fc.lifetime) / ((des.parameters.τ + 1.) ^ des.fc.lifetime - 1.)
-        capex += Γ_fc * designer.u.fc[y,s] * des.fc.C_fc[y,s]
+        capex += Γ_fc * designer.u.fc[y,s] * des.fc.cost[y,s]
     end
 
     return capex

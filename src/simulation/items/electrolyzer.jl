@@ -19,7 +19,7 @@ mutable struct Electrolyzer
      power_H2::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
-     C_elyz::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      Electrolyzer(; α_p = 5/100,
                  η_E_H2 = 0.5,
@@ -38,7 +38,7 @@ function preallocate!(elyz::Electrolyzer, nh::Int64, ny::Int64, ns::Int64)
      elyz.power_H = convert(SharedArray,zeros(nh, ny, ns))
      elyz.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
      elyz.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; elyz.soh[1,1,:] .= elyz.soh_ini
-     elyz.C_elyz = convert(SharedArray,zeros(ny, ns))
+     elyz.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic

@@ -19,7 +19,7 @@ mutable struct MPC <: AbstractController
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, controller::MPC, ω::AbstractScenarios)
 
      # Sets
      nh = controller.options.horizon
@@ -219,16 +219,16 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω_optim::Ab
 end
 
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω_optim::AbstractScenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω::AbstractScenarios)
 
      # Build model
-     controller.model = build_model(des, controller, ω_optim)
+     controller.model = build_model(des, controller, ω)
 
-     # Compute markov chain for scenario generation
-     controller.markovchains = compute_markovchains(ω_optim)
+     # Compute markov chain for scenario generation TODO gérer la chaleur !
+     controller.markovchains = compute_markovchains(ω.pv, ω.ld_E, ω.ld_H)
 
      # Store the optimization scenario to the controller history field
-     controller.history = ω_optim
+     controller.history = ω
 
      # Preallocate
      preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
@@ -242,17 +242,16 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      # Parameters
      window = h:min(des.parameters.nh, h + controller.options.horizon - 1)
      n_zeros = controller.options.horizon - length(window)
+     s0 = [des.pv.power_E[h,y,s], des.ld_E.power_E[h,y,s], des.ld_E.power_H[h,y,s]]
+     t0 = des.pv.timestamp[h,y,s]
 
-     # Compute forecasts and fix variables
+     # Compute forecasts
      if isa(des.ld_E, Load)
-         pv = compute_scenario(controller.markovchains.pv_E, des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.pv.timestamp[h,y,s], y, controller.options.horizon - 1)
-         ld_E = compute_scenario(controller.markovchains.ld_E.wk, controller.markovchains.ld_E.wkd, des.ld_E.power[h,y,s], des.ld_E.timestamp[h,y,s], y, controller.options.horizon - 1)
-         fix.(controller.model[:p_net_E], ld_E .- des.pv.powerMax[y,s] .* pv)
-     end
-     if isa(des.ld_H, Load)
-         ld_H = compute_scenario(controller.markovchains.ld_H.wk, controller.markovchains.ld_H.wkd, des.ld_H.power[h,y,s], des.ld_H.timestamp[h,y,s], y, controller.options.horizon - 1)
+         pv, ld_E, ld_H = compute_scenario(controller.markovchains, s0, t0, controller.options.horizon - 1)
+         fix.(controller.model[:p_net_E], ld_E.power .- des.pv.powerMax[y,s] .* pv.power)
          fix.(controller.model[:p_net_H], ld_H)
      end
+     # Fix state variables
      if isa(des.liion, Liion)
          fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
          fix(controller.model[:r_liion], des.liion.Erated[y,s])
@@ -267,11 +266,11 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      end
      isa(des.elyz, Electrolyzer) ? fix(controller.model[:r_elyz], des.elyz.powerMax[y,s]) : nothing
      isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
-     C_grid_in = vcat(controller.history.values.C_grid_in[window,y,s], zeros(n_zeros))
-     C_grid_out = vcat(controller.history.values.C_grid_out[window,y,s], zeros(n_zeros))
+     cost_in = vcat(controller.history.grid.cost_in[window,y,s], zeros(n_zeros))
+     cost_out = vcat(controller.history.grid.cost_out[window,y,s], zeros(n_zeros))
 
      # Objective function
-     @objective(controller.model, Min, sum(controller.model[:p_g_in] .* C_grid_in + controller.model[:p_g_out] .* C_grid_out) * des.parameters.Δh)
+     @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in + controller.model[:p_g_out] .* cost_out) * des.parameters.Δh)
 
      # Optimize
      optimize!(controller.model)

@@ -23,7 +23,7 @@
      soc::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
-     C_liion::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      Liion(; α_p_ch = 1.5,
         α_p_dch = 1.5,
@@ -46,7 +46,7 @@
      liion.power_E = convert(SharedArray,zeros(nh, ny, ns))
      liion.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soc[1,1,:] .= liion.soc_ini
      liion.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soh[1,1,:] .= liion.soh_ini
-     liion.C_liion = convert(SharedArray,zeros(ny, ns))
+     liion.cost = convert(SharedArray,zeros(ny, ns))
  end
 
  ### Operation dynamic
