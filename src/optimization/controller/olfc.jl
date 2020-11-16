@@ -268,7 +268,7 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      isa(des.elyz, Electrolyzer) ? fix(controller.model[:r_elyz], des.elyz.powerMax[y,s]) : nothing
      isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
 
-     # Objective function
+     # Objective function TODO ajouter correctement les probas !
      @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh / controller.options.ns)
 
      # Optimize

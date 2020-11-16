@@ -248,7 +248,7 @@ function build_model(des::DistributedEnergySystem, designer::MILPStoch, ω::Abst
         @constraint(m, self_constraint[s in 1:ns], sum(p_g_in[h,s] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum_ld[s])
     end
 
-    # OPEX
+    # OPEX TODO ajouter correctement les probas !
     if designer.options.risk == "esperance"
         opex = @expression(m, sum((p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
     elseif designer.options.risk == "cvar"
