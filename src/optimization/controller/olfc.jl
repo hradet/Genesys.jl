@@ -2,28 +2,30 @@
     Model predictive control controller
 =#
 
-mutable struct MPCOptions
+mutable struct OLFCOptions
     solver
     horizon::Int64
     n_state::Int64
+    ns::Int64
 
-    MPCOptions(; solver = CPLEX, horizon = 24, n_state = 5) = new(solver, horizon, n_state)
+    OLFCOptions(; solver = CPLEX, horizon = 24, n_state = 5, ns = 10) = new(solver, horizon, n_state, ns)
 end
 
-mutable struct MPC <: AbstractController
-    options::MPCOptions
+mutable struct OLFC <: AbstractController
+    options::OLFCOptions
     u::NamedTuple
     model::JuMP.Model
     markovchains
     history::AbstractScenarios
-    MPC(; options = MPCOptions()) = new(options)
+    OLFC(; options = OLFCOptions()) = new(options)
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, controller::MPC)
+function build_model(des::DistributedEnergySystem, controller::OLFC)
 
      # Sets
      nh = controller.options.horizon
+     ns = controller.options.ns
 
      # Model definition
      m = Model(controller.options.solver.Optimizer)
@@ -34,14 +36,14 @@ function build_model(des::DistributedEnergySystem, controller::MPC)
     if isa(des.ld_E, Load)
         # Variable to be fixed
         @variables(m, begin
-        p_net_E[1:nh]
+        p_net_E[1:nh, 1:ns]
         end)
         power_balance_E = @expression(m, - p_net_E)
     end
     if isa(des.ld_H, Load)
         # Variable to be fixed
         @variables(m, begin
-        p_net_H[1:nh]
+        p_net_H[1:nh, 1:ns]
         end)
         power_balance_H = @expression(m, - p_net_H)
     end
@@ -189,13 +191,13 @@ function build_model(des::DistributedEnergySystem, controller::MPC)
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_g_out[1:nh] <= 0.
-        p_g_in[1:nh] >= 0.
+        p_g_out[1:nh, 1:ns] <= 0.
+        p_g_in[1:nh, 1:ns] >= 0.
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_g_in[h] <= des.grid.powerMax
+        [h in 1:nh, s in 1:ns], p_g_in[h,s] <= des.grid.powerMax
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_g_in .+ p_g_out) : nothing
@@ -209,7 +211,7 @@ function build_model(des::DistributedEnergySystem, controller::MPC)
 end
 
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω::AbstractScenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, ω::AbstractScenarios)
 
      # Build model
      controller.model = build_model(des, controller)
@@ -235,7 +237,7 @@ function initialize_controller!(des::DistributedEnergySystem, controller::MPC, �
 end
 
 ### Online
-function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::MPC)
+function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::OLFC)
 
      # Parameters
      window = h:min(des.parameters.nh, h + controller.options.horizon - 1)
@@ -244,7 +246,7 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      t0 = des.pv.timestamp[h,y,s]
 
      # Compute forecast
-     forecast = Genesys.compute_scenarios(controller.markovchains.wk, controller.markovchains.wkd, s0, t0, controller.options.horizon)
+     forecast = Genesys.compute_scenarios(controller.markovchains.wk, controller.markovchains.wkd, s0, t0, controller.options.horizon, ny = controller.options.ns)
      cost_in = vcat(des.grid.cost_in[window,y,s], zeros(n_zeros))
      cost_out = vcat(des.grid.cost_out[window,y,s], zeros(n_zeros))
 
@@ -267,7 +269,7 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
 
      # Objective function
-     @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh)
+     @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh / controller.options.ns)
 
      # Optimize
      optimize!(controller.model)

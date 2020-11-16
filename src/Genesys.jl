@@ -36,7 +36,8 @@ export initialize_designer!
 include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
-export DummyCcontroller, RBC, MPC
+include(joinpath("optimization","controller","olfc.jl"))
+export DummyCcontroller, RBC, MPC, OLFC
 export initialize_controller!
 # Anticipative optimization
 include(joinpath("optimization","anticipative","controller.jl"))
