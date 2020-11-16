@@ -20,10 +20,10 @@ function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::Distr
         des.pv.power_E[h,y,s] = des.pv.powerMax[y,s] * ω.pv.power[h,y,s]
         des.pv.timestamp[h,y,s] = ω.pv.t[h,y,s]
     end
-
+    # We assume the price of electricity is known over the year
     if isa(des.grid, Grid)
-        des.grid.cost_in[h,y,s] = ω.grid.cost_in[h,y,s]
-        des.grid.cost_out[h,y,s] = ω.grid.cost_out[h,y,s]
+        des.grid.cost_in[1:end,y,s] = ω.grid.cost_in[1:end,y,s]
+        des.grid.cost_out[1:end,y,s] = ω.grid.cost_out[1:end,y,s]
     end
 end
 function update_investment_informations!(y::Int64, s::Int64, des::DistributedEnergySystem, ω::AbstractScenarios)

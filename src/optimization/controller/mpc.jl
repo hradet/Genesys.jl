@@ -5,8 +5,9 @@
 mutable struct MPCOptions
     solver
     horizon::Int64
+    n_state::Int64
 
-    MPCOptions(; solver = CPLEX, horizon = 24) = new(solver, horizon)
+    MPCOptions(; solver = CPLEX, horizon = 24, n_state = 5) = new(solver, horizon, n_state)
 end
 
 mutable struct MPC <: AbstractController
@@ -19,7 +20,7 @@ mutable struct MPC <: AbstractController
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, controller::MPC, ω::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, controller::MPC)
 
      # Sets
      nh = controller.options.horizon
@@ -79,7 +80,6 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω::Abstract
         [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * des.liion.η_ch + p_liion_dch[h] / des.liion.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_liion[1] == soc_liion_ini
-        soc_liion[nh] >= soc_liion_ini
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_liion_ch .+ p_liion_dch) : nothing
@@ -108,7 +108,6 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω::Abstract
         [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - des.tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * des.tes.η_ch + p_tes_dch[h] / des.tes.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_tes[1] == soc_tes_ini
-        soc_tes[nh] >= soc_tes_ini
         end)
         # Power balance
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, p_tes_ch .+ p_tes_dch) : nothing
@@ -137,7 +136,6 @@ function build_model(des::DistributedEnergySystem, controller::MPC, ω::Abstract
         [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - des.h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * des.h2tank.η_ch + p_h2tank_dch[h] / des.h2tank.η_dch) * des.parameters.Δh
         # Initial and final conditions
         soc_h2tank[1] == soc_h2tank_ini
-        soc_h2tank[nh] >= soc_h2tank_ini
         end)
         # Power balances
         add_to_expression!.(power_balance_H2, p_h2tank_ch .+ p_h2tank_dch)
@@ -222,10 +220,18 @@ end
 function initialize_controller!(des::DistributedEnergySystem, controller::MPC, ω::AbstractScenarios)
 
      # Build model
-     controller.model = build_model(des, controller, ω)
+     controller.model = build_model(des, controller)
 
-     # Compute markov chain for scenario generation TODO gérer la chaleur !
-     controller.markovchains = compute_markovchains(ω.pv, ω.ld_E, ω.ld_H)
+     # Scenario reduciton
+     ω_markov = scenarios_reduction(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1)
+
+     # Compute markov chain for scenario generation
+     if isa(des.ld_H, Load)
+         mc_wkd, mc_wk = compute_markovchains(ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H, n_state = controller.options.n_state)
+     else
+         mc_wkd, mc_wk = compute_markovchains(ω_markov.pv, ω_markov.ld_E, n_state = controller.options.n_state)
+     end
+     controller.markovchains = (wk = mc_wk, wkd = mc_wkd)
 
      # Store the optimization scenario to the controller history field
      controller.history = ω
@@ -242,16 +248,17 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      # Parameters
      window = h:min(des.parameters.nh, h + controller.options.horizon - 1)
      n_zeros = controller.options.horizon - length(window)
-     s0 = [des.pv.power_E[h,y,s], des.ld_E.power_E[h,y,s], des.ld_E.power_H[h,y,s]]
+     isa(des.ld_H, Load) ? s0 = [des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.ld_E.power[h,y,s], des.ld_H.power[h,y,s]] : s0 = [des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.ld_E.power[h,y,s]]
      t0 = des.pv.timestamp[h,y,s]
 
-     # Compute forecasts
-     if isa(des.ld_E, Load)
-         pv, ld_E, ld_H = compute_scenario(controller.markovchains, s0, t0, controller.options.horizon - 1)
-         fix.(controller.model[:p_net_E], ld_E.power .- des.pv.powerMax[y,s] .* pv.power)
-         fix.(controller.model[:p_net_H], ld_H)
-     end
-     # Fix state variables
+     # Compute forecast
+     forecast = Genesys.compute_scenarios(controller.markovchains.wk, controller.markovchains.wkd, s0, t0, controller.options.horizon)
+     cost_in = vcat(des.grid.cost_in[window,y,s], zeros(n_zeros))
+     cost_out = vcat(des.grid.cost_out[window,y,s], zeros(n_zeros))
+
+     # Fix forecast and state variables
+     fix.(controller.model[:p_net_E], forecast[2].power .- des.pv.powerMax[y,s] .* forecast[1].power)
+     isa(des.ld_H, Load) ? fix.(controller.model[:p_net_H], forecast[3].power) : nothing
      if isa(des.liion, Liion)
          fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
          fix(controller.model[:r_liion], des.liion.Erated[y,s])
@@ -266,14 +273,14 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      end
      isa(des.elyz, Electrolyzer) ? fix(controller.model[:r_elyz], des.elyz.powerMax[y,s]) : nothing
      isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
-     cost_in = vcat(controller.history.grid.cost_in[window,y,s], zeros(n_zeros))
-     cost_out = vcat(controller.history.grid.cost_out[window,y,s], zeros(n_zeros))
 
      # Objective function
      @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in + controller.model[:p_g_out] .* cost_out) * des.parameters.Δh)
 
      # Optimize
      optimize!(controller.model)
+
+     @assert termination_status(controller.model) == MOI.OPTIMAL "Problem not correctly solved !"
 
      # Operation decision - we only keep the first value
      isa(des.liion, Liion) ? controller.u.liion[h,y,s] = value.(controller.model[:p_liion_ch] .+ controller.model[:p_liion_dch])[1] : nothing
@@ -282,5 +289,4 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
      isa(des.elyz, Electrolyzer) ? controller.u.elyz[h,y,s] = value.(controller.model[:p_elyz_E])[1] : nothing
      isa(des.fc, FuelCell) ? controller.u.fc[h,y,s] = value.(controller.model[:p_fc_E])[1] : nothing
      isa(des.heater, Heater) ? controller.u.heater[h,y,s] = value.(controller.model[:p_heater_E])[1] : nothing
-
 end

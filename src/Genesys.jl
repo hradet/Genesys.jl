@@ -3,7 +3,7 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics
 # Math
-using Statistics, Clustering, Distributions
+using Statistics, Clustering, Distributions, Distances, LinearAlgebra
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
