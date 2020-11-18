@@ -208,7 +208,6 @@ function compute_scenarios(mc_wk, mc_wkd, s0, t0::DateTime, nstep::Int64; ny::In
 
     # Pre-allocate
     scenarios = [(t = repeat(t, 1, ny, ns), power = zeros(nstep, ny, ns)) for _ in 1:n]
-    idx_s = zeros(Int64, nstep)
 
     # Initialization
     for j in 1:n
@@ -218,7 +217,7 @@ function compute_scenarios(mc_wk, mc_wkd, s0, t0::DateTime, nstep::Int64; ny::In
     # Initialize state with the closest value
     isweekend(t0) ? mc = mc_wkd : mc = mc_wk
     Δ_s0 = [s0 .- mc.states[Dates.month(t0)][Dates.hour(t0)+1, :, :][:,state] for state in 1:n_state]
-    idx_s[1] = findmin(norm.(Δ_s0))[2]
+    idx_prev = findmin(norm.(Δ_s0))[2]
 
     # Simulate
     for s in 1:ns, y in 1:ny, k in 2:nstep
@@ -229,11 +228,13 @@ function compute_scenarios(mc_wk, mc_wkd, s0, t0::DateTime, nstep::Int64; ny::In
         # Build categorical distribution with transition matrices
         distributions = [Categorical(mc.transition_matrices[m][state, :, max(1, h - 1)]) for state in 1:n_state]
         # Compute state index from the probability matrix
-        idx_s[k] = rand(distributions[idx_s[k-1]])
+        idx = rand(distributions[idx_prev])
         # Retrieve the associated values
         for j in 1:n
-            scenarios[j].power[k,y,s] = mc.states[m][h, j, idx_s[k]]
+            scenarios[j].power[k,y,s] = mc.states[m][h, j, idx]
         end
+        # Update idx
+        idx_prev = idx
     end
 
     return scenarios
