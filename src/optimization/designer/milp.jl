@@ -1,21 +1,22 @@
 #=
-    Equivalent annual cost (EAC) designer based on a single year
+    Designer based on the equivalent annual cost (EAC) with multiple scenarios
 =#
 
 mutable struct MILPOptions
   solver
-  scenario_reduction::String # scenario reduction technique "manual" or "auto"
+  mode::String
+  risk_measure::String
+  scenario_reduction::Bool
   share_constraint::Bool
   reopt::Bool
-  s::Int64 # scenario index for the manual reduction technique
-  y::Int64 # year index for the manual reduction technique
 
   MILPOptions(; solver = CPLEX,
-               scenario_reduction = "manual",
-               share_constraint = true,
-               reopt = false,
-               s = 1, y = 1) =
-               new(solver, scenario_reduction, share_constraint, reopt, s, y)
+                mode = "deterministic", # "deterministic" or "twostage"
+                risk_measure = "esperance",
+                scenario_reduction = true,
+                share_constraint = true,
+                reopt=false) =
+                new(solver, mode, risk_measure, scenario_reduction, share_constraint, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -27,14 +28,12 @@ mutable struct MILP <: AbstractDesigner
     MILP(; options = MILPOptions()) = new(options)
 end
 
-### Model
+### Models
 function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
 
-    #TODO diviser en fonctions !! add_constraints!(model::JuMP.model, liion::Liion)
-    # ou ecrire un seul probleme et fixer les variables de design à 0...
-
     # Sets
-    nh = des.parameters.nh # Number of hours
+    nh = size(ω.ld_E.power,1) # Number of hours
+    ns = size(ω.ld_E.power,2) # Number of scenarios
 
     # Model definition
     m = Model(designer.options.solver.Optimizer)
@@ -42,7 +41,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
     # Initialize expressions
     isa(des.ld_E, Load) ? power_balance_E = AffExpr.(- ω.ld_E.power) : nothing
     isa(des.ld_H, Load) ? power_balance_H = AffExpr.(- ω.ld_H.power) : nothing
-    power_balance_H2 = AffExpr.(zeros(nh))
+    power_balance_H2 = AffExpr.(zeros(nh, ns))
     capex = AffExpr(0.)
 
     # Build model
@@ -52,26 +51,26 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_liion_ch[1:nh] <= 0.
-        p_liion_dch[1:nh] >= 0.
+        p_liion_ch[1:nh, 1:ns] <= 0.
+        p_liion_dch[1:nh, 1:ns] >= 0.
         # Investment decisions variables
         0 <= r_liion <= 1000
         # Operation state variables
-        soc_liion[1:nh+1]
+        soc_liion[1:nh+1, 1:ns]
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_liion_dch[h] <= des.liion.α_p_dch * r_liion
-        [h in 1:nh], p_liion_ch[h] >= -des.liion.α_p_ch * r_liion
+        [h in 1:nh, s in 1:ns], p_liion_dch[h,s] <= des.liion.α_p_dch * r_liion
+        [h in 1:nh, s in 1:ns], p_liion_ch[h,s] >= -des.liion.α_p_ch * r_liion
         # SoC bounds
-        [h in 1:nh+1], soc_liion[h] <= des.liion.α_soc_max * r_liion
-        [h in 1:nh+1], soc_liion[h] >= des.liion.α_soc_min * r_liion
+        [h in 1:nh+1, s in 1:ns], soc_liion[h,s] <= des.liion.α_soc_max * r_liion
+        [h in 1:nh+1, s in 1:ns], soc_liion[h,s] >= des.liion.α_soc_min * r_liion
         # State dynamics
-        [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * des.liion.η_ch + p_liion_dch[h] / des.liion.η_dch) * des.parameters.Δh
+        [h in 1:nh, s in 1:ns], soc_liion[h+1,s] == soc_liion[h,s] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h,s] * des.liion.η_ch + p_liion_dch[h,s] / des.liion.η_dch) * des.parameters.Δh
         # Initial and final conditions
-        soc_liion[1] == des.liion.soc_ini * r_liion
-        soc_liion[nh] >= soc_liion[1]
+        [s in 1:ns], soc_liion[1,s] == des.liion.soc_ini * r_liion
+        [s in 1:ns], soc_liion[nh,s] >= soc_liion[1,s]
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_liion_ch .+ p_liion_dch) : nothing
@@ -85,26 +84,26 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_tes_ch[1:nh] <= 0.
-        p_tes_dch[1:nh] >= 0.
+        p_tes_ch[1:nh, 1:ns] <= 0.
+        p_tes_dch[1:nh, 1:ns] >= 0.
         # Investment decisions variables
         0 <= r_tes <= 1000
         # Operation state variables
-        soc_tes[1:nh+1]
+        soc_tes[1:nh+1, 1:ns]
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_tes_dch[h] <= des.tes.α_p_dch * r_tes
-        [h in 1:nh], p_tes_ch[h] >= -des.tes.α_p_ch * r_tes
+        [h in 1:nh, s in 1:ns], p_tes_dch[h,s] <= des.tes.α_p_dch * r_tes
+        [h in 1:nh, s in 1:ns], p_tes_ch[h,s] >= -des.tes.α_p_ch * r_tes
         # SoC bounds
-        [h in 1:nh+1], soc_tes[h] <= des.tes.α_soc_max * r_tes
-        [h in 1:nh+1], soc_tes[h] >= des.tes.α_soc_min * r_tes
+        [h in 1:nh+1, s in 1:ns], soc_tes[h,s] <= des.tes.α_soc_max * r_tes
+        [h in 1:nh+1, s in 1:ns], soc_tes[h,s] >= des.tes.α_soc_min * r_tes
         # State dynamics
-        [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - des.tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * des.tes.η_ch + p_tes_dch[h] / des.tes.η_dch) * des.parameters.Δh
+        [h in 1:nh, s in 1:ns], soc_tes[h+1,s] == soc_tes[h,s] * (1. - des.tes.η_self * des.parameters.Δh) - (p_tes_ch[h,s] * des.tes.η_ch + p_tes_dch[h,s] / des.tes.η_dch) * des.parameters.Δh
         # Initial and final conditions
-        soc_tes[1] == des.tes.soc_ini * r_tes
-        soc_tes[nh] >= soc_tes[1]
+        [s in 1:ns], soc_tes[1,s] == des.tes.soc_ini * r_tes
+        [s in 1:ns], soc_tes[nh,s] >= soc_tes[1,s]
         end)
         # Power balance
         isa(des.ld_H, Load) ? add_to_expression!.(power_balance_H, p_tes_ch .+ p_tes_dch) : nothing
@@ -118,26 +117,26 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_h2tank_ch[1:nh] <= 0.
-        p_h2tank_dch[1:nh] >= 0.
+        p_h2tank_ch[1:nh, 1:ns] <= 0.
+        p_h2tank_dch[1:nh, 1:ns] >= 0.
         # Investment decisions variables
         0 <= r_h2tank <= 50000
         # Operation state variables
-        soc_h2tank[1:nh+1]
+        soc_h2tank[1:nh+1, 1:ns]
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_h2tank_dch[h] <= des.h2tank.α_p_dch * r_h2tank
-        [h in 1:nh], p_h2tank_ch[h] >= -des.h2tank.α_p_ch * r_h2tank
+        [h in 1:nh, s in 1:ns], p_h2tank_dch[h,s] <= des.h2tank.α_p_dch * r_h2tank
+        [h in 1:nh, s in 1:ns], p_h2tank_ch[h,s] >= -des.h2tank.α_p_ch * r_h2tank
         # SoC bounds
-        [h in 1:nh+1], soc_h2tank[h] <= des.h2tank.α_soc_max * r_h2tank
-        [h in 1:nh+1], soc_h2tank[h] >= des.h2tank.α_soc_min * r_h2tank
+        [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] <= des.h2tank.α_soc_max * r_h2tank
+        [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] >= des.h2tank.α_soc_min * r_h2tank
         # State dynamics
-        [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - des.h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * des.h2tank.η_ch + p_h2tank_dch[h] / des.h2tank.η_dch) * des.parameters.Δh
+        [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - des.h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h,s] * des.h2tank.η_ch + p_h2tank_dch[h,s] / des.h2tank.η_dch) * des.parameters.Δh
         # Initial and final conditions
-        soc_h2tank[1] == des.h2tank.soc_ini * r_h2tank
-        soc_h2tank[nh] >= soc_h2tank[1]
+        [s in 1:ns], soc_h2tank[1,s] == des.h2tank.soc_ini * r_h2tank
+        [s in 1:ns], soc_h2tank[nh,s] >= soc_h2tank[1,s]
         end)
         # Power balances
         add_to_expression!.(power_balance_H2, p_h2tank_ch .+ p_h2tank_dch)
@@ -151,14 +150,14 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_elyz_E[1:nh] <= 0.
+        p_elyz_E[1:nh, 1:ns] <= 0.
         # Investment decisions variables
         0 <= r_elyz <= 50
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_elyz_E[h] >= -r_elyz
+        [h in 1:nh, s in 1:ns], p_elyz_E[h,s] >= -r_elyz
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_elyz_E) : nothing
@@ -174,14 +173,14 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_fc_E[1:nh] >= 0.
+        p_fc_E[1:nh, 1:ns] >= 0.
         # Investment decisions variables
         0 <= r_fc <= 50
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_fc_E[h] <= r_fc
+        [h in 1:nh, s in 1:ns], p_fc_E[h,s] <= r_fc
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_fc_E) : nothing
@@ -195,12 +194,12 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_heater_E[1:nh] <= 0.
+        p_heater_E[1:nh, 1:ns] <= 0.
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_heater_E[h] >= -des.heater.powerMax[1]
+        [h in 1:nh, s in 1:ns], p_heater_E[h,s] >= -des.heater.powerMax[1]
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_heater_E) : nothing
@@ -216,7 +215,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         0 <= r_pv <= 1000
         end)
         # Power balance
-        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, r_pv * ω.pv.power) : nothing
+        isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, r_pv .* ω.pv.power) : nothing
         # CAPEX
         add_to_expression!(capex, Γ_pv * ω.pv.cost[1] * r_pv)
     end
@@ -225,13 +224,13 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
         # Variables
         @variables(m, begin
         # Operation decisions variables
-        p_g_out[1:nh] <= 0.
-        p_g_in[1:nh] >= 0.
+        p_g_out[1:nh, 1:ns] <= 0.
+        p_g_in[1:nh, 1:ns] >= 0.
         end)
         # Constraints
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh], p_g_in[h] <= des.grid.powerMax
+        [h in 1:nh, s in 1:ns], p_g_in[h,s] <= des.grid.powerMax
         end)
         # Power balance
         isa(des.ld_E, Load) ? add_to_expression!.(power_balance_E, p_g_in .+ p_g_out) : nothing
@@ -244,12 +243,17 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
 
     # Share of renewables constraint
     if designer.options.share_constraint
-        sum_ld = (isa(des.ld_E, Load) ? sum(ω.ld_E.power[h] for h in 1:nh) : 0) + (isa(des.ld_H, Load) ? sum(ω.ld_H.power[h] ./ des.heater.η_E_H for h in 1:nh) : 0)
-        @constraint(m, self_constraint, sum(p_g_in[h] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum_ld)
+        sum_ld = (isa(des.ld_E, Load) ? sum(ω.ld_E.power[h,:] for h in 1:nh) : 0.) .+ (isa(des.ld_H, Load) ? sum(ω.ld_H.power[h,:] ./ des.heater.η_E_H for h in 1:nh) : 0.)
+        @constraint(m, self_constraint[s in 1:ns], sum(p_g_in[h,s] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum_ld[s])
     end
 
-    # OPEX
-    opex = @expression(m, sum((p_g_in[h] * ω.grid.cost_in[h] + p_g_out[h] * ω.grid.cost_out[h]) * des.parameters.Δh  for h in 1:nh))
+    # OPEX TODO ajouter correctement les probas !
+    if designer.options.risk_measure == "esperance"
+        opex = @expression(m, sum((p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
+    elseif designer.options.risk_measure == "cvar"
+    else
+      println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
+    end
 
     # Objective
     @objective(m, Min, capex + opex)
@@ -260,44 +264,49 @@ end
 ### Offline
 function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
 
-   # Save history for online optimization
-   designer.history = ω
+    # Preallocate
+    preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
-   # Preallocate
-   preallocate!(designer, des.parameters.ny, des.parameters.ns)
+    # Scenario reduction from the optimization scenario pool
+    if designer.options.scenario_reduction
+        if designer.options.mode == "deterministic"
+            ω = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
+        elseif designer.options.mode == "twostage"
+            ω = scenarios_reduction(ω, 1:des.parameters.nh, 10, 1)
+        end
+    end
 
-   return designer
+    # Initialize model
+    designer.model = build_model(des, designer, ω)
+
+    # Compute investment decisions for the first year
+    optimize!(designer.model)
+
+    # Assign values
+    isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
+    isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
+    isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
+    isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
+    isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
+    isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
+
+    # Save history
+    designer.history = ω
+
+     return designer
 end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::MILP)
-    # Parameters
     ϵ = 0.1
 
-    if s == 1 && y == 1
-        # Scenario reduction from the optimization scenario pool
-        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, 1, 1)
-
-        # Build model
-        designer.model = build_model(des, designer, ω)
-
-        # Compute investment decisions
-        optimize!(designer.model)
-
-        # Assign values
-        isa(des.pv, Source) ? designer.u.pv[1,:] .= value(designer.model[:r_pv]) : nothing
-        isa(des.liion, Liion) ? designer.u.liion[1,:] .= value(designer.model[:r_liion]) : nothing
-        isa(des.h2tank, H2Tank) ? designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank]) : nothing
-        isa(des.elyz, Electrolyzer) ? designer.u.elyz[1,:] .= value(designer.model[:r_elyz]) : nothing
-        isa(des.fc, FuelCell) ? designer.u.fc[1,:] .= value(designer.model[:r_fc]) : nothing
-        isa(des.tes, ThermalSto) ? designer.u.tes[1,:] .= value(designer.model[:r_tes]) : nothing
-
-    elseif designer.options.reopt # reoptimization
+    # TODO : fix reoptimize function !!
+    if designer.options.reopt && y != 1
         # Do we need to reoptimize ?
         (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
 
         # Scenario reduction from the optimization scenario pool
-        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, y, 1)
+        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, y:des.parameters.ny, 1)
 
         # Build model
         designer.model = build_model(des, designer, ω)
@@ -313,7 +322,7 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         # Compute investment decisions
         optimize!(designer.model)
 
-        # Assign values
+        # Preallocate and assigned values
         isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = value(designer.model[:r_liion]) : nothing
         isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = value(designer.model[:r_elyz]) : nothing
         isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = value(designer.model[:r_fc]) : nothing

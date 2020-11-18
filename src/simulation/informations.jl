@@ -21,7 +21,7 @@ function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::Distr
         des.pv.timestamp[h,y,s] = ω.pv.t[h,y,s]
     end
     # We assume the price of electricity is known over the year
-    if isa(des.grid, Grid)
+    if isa(des.grid, Grid) && h == 1
         des.grid.cost_in[1:end,y,s] = ω.grid.cost_in[1:end,y,s]
         des.grid.cost_out[1:end,y,s] = ω.grid.cost_out[1:end,y,s]
     end

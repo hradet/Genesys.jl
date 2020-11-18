@@ -4,10 +4,8 @@
 
 mutable struct AnticipativeMultiStagesOptions
     solver
-    scenario_reduction::String
-    s::Int64
 
-    AnticipativeMultiStagesOptions(; solver = CPLEX, scenario_reduction = "manual", s = 1) = new(solver, scenario_reduction, s)
+    AnticipativeMultiStagesOptions(; solver = CPLEX) = new(solver)
 end
 
 mutable struct AnticipativeMultiStages <: AbstractDesigner
@@ -111,25 +109,25 @@ end
 
 ### Offline
 function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::AbstractScenarios)
+    # Build anticipative controller
+    controller = Anticipative()
 
-     # Scenario reduction from the optimization scenario pool
-     ω_anticipative = scenarios_reduction(designer, ω)
+    # Pre-allocate
+    preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
+    preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
-     # Build model
-     designer.model = build_model(des, designer, ω_anticipative)
+    # Build model
+    designer.model = build_model(des, designer, ω)
 
-     # Compute both investment and operation decisions
-     optimize!(designer.model)
+    # Compute both investment and operation decisions
+    optimize!(designer.model)
 
-     # Preallocate and assigned values to the controller
-     controller = Anticipative()
-     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
-     isa(des.liion, Liion) ? controller.u.liion .= value.(designer.model[:p_liion_ch] + designer.model[:p_liion_dch]) : nothing
+    # Assign controller values
+    isa(des.liion, Liion) ? controller.u.liion .= value.(designer.model[:p_liion_ch] + designer.model[:p_liion_dch]) : nothing
 
-     # Preallocate and assigned values to the designer
-     preallocate!(designer, des.parameters.ny, des.parameters.ns)
-     isa(des.liion, Liion) ? designer.u.liion .= value.(designer.model[:r_liion]) : nothing
-     isa(des.pv, Source) ? designer.u.pv .= value.(designer.model[:r_pv]) : nothing
+    # Assign designer values
+    isa(des.liion, Liion) ? designer.u.liion .= value.(designer.model[:r_liion]) : nothing
+    isa(des.pv, Source) ? designer.u.pv .= value.(designer.model[:r_pv]) : nothing
 
      return controller, designer
 end

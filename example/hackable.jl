@@ -58,22 +58,22 @@ data = load(joinpath("data","scenarios_ausgrid.jld"))
 ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
 
 # Initialize DES
-DES = DistributedEnergySystem(ld_E = Load(),
+des = DistributedEnergySystem(ld_E = Load(),
                               pv = Source(),
                               liion = Liion(),
                               grid = Grid(),
                               parameters = Genesys.GlobalParameters(nh, ny, ns))
 
 # Initialize controller
-controller = initialize_controller!(DES,
+controller = initialize_controller!(des,
                                     foo(),
                                     ω_optim)
 
 # Initialize designer
-designer = initialize_designer!(DES,
+designer = initialize_designer!(des,
                                 bar(),
                                 ω_optim)
 
 # Simulate
-@elapsed simulate!(DES, controller, designer, ω_simu,
+@elapsed simulate!(des, controller, designer, ω_simu,
                           options = Genesys.Options(mode="serial"))

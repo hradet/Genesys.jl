@@ -28,22 +28,21 @@ export simulate!
 # Investment optimization
 include(joinpath("optimization","designer","dummy.jl"))
 include(joinpath("optimization","designer","milp.jl"))
-include(joinpath("optimization","designer","milp_stoch.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export DummyDesigner, MILP, MILPStoch, Metaheuristic
+export DummyDesigner, MILP, Metaheuristic
 export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))
+include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","mpc.jl"))
 include(joinpath("optimization","controller","olfc.jl"))
-export DummyCcontroller, RBC, MPC, OLFC
+export DummyCcontroller, RBC, MPC, OLFC, Anticipative
 export initialize_controller!
 # Anticipative optimization
-include(joinpath("optimization","anticipative","controller.jl"))
 include(joinpath("optimization","anticipative","multistages.jl"))
-include(joinpath("optimization","anticipative","eac.jl"))
-export Anticipative, AnticipativeMultiStages, AnticipativeEAC
+include(joinpath("optimization","anticipative","twostage.jl"))
+export AnticipativeMultiStages, AnticipativeTwoStage
 export offline_optimization!
 # Scenarios
 include(joinpath("scenarios","scenarios.jl"))

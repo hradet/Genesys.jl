@@ -4,23 +4,23 @@
 
 mutable struct MetaheuristicOptions
     method::Metaheuristics.AbstractMetaheuristic
-    controller::AbstractController
     iterations::Int64
-    scenario_reduction::String
+    controller::AbstractController
+    mode::String
+    risk_measure::String
+    scenario_reduction::Bool
     share_constraint::Bool
     reopt::Bool
-    obj::String
-    s::Int64
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
-                           controller = RBC(),
                            iterations = 20,
-                           scenario_reduction = "manual",
+                           controller = RBC(),
+                           mode = "deterministic", # "deterministic", "twostage" or "npv"
+                           risk_measure = "esperance",
+                           scenario_reduction = true,
                            share_constraint = true,
-                           reopt = false,
-                           obj = "npv",
-                           s = 1) =
-                           new(method, controller, iterations, scenario_reduction, share_constraint, reopt, obj, s)
+                           reopt = false) =
+                           new(method, iterations, controller, mode, risk_measure, scenario_reduction, share_constraint, reopt)
 
 end
 
@@ -34,9 +34,14 @@ mutable struct Metaheuristic <: AbstractDesigner
 end
 
 # Objective functions
-function fobj_npv(decisions, des, designer, ω_m)
+function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω_m::AbstractScenarios)
+    # Paramters
+    nh = size(ω_m.ld_E.power,1)
+    ny = size(ω_m.ld_E.power,2)
+    ns = size(ω_m.ld_E.power,3)
+
     # Initialize DES
-    des_m = copy(des, des.parameters.nh, des.parameters.ny, 1)
+    des_m = copy(des, nh, ny, ns)
 
     # Initialize controller
     controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
@@ -53,68 +58,70 @@ function fobj_npv(decisions, des, designer, ω_m)
     designer_m.u.tes[1,:] .= decisions[6]
 
     # Simulate
-    simulate!(1, des_m, controller_m, designer_m, ω_m, Options())
-
-    # Metrics
-    metrics_m = Metrics(1, des_m, designer_m)
-
-    # Objective - algorithm find the maximum
-   obj = metrics_m.costs.npv[1]
-
-   # Add the LPSP constraint for the heat
-   isa(des.ld_H, Load) ? obj -= 1e32 * max(0., maximum(metrics_m.lpsp.lpsp_H[2:end,:]) - 0.05) : nothing
-
-   # Add the share constraint
-   designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - minimum(metrics_m.τ_share[2:end,:])) : nothing
-
-    return obj
-end
-function fobj_eac(decisions, des, designer, ω_m)
-    # Initialize DES
-    des_m = copy(des, des.parameters.nh, 2, 1)
-
-    # Initialize controller
-    controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
-
-    # Initialize with the dummy designer
-    designer_m = initialize_designer!(des_m, DummyDesigner(), ω_m)
-
-    # Initialize with the decisions variables
-    designer_m.u.pv[1,:] .= decisions[1]
-    designer_m.u.liion[1,:] .= decisions[2]
-    designer_m.u.h2tank[1,:] .= decisions[3]
-    designer_m.u.elyz[1,:] .= decisions[4]
-    designer_m.u.fc[1,:] .= decisions[5]
-    designer_m.u.tes[1,:] .= decisions[6]
-
-    # Simulate
-    for y in 1:2
-        simulate!(y, 1, des_m, controller_m, designer_m, ω_m, Genesys.Options())
+    for s in 1:ns
+        simulate!(s, des_m, controller_m, designer_m, ω_m, Genesys.Options())
     end
 
     # Objective - algorithm find the maximum
-   obj = - compute_annualised_capex(1, 1, des_m, designer_m) - compute_grid_cost(2, 1, des_m)
+    if designer.options.mode == "npv"
+        obj = mean(Costs(des_m,designer_m).npv)
+    else
+        obj = mean(- compute_annualised_capex(1, s, des_m, designer_m) - compute_grid_cost(2, s, des_m) for s in 1:ns)
+    end
 
-   # Add the LPSP constraint for the heat
-   isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., Genesys.LPSP(2, 1, des_m).lpsp_H - 0.05) : nothing
+    # Add the LPSP constraint for the heat
+    isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., mean(LPSP(y, s, des_m).lpsp_H - 0.05 for s in 1:ns, y in 2:ny)) : nothing
 
-   # Add the soc constraint for the seasonal storage
-   isa(des_m.h2tank, H2Tank) ? obj -= 1e32 * max(0., des_m.h2tank.soc[1,2,1] - des_m.h2tank.soc[end,2,1]) : nothing
+    # Add the soc constraint for the seasonal storage
+    isa(des_m.h2tank, H2Tank) ? obj -= 1e32 *  max(0., mean(des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s] for s in 1:ns, y in 2:ny)) : nothing
 
-   # Add the share constraint
-   designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m)) : nothing
+    # Add the share constraint
+    designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - mean(compute_share(y, s, des_m) for s in 1:ns, y in 2:ny)) : nothing
 
     return obj
 end
 
 ### Offline
 function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω::AbstractScenarios)
+    # Preallocate and assigned values
+    preallocate!(designer, des.parameters.ny, des.parameters.ns)
+
+    # Scenario reduction from the optimization scenario pool
+    if designer.options.scenario_reduction
+        if designer.options.mode == "deterministic"
+            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
+            # Concatenation to simulate 2 years
+            ω_m = concatenate(ω_m, ω_m, dims=2)
+        elseif designer.options.mode == "twostage"
+            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 2:2, 1:5)
+            # Concatenation to simulate 2 years
+            ω_m = concatenate(ω_m, ω_m, dims=2)
+        elseif designer.options.mode == "npv"
+            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1:1)
+        end
+    end
+
+    # Bounds
+    lb, ub = set_bounds(des)
+
+    # Optimize
+    designer.results = Metaheuristics.optimize(lb, ub,
+                                               designer.options.method,
+                                               options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
+    ) do decisions
+        fobj(decisions, des, designer, ω_m)
+      end
+
+    # Assign values
+    designer.u.pv[1,:] .= designer.results.minimizer[1]
+    designer.u.liion[1,:] .= designer.results.minimizer[2]
+    designer.u.h2tank[1,:] .= designer.results.minimizer[3]
+    designer.u.elyz[1,:] .= designer.results.minimizer[4]
+    designer.u.fc[1,:] .= designer.results.minimizer[5]
+    designer.u.tes[1,:] .= designer.results.minimizer[6]
 
     # Save history for online optimization
     designer.history = ω
-
-    # Preallocate and assigned values
-    preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
     return designer
 end
@@ -123,42 +130,7 @@ end
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
     ϵ = 0.1
 
-    if s == 1 && y == 1
-        # Bounds
-        lb, ub = set_bounds(des)
-
-        # Optimize
-        println("Starting design optimization...")
-        designer.results = Metaheuristics.optimize(lb, ub,
-                                                   designer.options.method,
-                                                   options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
-        ) do decisions
-            if designer.options.obj == "npv"
-                # Scenario reduction
-                ω = scenarios_reduction(designer.history, 1:des.parameters.nh, 1:des.parameters.ny, 1)
-                # Objective
-                fobj_npv(decisions, des, designer, ω)
-            elseif designer.options.obj == "eac"
-                # Scenario reduction
-                ω = Genesys.scenarios_reduction(designer.history, 1:des.parameters.nh, 1, 1)
-                # Concatenation to simulate 2 years
-                ω = concatenate(ω, ω, dims=2)
-                # Objective
-                fobj_eac(decisions, des, designer, ω)
-            else
-                println("Objective function unknown...")
-            end
-          end
-
-        # Assign values
-        designer.u.pv[1,:] .= designer.results.minimizer[1]
-        designer.u.liion[1,:] .= designer.results.minimizer[2]
-        designer.u.h2tank[1,:] .= designer.results.minimizer[3]
-        designer.u.elyz[1,:] .= designer.results.minimizer[4]
-        designer.u.fc[1,:] .= designer.results.minimizer[5]
-        designer.u.tes[1,:] .= designer.results.minimizer[6]
-
-    elseif designer.options.reopt
+    if designer.options.reopt && y != 1
         # Do we need to reoptimize ?
         (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
         println("Re-optimization not yet implemented...")
