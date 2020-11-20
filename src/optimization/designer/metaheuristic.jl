@@ -57,7 +57,7 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     designer_m.u.fc[1,:] .= decisions[5]
     designer_m.u.tes[1,:] .= decisions[6]
 
-    # Simulate
+    # Simulate TODO parraleliser le calcul avec multi-threads ou distributed
     for s in 1:ns
         simulate!(s, des_m, controller_m, designer_m, ω_m, Genesys.Options())
     end
@@ -89,11 +89,11 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     # Scenario reduction from the optimization scenario pool
     if designer.options.scenario_reduction
         if designer.options.mode == "deterministic"
-            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
+            ω_m = scenarios_reduction_mean(ω, 1:des.parameters.nh, 1, 1)
             # Concatenation to simulate 2 years
             ω_m = concatenate(ω_m, ω_m, dims=2)
         elseif designer.options.mode == "twostage"
-            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 2:2, 1:5)
+            ω_m = reshape(scenarios_reduction_SAA(ω, 1:des.parameters.nh, 1, 1, 10), des.parameters.nh, 1, :)
             # Concatenation to simulate 2 years
             ω_m = concatenate(ω_m, ω_m, dims=2)
         elseif designer.options.mode == "npv"

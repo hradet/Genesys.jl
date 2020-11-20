@@ -116,7 +116,7 @@ function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, 
      # Scenario reduciton
      ω_markov = scenarios_reduction(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1)
 
-     # Compute markov chain for scenario generation
+     # Compute markov chain for scenario generation TODO pas necessaire acr toujours ld_E dans scenarios
      if isa(des.ld_H, Load)
          mc_wkd, mc_wk = compute_markovchains(ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H, n_state = controller.options.n_state)
      else

@@ -7,6 +7,7 @@ mutable struct MILPOptions
   mode::String
   risk_measure::String
   scenario_reduction::Bool
+  Nmc::Int64
   share_constraint::Bool
   reopt::Bool
 
@@ -14,9 +15,10 @@ mutable struct MILPOptions
                 mode = "deterministic", # "deterministic" or "twostage"
                 risk_measure = "esperance",
                 scenario_reduction = true,
+                Nmc = 100,
                 share_constraint = true,
                 reopt=false) =
-                new(solver, mode, risk_measure, scenario_reduction, share_constraint, reopt)
+                new(solver, mode, risk_measure, scenario_reduction, Nmc, share_constraint, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -148,9 +150,11 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
     # Scenario reduction from the optimization scenario pool
     if designer.options.scenario_reduction
         if designer.options.mode == "deterministic"
-            ω = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
+            # ω = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
+            ω = scenarios_reduction_mean(ω, 1:des.parameters.nh, 1, 1)
         elseif designer.options.mode == "twostage"
-            ω = scenarios_reduction(ω, 1:des.parameters.nh, 10, 1)
+            # ω = scenarios_reduction_SAA(ω, 1:des.parameters.nh, 1, 1, designer.options.Nmc)
+            ω = scenarios_reduction_clustering(ω, 1, 1, 10, "kmeans")
         end
     end
 

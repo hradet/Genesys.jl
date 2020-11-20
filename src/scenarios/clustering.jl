@@ -1,7 +1,33 @@
 mutable struct ClusteredScenarios
-    clusters::NamedTuple
-    σ # sequence of clusters = assignments
-    nby # number of entities by cluster = counts
+    ω::Scenarios
+    assignements::Vector{Int64}
+    counts::Vector{Int64}
+end
+
+
+function clustering(data...; ncluster::Int64 = 1, algo = "kmeans")
+    # Parameters
+    nk = length(data)
+    nh, ny, ns = size(data[1])
+    # Normalization
+    data_n = data ./ maximum.(data)
+    # Aggregation
+    data_agg = vcat([hcat([data_n[k][:,:,s] for s in 1:ns]...) for k in 1:nk]...)
+    if algo == "kmeans"
+        # Clustering
+        results = kmeans(data_agg, ncluster)
+        # Denormalization
+        for k in 1:nk
+            results.centers[(k-1)*nh+1:k*nh,:] .*= maximum(data[k])
+        end
+    elseif algo == "kmedoids"
+        # Compute euclidean distance matrix
+        dist = pairwise(Euclidean(), data_agg, dims = 2 )
+        # Clustering
+        results = kmedoids(dist, ncluster)
+    end
+
+    return results
 end
 
 # Typical day clustering functions
@@ -16,7 +42,7 @@ function clustering_typical_day(ω::Scenarios, ntd::Int64)
     ld_E_td = zeros(nh, ntd, ny, ns)
     ld_H_td = zeros(nh, ntd, ny, ns)
     pv_td = zeros(nh, ntd, ny, ns)
-    σ_td = zeros(Int64, nd, ny, ns)
+    assignements = zeros(Int64, nd, ny, ns)
     n_bytd = zeros(Int64, ntd, ny, ns)
 
     # For each year of each scenario
@@ -39,10 +65,10 @@ function clustering_typical_day(ω::Scenarios, ntd::Int64)
             pv_td[:,:,y,s] = maximum(ω.pv.power[:,y,s]) * cluster.centers[2*nh+1:3*nh, :]
 
             # Assignment sequence
-            σ_td[:,y,s] = cluster.assignments
+            assignements[:,y,s] = cluster.assignments
 
             # Number of assignement by cluster
-            n_bytd[:,y,s] = cluster.counts
+            counts[:,y,s] = cluster.counts
         end
     end
     # Cluster values
@@ -64,7 +90,7 @@ function clustering_typical_day(ω::Scenarios, ntd::Int64)
     C_grid_out = ω.C_grid_out,
     )
 
-    return ClusteredScenarios(clusters, σ_td, n_bytd)
+    return ClusteredScenarios(clusters, assignements, counts)
 end
 function clustering_typical_day(ω::ClusteredScenarios, ntd::Int64)
     # Parameter
