@@ -89,15 +89,15 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     # Scenario reduction from the optimization scenario pool
     if designer.options.scenario_reduction
         if designer.options.mode == "deterministic"
-            ω_m = scenarios_reduction_mean(ω, 1:des.parameters.nh, 1, 1)
+            ω_m = reduce_mean(ω, 1:des.parameters.nh, 1, 1)
             # Concatenation to simulate 2 years
             ω_m = concatenate(ω_m, ω_m, dims=2)
         elseif designer.options.mode == "twostage"
-            ω_m = reshape(scenarios_reduction_SAA(ω, 1:des.parameters.nh, 1, 1, 10), des.parameters.nh, 1, :)
+            ω_m = reshape(reduce_SAA(ω, 1:des.parameters.nh, 1, 1, 10), des.parameters.nh, 1, :)
             # Concatenation to simulate 2 years
             ω_m = concatenate(ω_m, ω_m, dims=2)
         elseif designer.options.mode == "npv"
-            ω_m = scenarios_reduction(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1:1)
+            ω_m = reduce(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1:1)
         end
     end
 

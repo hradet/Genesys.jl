@@ -3,7 +3,7 @@
 =#
 
 mutable struct MILPOptions
-  solver
+  solver::Module
   mode::String
   risk_measure::String
   scenario_reduction::Bool
@@ -150,11 +150,11 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
     # Scenario reduction from the optimization scenario pool
     if designer.options.scenario_reduction
         if designer.options.mode == "deterministic"
-            # ω = scenarios_reduction(ω, 1:des.parameters.nh, 1, 1)
-            ω = scenarios_reduction_mean(ω, 1:des.parameters.nh, 1, 1)
+            # ω = reduce(ω, 1:des.parameters.nh, 1, 1)
+            ω = reduce_mean(ω, 1:des.parameters.nh, 1, 1)
         elseif designer.options.mode == "twostage"
-            # ω = scenarios_reduction_SAA(ω, 1:des.parameters.nh, 1, 1, designer.options.Nmc)
-            ω = scenarios_reduction_clustering(ω, 1, 1, 10, "kmeans")
+            # ω = reduce_SAA(ω, 1:des.parameters.nh, 1, 1, designer.options.Nmc)
+            ω = reduce_clustering(ω, 1, 1, 10, "kmeans")
         end
     end
 

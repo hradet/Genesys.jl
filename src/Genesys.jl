@@ -45,7 +45,8 @@ export AnticipativeMultiStages, AnticipativeTwoStage
 export offline_optimization!
 # Scenarios
 include(joinpath("scenarios","scenarios.jl"))
-include(joinpath("scenarios","clustering.jl"))
+include(joinpath("scenarios","reduction.jl"))
+include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","markov.jl"))
 export Scenarios
 # Utils
