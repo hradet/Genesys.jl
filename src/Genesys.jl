@@ -47,7 +47,7 @@ export offline_optimization!
 include(joinpath("scenarios","scenarios.jl"))
 include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
-include(joinpath("scenarios","markov.jl"))
+include(joinpath("scenarios","utils.jl"))
 export Scenarios
 # Utils
 include(joinpath("utils","metrics.jl"))

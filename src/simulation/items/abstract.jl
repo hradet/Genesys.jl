@@ -5,6 +5,8 @@
 abstract type AbstractController end
 abstract type AbstractDesigner end
 abstract type AbstractScenarios end
+abstract type AbstractScenariosGenerator end
+abstract type AbstractScenariosReducer end
 
 # Preallocate abstract controller
 function preallocate!(controller::AbstractController, nh::Int64, ny::Int64, ns::Int64)

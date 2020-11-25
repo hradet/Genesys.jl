@@ -4,18 +4,20 @@
 
 mutable struct OLFCOptions
     solver
+    generator::AbstractScenariosGenerator
     horizon::Int64
-    n_state::Int64
-    ns::Int64
+    nscenarios::Int64
 
-    OLFCOptions(; solver = CPLEX, horizon = 24, n_state = 5, ns = 10) = new(solver, horizon, n_state, ns)
+    OLFCOptions(; solver = CPLEX,
+                  generator = MarkovGenerator(),
+                  horizon = 24,
+                  nscenarios = 1) = new(solver, generator, horizon, nscenarios)
 end
 
 mutable struct OLFC <: AbstractController
     options::OLFCOptions
     u::NamedTuple
     model::JuMP.Model
-    markovchains
     history::AbstractScenarios
     OLFC(; options = OLFCOptions()) = new(options)
 end
@@ -24,7 +26,7 @@ end
 function build_model(des::DistributedEnergySystem, controller::OLFC)
      # Sets
      nh = controller.options.horizon
-     ns = controller.options.ns
+     ns = controller.options.nscenarios
 
      # Initialize
      isa(des.liion, Liion) ? liion = des.liion : liion = Liion()
@@ -109,20 +111,14 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
 end
 ### Offline
 function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, ω::AbstractScenarios)
-
      # Build model
      controller.model = build_model(des, controller)
 
      # Scenario reduciton
-     ω_markov = reduce(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1)
+     ω_markov = reduce(ManualReducer(), ω, h = 1:des.parameters.nh, y = 1:des.parameters.ny)[1]
 
-     # Compute markov chain for scenario generation TODO pas necessaire acr toujours ld_E dans scenarios
-     if isa(des.ld_H, Load)
-         mc_wkd, mc_wk = compute_markovchains(ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H, n_state = controller.options.n_state)
-     else
-         mc_wkd, mc_wk = compute_markovchains(ω_markov.pv, ω_markov.ld_E, n_state = controller.options.n_state)
-     end
-     controller.markovchains = (wk = mc_wk, wkd = mc_wkd)
+     # Compute markov chain for scenario generation
+     controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H)
 
      # Preallocate
      preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
@@ -139,14 +135,15 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
     t0 = des.pv.timestamp[h,y,s]
 
     # Compute forecast
-    forecast = Genesys.compute_scenarios(controller.markovchains.wk, controller.markovchains.wkd, s0, t0, controller.options.horizon, ny = controller.options.ns)
+    forecast, proba = generate(controller.options.generator, s0, t0, controller.options.horizon, ny = controller.options.nscenarios)
     cost_in = vcat(des.grid.cost_in[window,y,s], zeros(n_zeros)) ; cost_out = vcat(des.grid.cost_out[window,y,s], zeros(n_zeros))
 
     # Fix forecast and state variables
     fix_variables!(h, y, s, des, controller, forecast)
 
-    # Objective function TODO ajouter correctement les probas !
-    @objective(controller.model, Min, sum(controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh / controller.options.ns)
+    # Objective function
+    proba = proba / sum(proba) # the sum must be equal to 1...
+    @objective(controller.model, Min, sum(proba .* controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh)
 
     # Optimize
     optimize!(controller.model)

@@ -1,15 +1,13 @@
 #=
     Scenario reduction methods
 =#
-#TODO différencier multiyear scenarios de ceux d'une année ??
-abstract type AbstractScenarioReduction end
 
 # Manual reduction
-mutable struct ManualReduction <: AbstractScenarioReduction
-    ManualReduction() = new()
+mutable struct ManualReducer <: AbstractScenariosReducer
+    ManualReducer() = new()
 end
 
-function reduce(reducer::ManualReduction, ω::Scenarios; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
+function reduce(reducer::ManualReducer, ω::Scenarios; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
     # Demand
     ld_E = (t = ω.ld_E.t[h, y, s], power = ω.ld_E.power[h, y, s])
     ld_H = (t = ω.ld_H.t[h, y, s], power = ω.ld_H.power[h, y, s])
@@ -32,13 +30,13 @@ function reduce(reducer::ManualReduction, ω::Scenarios; h::Union{UnitRange{Int6
 end
 
 # Sample Average Approximation reduction
-mutable struct SAAReduction <: AbstractScenarioReduction
+mutable struct SAAReducer <: AbstractScenariosReducer
     nmontecarlo::Int64
 
-    SAAReduction(; nmontecarlo = 100) = new(nmontecarlo)
+    SAAReducer(; nmontecarlo = 100) = new(nmontecarlo)
 end
 
-function reduce(reducer::SAAReduction, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::SAAReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     # Parameters
     _, ny, ns = size(ω.ld_E.power)
     # Monte carlo indices
@@ -66,11 +64,11 @@ function reduce(reducer::SAAReduction, ω::Scenarios; y::Int64 = 1, s::Int64 = 1
 end
 
 # Expected value reduction
-mutable struct ExpectedValueReduction <: AbstractScenarioReduction
-    ExpectedValueReduction() = new()
+mutable struct ExpectedValueReducer <: AbstractScenariosReducer
+    ExpectedValueReducer() = new()
 end
 
-function reduce(reducer::ExpectedValueReduction, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::ExpectedValueReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     # Mean value
     # Demand
     ld_E = (t = ω.ld_E.t[:, 1, 1], power = mean(ω.ld_E.power[:, :, :], dims=[2,3]))
@@ -94,14 +92,14 @@ function reduce(reducer::ExpectedValueReduction, ω::Scenarios; y::Int64 = 1, s:
 end
 
 # Clustering reduction with kmeans
-mutable struct KmeansReduction <: AbstractScenarioReduction
+mutable struct KmeansReducer <: AbstractScenariosReducer
     ncluster::Int64
     typical_days::Bool
 
-    KmeansReduction(; ncluster = 10, typical_days = false) = new(ncluster, typical_days)
+    KmeansReducer(; ncluster = 10, typical_days = false) = new(ncluster, typical_days)
 end
 
-function reduce(reducer::KmeansReduction, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmeansReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh = 24
@@ -149,15 +147,15 @@ function Clustering.kmeans(data...; ncluster::Int64 = 10)
 end
 
 # Clustering reduction with kmedoids
-mutable struct KmedoidsReduction <: AbstractScenarioReduction
+mutable struct KmedoidsReducer <: AbstractScenariosReducer
     ncluster::Int64
     distance
     typical_days::Bool
 
-    KmedoidsReduction(; ncluster = 10, distance = Distances.Euclidean(), typical_days = false) = new(ncluster, distance, typical_days)
+    KmedoidsReducer(; ncluster = 10, distance = Distances.Euclidean(), typical_days = false) = new(ncluster, distance, typical_days)
 end
 
-function reduce(reducer::KmedoidsReduction, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmedoidsReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh, ns = 24, 1
