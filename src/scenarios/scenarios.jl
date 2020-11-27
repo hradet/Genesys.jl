@@ -42,7 +42,7 @@ end
 
 # Scenario concatenation
 function Base.cat(ω1::Scenarios, ω2::Scenarios; dims::Int64 = 2)
-    @assert 1 < dims < 4 "concatenation along y and s only !"
+    @assert 1 < dims < 4 "concatenation along dims 2 and 3 only !"
     # Demand
     ld_E = (t = cat(ω1.ld_E.t, ω2.ld_E.t, dims=dims), power = cat(ω1.ld_E.power, ω2.ld_E.power, dims=dims))
     ld_H = (t = cat(ω1.ld_H.t, ω2.ld_H.t, dims=dims), power = cat(ω1.ld_H.power, ω2.ld_H.power, dims=dims))

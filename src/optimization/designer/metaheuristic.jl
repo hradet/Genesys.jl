@@ -96,7 +96,7 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}})
     # Preallocate and assigned values
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
@@ -113,7 +113,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
         # Concatenation to simulate 2 years
         ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
     elseif designer.options.mode == "npv"
-        ω_reduced, probabilities = reduce(ManualReducer(), ω, h = 1:des.parameters.nh, y = 1:des.parameters.ny, s = 1)
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     end
 
     # Bounds

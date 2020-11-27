@@ -7,16 +7,16 @@ using Statistics, Clustering, Distributions, Distances, LinearAlgebra
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
-include(joinpath("items","liion.jl"))
-include(joinpath("items","tes.jl"))
-include(joinpath("items","h2tank.jl"))
-include(joinpath("items","electrolyzer.jl"))
-include(joinpath("items","fuel_cell.jl"))
-include(joinpath("items","heater.jl"))
-include(joinpath("items","grid.jl"))
-include(joinpath("items","sources.jl"))
-include(joinpath("items","loads.jl"))
-include(joinpath("items","des.jl"))
+include(joinpath("assets","liion.jl"))
+include(joinpath("assets","tes.jl"))
+include(joinpath("assets","h2tank.jl"))
+include(joinpath("assets","electrolyzer.jl"))
+include(joinpath("assets","fuel_cell.jl"))
+include(joinpath("assets","heater.jl"))
+include(joinpath("assets","grid.jl"))
+include(joinpath("assets","sources.jl"))
+include(joinpath("assets","loads.jl"))
+include(joinpath("assets","des.jl"))
 export DistributedEnergySystem, Source, Liion, ThermalSto, H2Tank, Electrolyzer, FuelCell, Heater, Grid, Load
 # Scenarios
 include(joinpath("scenarios","scenarios.jl"))

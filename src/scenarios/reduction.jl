@@ -5,10 +5,15 @@ abstract type AbstractScenariosReducer end
 
 # Manual reduction
 mutable struct ManualReducer <: AbstractScenariosReducer
-    ManualReducer() = new()
+    h::Union{UnitRange{Int64}, Int64}
+    y::Union{UnitRange{Int64}, Int64}
+    s::Union{UnitRange{Int64}, Int64}
+    ManualReducer(; h = 1:8760, y = 1, s = 1) = new(h, y, s)
 end
 
-function reduce(reducer::ManualReducer, ω::Scenarios; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
+function reduce(reducer::ManualReducer, ω::Scenarios)
+    # Parameters
+    h, y, s = reducer.h, reducer.y, reducer.s
     # Demand
     ld_E = (t = ω.ld_E.t[h, y, s], power = ω.ld_E.power[h, y, s])
     ld_H = (t = ω.ld_H.t[h, y, s], power = ω.ld_H.power[h, y, s])
@@ -70,14 +75,14 @@ mutable struct ExpectedValueReducer <: AbstractScenariosReducer
 end
 
 function reduce(reducer::ExpectedValueReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
-    # Mean value
+    # Mean value - Array{Float64,2} pour MILP...
     # Demand
-    ld_E = (t = ω.ld_E.t[:, 1, 1], power = mean(ω.ld_E.power[:, :, :], dims=[2,3]))
-    ld_H = (t = ω.ld_H.t[:, 1, 1], power = mean(ω.ld_H.power[:, :, :], dims=[2,3]))
+    ld_E = (t = ω.ld_E.t[:, 1:1, 1], power = mean(ω.ld_E.power, dims=[2,3])[:, :, 1])
+    ld_H = (t = ω.ld_H.t[:, 1:1, 1], power = mean(ω.ld_H.power, dims=[2,3])[:, :, 1])
     # Production
-    pv = (t = ω.pv.t[:, 1, 1], power =  mean(ω.pv.power[:, :, :], dims=[2,3]), cost =  ω.pv.cost[y, s])
+    pv = (t = ω.pv.t[:, 1:1, 1], power =  mean(ω.pv.power, dims=[2,3])[:, :, 1], cost =  ω.pv.cost[y, s])
     # Electricity tariff
-    grid = (cost_in = mean(ω.grid.cost_in[:, :, :], dims=[2,3]), cost_out =  mean(ω.grid.cost_out[:, :, :], dims=[2,3]))
+    grid = (cost_in = mean(ω.grid.cost_in, dims=[2,3])[:, :, 1], cost_out =  mean(ω.grid.cost_out, dims=[2,3])[:, :, 1])
     # Investment costs
     liion = (cost =  ω.liion.cost[y, s],)
     tes = (cost =  ω.tes.cost[y, s],)
@@ -100,7 +105,7 @@ mutable struct KmeansReducer <: AbstractScenariosReducer
     KmeansReducer(; ncluster = 10, typical_days = false) = new(ncluster, typical_days)
 end
 
-function reduce(reducer::KmeansReducer, ω::AbstractScenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmeansReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh = 24
@@ -156,7 +161,7 @@ mutable struct KmedoidsReducer <: AbstractScenariosReducer
     KmedoidsReducer(; ncluster = 10, distance = Distances.Euclidean(), typical_days = false) = new(ncluster, distance, typical_days)
 end
 
-function reduce(reducer::KmedoidsReducer, ω::AbstractScenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmedoidsReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh, ns = 24, 1

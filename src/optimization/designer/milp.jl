@@ -4,19 +4,17 @@
 
 mutable struct MILPOptions
   solver::Module
-  mode::String
   risk_measure::String
   reducer::AbstractScenariosReducer
   share_constraint::String
   reopt::Bool
 
   MILPOptions(; solver = CPLEX,
-                mode = "deterministic", # "deterministic" or "twostage"
                 risk_measure = "esperance",
                 reducer = KmeansReducer(),
                 share_constraint = "hard",
                 reopt=false) =
-                new(solver, mode, risk_measure, reducer, share_constraint, reopt)
+                new(solver, risk_measure, reducer, share_constraint, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -29,7 +27,7 @@ mutable struct MILP <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Array{Float64,1})
+function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Array{Float64})
     # Sets
     nh = size(ω.ld_E.power,1) # Number of hours
     ns = size(ω.ld_E.power,2) # Number of scenarios
@@ -145,17 +143,13 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
+function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}})
     # Preallocate
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
     # Scenario reduction from the optimization scenario pool
     println("Starting scenario reduction...")
-    if designer.options.mode == "deterministic"
-        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
-    elseif designer.options.mode == "twostage"
-        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
-    end
+    ω_reduced, probabilities = reduce(designer.options.reducer, ω)
 
     # Initialize model
     println("Building the model...")
