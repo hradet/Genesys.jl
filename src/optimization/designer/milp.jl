@@ -6,19 +6,17 @@ mutable struct MILPOptions
   solver::Module
   mode::String
   risk_measure::String
-  scenario_reduction::Bool
-  Nmc::Int64
-  share_constraint::Bool
+  reducer::AbstractScenariosReducer
+  share_constraint::String
   reopt::Bool
 
   MILPOptions(; solver = CPLEX,
                 mode = "deterministic", # "deterministic" or "twostage"
                 risk_measure = "esperance",
-                scenario_reduction = true,
-                Nmc = 100,
-                share_constraint = true,
+                reducer = KmeansReducer(),
+                share_constraint = "hard",
                 reopt=false) =
-                new(solver, mode, risk_measure, scenario_reduction, Nmc, share_constraint, reopt)
+                new(solver, mode, risk_measure, reducer, share_constraint, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -31,7 +29,7 @@ mutable struct MILP <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios, probabilities::Array{Float64,1})
     # Sets
     nh = size(ω.ld_E.power,1) # Number of hours
     ns = size(ω.ld_E.power,2) # Number of scenarios
@@ -113,9 +111,14 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
     [h in 1:nh, s in 1:ns], ld_E[h,s] <= r_pv * ω.pv.power[h,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], ld_H[h,s] <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
     [h in 1:nh, s in 1:ns], 0. == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
-    # Share of renewables constraint
-    [s in 1:ns], sum(p_g_in[h,s] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ld_E[h,s] + ld_H[h,s] / heater.η_E_H for h in 1:nh)
     end)
+
+    # Share of renewables constraint
+    if designer.options.share_constraint == "hard"
+        @constraint(m, [s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,s] + ld_H[h,s] / heater.η_E_H) for h in 1:nh) <= 0.)
+    elseif designer.options.share_constraint == "soft"
+        @constraint(m, sum(probabilities[s] * (p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,s] + ld_H[h,s] / heater.η_E_H)) for h in 1:nh, s in 1:ns) <= 0.)
+    end
 
     # CAPEX
     # Annualized factor
@@ -127,9 +130,9 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractS
     Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ pv.lifetime) / ((des.parameters.τ + 1.) ^ pv.lifetime - 1.)
     capex = @expression(m, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
 
-    # OPEX TODO ajouter correctement les probas !
+    # OPEX
     if designer.options.risk_measure == "esperance"
-        opex = @expression(m, sum((p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh, s in 1:ns) / ns)
+        opex = @expression(m, sum(probabilities[s] * (p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh, s in 1:ns))
     elseif designer.options.risk_measure == "cvar"
     else
       println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
@@ -143,25 +146,23 @@ end
 
 ### Offline
 function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios)
-
     # Preallocate
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
     # Scenario reduction from the optimization scenario pool
-    if designer.options.scenario_reduction
-        if designer.options.mode == "deterministic"
-            # ω = reduce(ω, 1:des.parameters.nh, 1, 1)
-            ω = reduce_mean(ω, 1:des.parameters.nh, 1, 1)
-        elseif designer.options.mode == "twostage"
-            # ω = reduce_SAA(ω, 1:des.parameters.nh, 1, 1, designer.options.Nmc)
-            ω = reduce_clustering(ω, 1, 1, 10, "kmeans")
-        end
+    println("Starting scenario reduction...")
+    if designer.options.mode == "deterministic"
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+    elseif designer.options.mode == "twostage"
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     end
 
     # Initialize model
-    designer.model = build_model(des, designer, ω)
+    println("Building the model...")
+    designer.model = build_model(des, designer, ω_reduced, probabilities)
 
     # Compute investment decisions for the first year
+    println("Starting optimization...")
     optimize!(designer.model)
 
     # Assign values
@@ -173,7 +174,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
     designer.u.tes[1,:] .= value(designer.model[:r_tes])
 
     # Save history
-    designer.history = ω
+    designer.history = ω_reduced
 
      return designer
 end

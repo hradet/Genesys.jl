@@ -7,7 +7,7 @@ mutable struct ManualReducer <: AbstractScenariosReducer
     ManualReducer() = new()
 end
 
-function reduce(reducer::ManualReducer, ω::Scenarios; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
+function reduce(reducer::ManualReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
     # Demand
     ld_E = (t = ω.ld_E.t[h, y, s], power = ω.ld_E.power[h, y, s])
     ld_H = (t = ω.ld_H.t[h, y, s], power = ω.ld_H.power[h, y, s])
@@ -36,7 +36,7 @@ mutable struct SAAReducer <: AbstractScenariosReducer
     SAAReducer(; nmontecarlo = 100) = new(nmontecarlo)
 end
 
-function reduce(reducer::SAAReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::SAAReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
     # Parameters
     _, ny, ns = size(ω.ld_E.power)
     # Monte carlo indices
@@ -68,7 +68,7 @@ mutable struct ExpectedValueReducer <: AbstractScenariosReducer
     ExpectedValueReducer() = new()
 end
 
-function reduce(reducer::ExpectedValueReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::ExpectedValueReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
     # Mean value
     # Demand
     ld_E = (t = ω.ld_E.t[:, 1, 1], power = mean(ω.ld_E.power[:, :, :], dims=[2,3]))
@@ -99,7 +99,7 @@ mutable struct KmeansReducer <: AbstractScenariosReducer
     KmeansReducer(; ncluster = 10, typical_days = false) = new(ncluster, typical_days)
 end
 
-function reduce(reducer::KmeansReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmeansReducer, ω::AbstractScenarios; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh = 24
@@ -126,7 +126,7 @@ function reduce(reducer::KmeansReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 
     fc = (cost =  ω.fc.cost[y, s],)
     heater = (cost =  ω.heater.cost[y, s],)
 
-    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts, results.assignments
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
 end
 
 function Clustering.kmeans(data...; ncluster::Int64 = 10)
@@ -155,7 +155,7 @@ mutable struct KmedoidsReducer <: AbstractScenariosReducer
     KmedoidsReducer(; ncluster = 10, distance = Distances.Euclidean(), typical_days = false) = new(ncluster, distance, typical_days)
 end
 
-function reduce(reducer::KmedoidsReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
+function reduce(reducer::KmedoidsReducer, ω::AbstractScenarios; y::Int64 = 1, s::Int64 = 1)
     if reducer.typical_days
         # Parmameters
         nh, ns = 24, 1
@@ -189,7 +189,7 @@ function reduce(reducer::KmedoidsReducer, ω::Scenarios; y::Int64 = 1, s::Int64 
     fc = (cost =  ω.fc.cost[y, s],)
     heater = (cost =  ω.heater.cost[y, s],)
 
-    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts, results.assignments
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
 end
 
 function Clustering.kmedoids(data...; ncluster::Int64 = 10, distance = Distances.Euclidean())

@@ -1,21 +1,21 @@
 #=
     Scenario reduction functions
 =#
-mutable struct Scenarios{A,B,C,D} <: AbstractScenarios
+mutable struct Scenarios{T, O, I} <: AbstractScenarios
     # Demand
-    ld_E::A
-    ld_H::A
+    ld_E::NamedTuple{(:t, :power), Tuple{T, O}}
+    ld_H::NamedTuple{(:t, :power), Tuple{T, O}}
     # Production
-    pv::B
+    pv::NamedTuple{(:t, :power, :cost), Tuple{T, O, I}}
     # Investment costs
-    liion::C
-    tes::C
-    h2tank::C
-    elyz::C
-    fc::C
-    heater::C
+    liion::NamedTuple{(:cost,), Tuple{I}}
+    tes::NamedTuple{(:cost,), Tuple{I}}
+    h2tank::NamedTuple{(:cost,), Tuple{I}}
+    elyz::NamedTuple{(:cost,), Tuple{I}}
+    fc::NamedTuple{(:cost,), Tuple{I}}
+    heater::NamedTuple{(:cost,), Tuple{I}}
     # Electricity tariff
-    grid::D
+    grid::NamedTuple{(:cost_in, :cost_out), Tuple{O, O}}
 end
 
 # Constructor
@@ -39,7 +39,7 @@ function Scenarios(d::Dict{}, h::Union{UnitRange{Int64}, Int64}, y::Union{UnitRa
 end
 
 # Scenario concatenation
-function concatenate(ω1::Scenarios, ω2::Scenarios; dims::Int64 = 2)
+function Base.cat(ω1::Scenarios, ω2::Scenarios; dims::Int64 = 2)
     @assert 1 < dims < 4 "concatenation along y and s only !"
     # Demand
     ld_E = (t = cat(ω1.ld_E.t, ω2.ld_E.t, dims=dims), power = cat(ω1.ld_E.power, ω2.ld_E.power, dims=dims))
@@ -55,6 +55,24 @@ function concatenate(ω1::Scenarios, ω2::Scenarios; dims::Int64 = 2)
     heater = (cost =  cat(ω1.heater.cost, ω2.heater.cost, dims=dims-1),)
     # Electricity tariff
     grid = (cost_in =  cat(ω1.grid.cost_in, ω2.grid.cost_in, dims=dims), cost_out =  cat(ω1.grid.cost_out, ω2.grid.cost_out, dims=dims))
+
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
+end
+
+function Base.reshape(ω::Scenarios{Array{DateTime,2}, Array{Float64,2}, Float64}, nh::Int64, ny::Int64, ns::Int64)
+    ld_E = (t = reshape(ω.ld_E.t, nh, ny, ns), power = reshape(ω.ld_E.power, nh, ny, ns))
+    ld_H = (t = reshape(ω.ld_H.t, nh, ny, ns), power = reshape(ω.ld_H.power, nh, ny, ns))
+    # Production
+    pv = (t = reshape(ω.pv.t, nh, ny, ns), power =  reshape(ω.pv.power, nh, ny, ns), cost = fill(ω.pv.cost, ny, ns),)
+    # Investment costs
+    liion = (cost =  fill(ω.liion.cost, ny, ns),)
+    tes = (cost =  fill(ω.tes.cost, ny, ns),)
+    h2tank = (cost =  fill(ω.h2tank.cost, ny, ns),)
+    elyz = (cost =  fill(ω.elyz.cost, ny, ns),)
+    fc = (cost =  fill(ω.fc.cost, ny, ns),)
+    heater = (cost =  fill(ω.heater.cost, ny, ns),)
+    # Electricity tariff
+    grid = (cost_in =  reshape(ω.grid.cost_in, nh, ny, ns), cost_out =  reshape(ω.grid.cost_out, nh, ny, ns))
 
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
 end

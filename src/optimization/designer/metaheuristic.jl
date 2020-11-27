@@ -8,8 +8,10 @@ mutable struct MetaheuristicOptions
     controller::AbstractController
     mode::String
     risk_measure::String
-    scenario_reduction::Bool
-    share_constraint::Bool
+    reducer::AbstractScenariosReducer
+    share_constraint::String
+    lpsp_constraint::String
+    tol_lpsp::Float64
     reopt::Bool
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
@@ -17,10 +19,12 @@ mutable struct MetaheuristicOptions
                            controller = RBC(),
                            mode = "deterministic", # "deterministic", "twostage" or "npv"
                            risk_measure = "esperance",
-                           scenario_reduction = true,
-                           share_constraint = true,
+                           reducer = KmeansReducer(),
+                           share_constraint = "hard",
+                           lpsp_constraint = "soft",
+                           tol_lpsp = 0.05,
                            reopt = false) =
-                           new(method, iterations, controller, mode, risk_measure, scenario_reduction, share_constraint, reopt)
+                           new(method, iterations, controller, mode, risk_measure, reducer, share_constraint, lpsp_constraint, tol_lpsp, reopt)
 
 end
 
@@ -34,20 +38,20 @@ mutable struct Metaheuristic <: AbstractDesigner
 end
 
 # Objective functions
-function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω_m::AbstractScenarios)
+function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω::AbstractScenarios, probabilities::Array{Float64,1})
     # Paramters
-    nh = size(ω_m.ld_E.power,1)
-    ny = size(ω_m.ld_E.power,2)
-    ns = size(ω_m.ld_E.power,3)
+    nh = size(ω.ld_E.power,1)
+    ny = size(ω.ld_E.power,2)
+    ns = size(ω.ld_E.power,3)
 
     # Initialize DES
     des_m = copy(des, nh, ny, ns)
 
     # Initialize controller
-    controller_m = initialize_controller!(des_m, designer.options.controller, ω_m)
+    controller_m = initialize_controller!(des_m, designer.options.controller, ω)
 
     # Initialize with the dummy designer
-    designer_m = initialize_designer!(des_m, DummyDesigner(), ω_m)
+    designer_m = initialize_designer!(des_m, DummyDesigner(), ω)
 
     # Initialize with the decisions variables
     designer_m.u.pv[1,:] .= decisions[1]
@@ -59,24 +63,34 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
 
     # Simulate TODO parraleliser le calcul avec multi-threads ou distributed
     for s in 1:ns
-        simulate!(s, des_m, controller_m, designer_m, ω_m, Genesys.Options())
+        simulate!(s, des_m, controller_m, designer_m, ω, Genesys.Options())
     end
 
     # Objective - algorithm find the maximum
     if designer.options.mode == "npv"
-        obj = mean(Costs(des_m,designer_m).npv)
+        obj = sum(probabilities[s] * Costs(des_m,designer_m).npv[s] for s in 1:ns)
     else
-        obj = mean(- compute_annualised_capex(1, s, des_m, designer_m) - compute_grid_cost(2, s, des_m) for s in 1:ns)
+        obj = - compute_annualised_capex(1, 1, des_m, designer_m) - sum(probabilities[s] * compute_grid_cost(2, s, des_m) for s in 1:ns)
     end
 
-    # Add the LPSP constraint for the heat
-    isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., mean(LPSP(y, s, des_m).lpsp_H - 0.05 for s in 1:ns, y in 2:ny)) : nothing
+    # LPSP constraint for the heat
+    if isa(des_m.ld_H, Load)
+        if designer.options.lpsp_constraint == "soft"
+            obj -= 1e32 * max(0., sum(probabilities[s] * LPSP(y, s, des_m).lpsp_H - designer.options.tol_lpsp for s in 1:ns, y in 2:ny))
+        elseif designer.options.lpsp_constraint == "hard"
+            obj -= 1e32 * max(0., maximum(LPSP(y, s, des_m).lpsp_H - designer.options.tol_lpsp for s in 1:ns, y in 2:ny))
+        end
+    end
 
-    # Add the soc constraint for the seasonal storage
-    isa(des_m.h2tank, H2Tank) ? obj -= 1e32 *  max(0., mean(des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s] for s in 1:ns, y in 2:ny)) : nothing
+    # SoC constraint for the seasonal storage
+    isa(des_m.h2tank, H2Tank) ? obj -= 1e32 *  max(0., maximum(des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s] for s in 1:ns, y in 2:ny)) : nothing
 
-    # Add the share constraint
-    designer.options.share_constraint ? obj -= 1e32 * max(0., des.parameters.τ_share - mean(compute_share(y, s, des_m) for s in 1:ns, y in 2:ny)) : nothing
+    # Share constraint
+    if designer.options.share_constraint == "hard"
+        obj -= 1e32 * max(0., des.parameters.τ_share - minimum(compute_share(y, s, des_m) for s in 1:ns, y in 2:ny))
+    elseif designer.options.share_constraint == "soft"
+        obj -= 1e32 * max(0., des.parameters.τ_share - sum(probabilities[s] * compute_share(y, s, des_m) for s in 1:ns, y in 2:ny))
+    end
 
     return obj
 end
@@ -87,18 +101,19 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
     # Scenario reduction from the optimization scenario pool
-    if designer.options.scenario_reduction
-        if designer.options.mode == "deterministic"
-            ω_m = reduce_mean(ω, 1:des.parameters.nh, 1, 1)
-            # Concatenation to simulate 2 years
-            ω_m = concatenate(ω_m, ω_m, dims=2)
-        elseif designer.options.mode == "twostage"
-            ω_m = reshape(reduce_SAA(ω, 1:des.parameters.nh, 1, 1, 10), des.parameters.nh, 1, :)
-            # Concatenation to simulate 2 years
-            ω_m = concatenate(ω_m, ω_m, dims=2)
-        elseif designer.options.mode == "npv"
-            ω_m = reduce(ω, 1:des.parameters.nh, 1:des.parameters.ny, 1:1)
-        end
+    println("Starting scenario reduction...")
+    if designer.options.mode == "deterministic"
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+        # Concatenation to simulate 2 years
+        ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
+    elseif designer.options.mode == "twostage"
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+        # Reshape along s dimension
+        ω_reduced = reshape(ω_reduced, des.parameters.nh, 1, designer.options.reducer.ncluster)
+        # Concatenation to simulate 2 years
+        ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
+    elseif designer.options.mode == "npv"
+        ω_reduced, probabilities = reduce(ManualReducer(), ω, h = 1:des.parameters.nh, y = 1:des.parameters.ny, s = 1)
     end
 
     # Bounds
@@ -109,7 +124,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
                                                designer.options.method,
                                                options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
     ) do decisions
-        fobj(decisions, des, designer, ω_m)
+        fobj(decisions, des, designer, ω_reduced, probabilities)
       end
 
     # Assign values
@@ -121,7 +136,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     designer.u.tes[1,:] .= designer.results.minimizer[6]
 
     # Save history for online optimization
-    designer.history = ω
+    designer.history = ω_reduced
 
     return designer
 end

@@ -30,6 +30,7 @@ include(joinpath("optimization","designer","dummy.jl"))
 include(joinpath("optimization","designer","milp.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
 export DummyDesigner, MILP, Metaheuristic
+export MILPOptions, MetaheuristicOptions
 export initialize_designer!
 # Operation optimization
 include(joinpath("optimization","controller","dummy.jl"))
@@ -49,6 +50,9 @@ include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","utils.jl"))
 export Scenarios
+export ManualReducer, SAAReducer, ExpectedValueReducer, KmeansReducer, KmedoidsReducer
+export MarkovGenerator
+export reduce, generate
 # Utils
 include(joinpath("utils","metrics.jl"))
 include(joinpath("utils","plots.jl"))
