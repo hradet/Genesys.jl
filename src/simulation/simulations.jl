@@ -12,7 +12,7 @@
 function simulate!(des::DistributedEnergySystem,
                    controller::AbstractController,
                    designer::AbstractDesigner,
-                   ω_simu::AbstractScenarios;
+                   ω_simu::Scenarios;
                    options::Options = Options())
 
     # Parameters
@@ -61,7 +61,7 @@ function simulate!(s::Int64,
                    des::DistributedEnergySystem,
                    controller::AbstractController,
                    designer::AbstractDesigner,
-                   ω_simu::AbstractScenarios,
+                   ω_simu::Scenarios,
                    options::Options)
 
     # Parameters
@@ -78,7 +78,7 @@ function simulate!(y::Int64,
                    des::DistributedEnergySystem,
                    controller::AbstractController,
                    designer::AbstractDesigner,
-                   ω_simu::AbstractScenarios,
+                   ω_simu::Scenarios,
                    options::Options)
 
     # Parameters
@@ -114,7 +114,7 @@ function simulate!(h::Int64,
                    des::DistributedEnergySystem,
                    controller::AbstractController,
                    designer::AbstractDesigner,
-                   ω_simu::AbstractScenarios,
+                   ω_simu::Scenarios,
                    options::Options)
 
     # Update operation informations

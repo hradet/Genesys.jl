@@ -1,6 +1,8 @@
 #=
     Scenario reduction functions
 =#
+abstract type AbstractScenarios end
+
 mutable struct Scenarios{T, O, I} <: AbstractScenarios
     # Demand
     ld_E::NamedTuple{(:t, :power), Tuple{T, O}}

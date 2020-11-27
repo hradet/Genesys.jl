@@ -4,7 +4,7 @@
  =#
 
 
-function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, ω::AbstractScenarios)
+function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, ω::Scenarios)
 
     if isa(des.ld_E, Load)
         des.ld_E.power[h,y,s] = ω.ld_E.power[h,y,s]
@@ -26,7 +26,7 @@ function update_operation_informations!(h::Int64, y::Int64, s::Int64, des::Distr
         des.grid.cost_out[1:end,y,s] = ω.grid.cost_out[1:end,y,s]
     end
 end
-function update_investment_informations!(y::Int64, s::Int64, des::DistributedEnergySystem, ω::AbstractScenarios)
+function update_investment_informations!(y::Int64, s::Int64, des::DistributedEnergySystem, ω::Scenarios)
 
     isa(des.pv, Source) ? des.pv.cost[y,s] = ω.pv.cost[y,s] : nothing
 

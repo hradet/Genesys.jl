@@ -1,6 +1,7 @@
 #=
     Scenario generation methods
 =#
+abstract type AbstractScenariosGenerator end
 
 mutable struct MarkovChain
     states

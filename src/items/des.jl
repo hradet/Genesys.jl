@@ -69,3 +69,19 @@ function DistributedEnergySystem(; ld_E = nothing,
 
     return DistributedEnergySystem(parameters, ld_E, ld_H, pv, liion, tes, h2tank, heater, elyz, fc, grid)
 end
+
+function Base.copy(des::DistributedEnergySystem, nh::Int64, ny::Int64, ns::Int64)
+    des_copy = DistributedEnergySystem(ld_E = isa(des.ld_E, Load) ? Load() : nothing,
+                                  ld_H = isa(des.ld_H, Load) ? Load() : nothing,
+                                  pv = isa(des.pv, Source) ? Source() : nothing,
+                                  liion = isa(des.liion, Liion) ? Liion() : nothing,
+                                  tes = isa(des.tes, ThermalSto) ? ThermalSto() : nothing,
+                                  h2tank = isa(des.h2tank, H2Tank) ? H2Tank() : nothing,
+                                  elyz = isa(des.elyz, Electrolyzer) ? Electrolyzer() : nothing,
+                                  fc = isa(des.fc, FuelCell) ? FuelCell() : nothing,
+                                  heater = isa(des.heater, Heater) ? Heater() : nothing,
+                                  grid = isa(des.grid, Grid) ? Grid() : nothing,
+                                  parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = des.parameters.τ_share))
+
+    return des_copy
+end

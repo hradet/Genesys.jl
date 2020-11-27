@@ -50,7 +50,7 @@
  end
 
  ### Operation dynamic
-function compute_operation_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Float64, Δh::Int64)
+function compute_operation_dynamics(liion::Liion, x_liion::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, u_liion::Float64, Δh::Int64)
      #=
      INPUT :
              x_liion = (Erated[y], soc[h,y], soh[h,y]) tuple
@@ -75,7 +75,7 @@ function compute_operation_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::
 end
 
  ### Investment dynamic
- function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple, u_liion::Union{Float64, Int64})
+ function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, u_liion::Union{Float64, Int64})
      #=
          INPUT :
                  x_liion = [Erated[y], soc[end,y], soh[end,y]]

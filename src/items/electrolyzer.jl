@@ -42,7 +42,7 @@ function preallocate!(elyz::Electrolyzer, nh::Int64, ny::Int64, ns::Int64)
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64, Δh::Int64)
+function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Float64, Δh::Int64)
     #=
     INPUT :
             x_elyz = (powerMax[y], soh[h,y]) tuple
@@ -67,7 +67,7 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Union{Float64, Int64})
+function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Union{Float64, Int64})
     #=
         INPUT :
                 x_elyz = [powerMax[y], soh[end,y]]

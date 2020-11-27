@@ -110,7 +110,7 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     return m
 end
 ### Offline
-function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, ω::AbstractScenarios)
+function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, ω::Scenarios)
      # Build model
      controller.model = build_model(des, controller)
 
@@ -158,6 +158,7 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
 end
 
 ### Utils
+# Fix JuMP variables with OLFC
 function fix_variables!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::OLFC, forecast)
     # Fix forecast and state variables
     isa(des.ld_E, Load) ? fix.(controller.model[:p_net_E], forecast[2].power .- des.pv.powerMax[y,s] .* forecast[1].power) : fix.(controller.model[:p_net_E], 0.)

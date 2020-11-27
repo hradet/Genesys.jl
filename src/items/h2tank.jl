@@ -44,7 +44,7 @@ function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple, u_h2tank::Float64, Δh::Int64)
+function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_h2tank::Float64, Δh::Int64)
      #=
      INPUT :
              x_h2 = (Erated[y], soc[h,y]) tuple
@@ -66,7 +66,7 @@ function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple, u_h2ta
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank::Union{Float64, Int64})
+function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_tank::Union{Float64, Int64})
      #=
          INPUT :
                  x_tank = [Erated[y], soc[end,y]]

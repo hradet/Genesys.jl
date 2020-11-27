@@ -29,7 +29,7 @@ mutable struct MILP <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::MILP, ω::AbstractScenarios, probabilities::Array{Float64,1})
+function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Array{Float64,1})
     # Sets
     nh = size(ω.ld_E.power,1) # Number of hours
     ns = size(ω.ld_E.power,2) # Number of scenarios

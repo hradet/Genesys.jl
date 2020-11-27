@@ -1,13 +1,14 @@
 #=
     Scenario reduction methods
 =#
+abstract type AbstractScenariosReducer end
 
 # Manual reduction
 mutable struct ManualReducer <: AbstractScenariosReducer
     ManualReducer() = new()
 end
 
-function reduce(reducer::ManualReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
+function reduce(reducer::ManualReducer, ω::Scenarios; h::Union{UnitRange{Int64}, Int64}= 1:8760, y::Union{UnitRange{Int64}, Int64}= 1, s::Union{UnitRange{Int64}, Int64}= 1)
     # Demand
     ld_E = (t = ω.ld_E.t[h, y, s], power = ω.ld_E.power[h, y, s])
     ld_H = (t = ω.ld_H.t[h, y, s], power = ω.ld_H.power[h, y, s])

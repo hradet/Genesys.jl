@@ -44,7 +44,7 @@ function preallocate!(tes::ThermalSto, nh::Int64, ny::Int64, ns::Int64)
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Float64, Δh::Int64)
+function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_tes::Float64, Δh::Int64)
     #=
     INPUT :
             x_tes = (Erated[y], soc[h,y]) tuple
@@ -65,7 +65,7 @@ function compute_operation_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::F
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple, u_tes::Union{Float64, Int64})
+function compute_investment_dynamics(tes::ThermalSto, x_tes::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_tes::Union{Float64, Int64})
     #=
         INPUT :
                 x_tes = [Erated[y], soc[end,y]]

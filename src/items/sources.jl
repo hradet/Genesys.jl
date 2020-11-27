@@ -28,7 +28,7 @@ function preallocate!(pv::Source, nh::Int64, ny::Int64, ns::Int64)
  ### Operation dynamic
 
  ### Investment dynamic
- function compute_investment_dynamics(pv::Source, x_pv::NamedTuple, u_pv::Union{Float64, Int64})
+ function compute_investment_dynamics(pv::Source, x_pv::NamedTuple{(:powerMax,), Tuple{Float64}}, u_pv::Union{Float64, Int64})
      #=
          INPUT :
                  x_pv = [powerMax[y]]

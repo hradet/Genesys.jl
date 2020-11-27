@@ -16,7 +16,7 @@ mutable struct AnticipativeMultiStages <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::Scenarios)
 
     # Parameters
     M = 1000 # big-M value
@@ -108,7 +108,7 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
 end
 
 ### Offline
-function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::AbstractScenarios)
+function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::Scenarios)
     # Build anticipative controller
     controller = Anticipative()
 

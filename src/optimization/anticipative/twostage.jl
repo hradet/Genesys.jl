@@ -6,12 +6,12 @@ mutable struct AnticipativeTwoStage <: AbstractDesigner
     options::MILPOptions
     u::NamedTuple
     model::JuMP.Model
-    
+
     AnticipativeTwoStage(; options = MILPOptions(mode = "twostage")) = new(options)
 end
 
 ### Offline
-function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeTwoStage, ω::AbstractScenarios)
+function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeTwoStage, ω::Scenarios)
     # Build anticipative controller
     controller = Anticipative()
 
