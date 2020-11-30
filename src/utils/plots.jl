@@ -281,7 +281,6 @@ function plot_statistics(metrics::Metrics)
     hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
     ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
     xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-
 end
 
 # Discarded
@@ -364,4 +363,18 @@ function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
     xlabel("HOURS", weight="black", size="large"), xticks(weight="black")
     legend(fontsize="large",edgecolor="inherit")
     sp.grid()
+end
+
+function plot_cumulative_distribution(data, data_reduced)
+    # Parameters
+    nh, ny, ns = size(data)
+    # Cumulative distribution of initial data
+    cumu = sort(sum(hcat([data[:,:,s] for s in 1:ns]...), dims=1)[1,:])
+    proba = collect(1:ns*ny) ./ ns ./ ny
+    plot(cumu,proba)
+    # Cumulative distribution of reduced data
+    sum_data_reduced = sum(data_reduced, dims=1)[1,:]
+    cumu = sum_data_reduced[sortperm(sum_data_reduced)]
+    proba = cumsum(results.counts[sortperm(sum_data_reduced)]) / 1000
+    plot(cumu,proba, ds="steps-post")
 end

@@ -5,12 +5,14 @@
 mutable struct MILPOptions
   solver::Module
   risk_measure::String
+  q::Float64
   reducer::AbstractScenariosReducer
   share_constraint::String
   reopt::Bool
 
   MILPOptions(; solver = CPLEX,
-                risk_measure = "esperance",
+                risk_measure = "expectation",
+                q = 0.95,
                 reducer = KmeansReducer(),
                 share_constraint = "hard",
                 reopt=false) =
@@ -126,18 +128,24 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     Γ_elyz = (des.parameters.τ * (des.parameters.τ + 1.) ^ elyz.lifetime) / ((des.parameters.τ + 1.) ^ elyz.lifetime - 1.)
     Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ fc.lifetime) / ((des.parameters.τ + 1.) ^ fc.lifetime - 1.)
     Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ pv.lifetime) / ((des.parameters.τ + 1.) ^ pv.lifetime - 1.)
-    capex = @expression(m, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
+    @expression(m, capex, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
 
     # OPEX
-    if designer.options.risk_measure == "esperance"
-        opex = @expression(m, sum(probabilities[s] * (p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh, s in 1:ns))
+    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh))
+
+    # Objective
+    if designer.options.risk_measure == "expectation"
+        @objective(m, Min, capex + sum(probabilities[s] * opex[s] for s in 1:ns))
     elseif designer.options.risk_measure == "cvar"
+        @variable(m, ζ)
+        @variable(m, α[1:ns] >= 0.)
+        @constraint(m, [s in 1:ns], α[s] >= capex + opex[s] - ζ)
+        @objective(m, Min, ζ + 1 / (1 - designer.options.q) * sum(probabilities[s] * α[s] for s in 1:ns))
     else
       println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
     end
 
-    # Objective
-    @objective(m, Min, capex + opex)
+
 
     return m
 end
