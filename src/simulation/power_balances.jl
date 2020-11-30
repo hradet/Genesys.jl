@@ -18,7 +18,7 @@ function compute_power_balances!(h::Int64, y::Int64, s::Int64, des::DistributedE
 end
 function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
-    ϵ = 0.01 # 0.1 kW tolerance
+    ϵ = 0.01 # 0.01 kW tolerance
 
     isa(des.h2tank, H2Tank) ? h2tank = des.h2tank.power_H2[h,y,s] : h2tank = 0.
     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H2[h,y,s] : elyz = 0.
@@ -45,7 +45,7 @@ function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySys
 end
 function check_heat!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
 
-    ϵ = 0.01 # 0.1 kW tolerance
+    ϵ = 0.01 # 0.01 kW tolerance
 
     isa(des.ld_H, Load) ? ld_H = des.ld_H.power[h,y,s] : ld_H = 0.
     isa(des.heater, Heater) ? heater = des.heater.power_H[h,y,s] : heater = 0.

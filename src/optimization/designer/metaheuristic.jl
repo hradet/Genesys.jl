@@ -6,7 +6,7 @@ mutable struct MetaheuristicOptions
     method::Metaheuristics.AbstractMetaheuristic
     iterations::Int64
     controller::AbstractController
-    mode::String
+    isnpv::Bool
     risk_measure::String
     reducer::AbstractScenariosReducer
     share_constraint::String
@@ -17,14 +17,14 @@ mutable struct MetaheuristicOptions
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
                            iterations = 20,
                            controller = RBC(),
-                           mode = "deterministic", # "deterministic", "twostage" or "npv"
+                           isnpv = false,
                            risk_measure = "esperance",
                            reducer = KmeansReducer(),
                            share_constraint = "hard",
                            lpsp_constraint = "soft",
                            tol_lpsp = 0.05,
                            reopt = false) =
-                           new(method, iterations, controller, mode, risk_measure, reducer, share_constraint, lpsp_constraint, tol_lpsp, reopt)
+                           new(method, iterations, controller, isnpv, risk_measure, reducer, share_constraint, lpsp_constraint, tol_lpsp, reopt)
 
 end
 
@@ -38,7 +38,7 @@ mutable struct Metaheuristic <: AbstractDesigner
 end
 
 # Objective functions
-function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios, probabilities::Array{Float64,1})
+function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios, probabilities::Array{Float64})
     # Paramters
     nh = size(ω.ld_E.power,1)
     ny = size(ω.ld_E.power,2)
@@ -61,13 +61,11 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     designer_m.u.fc[1,:] .= decisions[5]
     designer_m.u.tes[1,:] .= decisions[6]
 
-    # Simulate TODO parraleliser le calcul avec multi-threads ou distributed
-    for s in 1:ns
-        simulate!(s, des_m, controller_m, designer_m, ω, Genesys.Options())
-    end
+    # Simulate
+    simulate!(des_m, controller_m, designer_m, ω, options = Genesys.Options(mode = "multithreads"))
 
     # Objective - algorithm find the maximum
-    if designer.options.mode == "npv"
+    if designer.options.isnpv
         obj = sum(probabilities[s] * Costs(des_m,designer_m).npv[s] for s in 1:ns)
     else
         obj = - compute_annualised_capex(1, 1, des_m, designer_m) - sum(probabilities[s] * compute_grid_cost(2, s, des_m) for s in 1:ns)
@@ -102,18 +100,14 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
 
     # Scenario reduction from the optimization scenario pool
     println("Starting scenario reduction...")
-    if designer.options.mode == "deterministic"
+    if designer.options.isnpv
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
-        # Concatenation to simulate 2 years
-        ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
-    elseif designer.options.mode == "twostage"
+    else
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
         # Reshape along s dimension
         ω_reduced = reshape(ω_reduced, des.parameters.nh, 1, designer.options.reducer.ncluster)
         # Concatenation to simulate 2 years
         ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
-    elseif designer.options.mode == "npv"
-        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     end
 
     # Bounds
