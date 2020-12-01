@@ -16,7 +16,7 @@ mutable struct MILPOptions
                 reducer = KmeansReducer(),
                 share_constraint = "hard",
                 reopt=false) =
-                new(solver, risk_measure, reducer, share_constraint, reopt)
+                new(solver, risk_measure, q, reducer, share_constraint, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
