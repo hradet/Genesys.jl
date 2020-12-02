@@ -55,6 +55,7 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         [h in 1:nh, y in 1:ny], p_liion_dch[h,y] <= des.liion.α_p_dch * E_liion[y]
         [h in 1:nh, y in 1:ny], p_liion_ch[h,y] >= -des.liion.α_p_ch * E_liion[y]
         [h in 1:nh, y in 2:ny], p_g_in[h,y] <= des.grid.powerMax
+        [h in 1:nh, y in 2:ny], p_g_out[h,y] >= -des.grid.powerMax
         # Operation state bounds
         [h in 1:nh+1, y in 1:ny], soc_liion[h,y] <= des.liion.α_soc_max * E_liion[y]
         [h in 1:nh+1, y in 1:ny], soc_liion[h,y] >= des.liion.α_soc_min * E_liion[y]

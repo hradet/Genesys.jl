@@ -89,6 +89,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [h in 1:nh, s in 1:ns], p_fc_E[h,s] <= r_fc
     [h in 1:nh, s in 1:ns], p_heater_E[h,s] >= -heater.powerMax_ini
     [h in 1:nh, s in 1:ns], p_g_in[h,s] <= grid.powerMax
+    [h in 1:nh, s in 1:ns], p_g_out[h,s] >= -grid.powerMax
     # SoC bounds
     [h in 1:nh+1, s in 1:ns], soc_liion[h,s] <= liion.α_soc_max * r_liion
     [h in 1:nh+1, s in 1:ns], soc_liion[h,s] >= liion.α_soc_min * r_liion
