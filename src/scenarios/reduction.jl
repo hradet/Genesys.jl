@@ -30,7 +30,7 @@ function reduce(reducer::ManualReducer, ω::Scenarios)
     grid = (cost_in =  ω.grid.cost_in[h, y, s], cost_out =  ω.grid.cost_out[h, y, s])
     # Outputs
     ω_reduced = Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
-    probabilities = ones(length(y), length(s)) / length(y)
+    probabilities = ones(length(s)) / length(s)
 
     return ω_reduced, probabilities
 end
@@ -49,19 +49,19 @@ function reduce(reducer::SAAReducer, ω::Scenarios{Array{DateTime,3}, Array{Floa
     idx = zip(rand(y:ny, reducer.nmontecarlo), rand(s:ns, reducer.nmontecarlo))
     # Monte carlo sampling
     # Demand
-    ld_E = (t = hcat([ω.ld_E.t[:, y, s] for (y,s) in idx]...), power = hcat([ω.ld_E.power[:, y, s] for (y,s) in idx]...))
-    ld_H = (t = hcat([ω.ld_H.t[:, y, s] for (y,s) in idx]...), power = hcat([ω.ld_H.power[:, y, s] for (y,s) in idx]...))
+    ld_E = (t = reshape(hcat([ω.ld_E.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.ld_E.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
+    ld_H = (t = reshape(hcat([ω.ld_H.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.ld_H.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
     # Production
-    pv = (t = hcat([ω.pv.t[:, y, s] for (y,s) in idx]...), power = hcat([ω.pv.power[:, y, s] for (y,s) in idx]...), cost = ω.pv.cost[y, s])
+    pv = (t = reshape(hcat([ω.pv.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.pv.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), cost = repeat(ω.pv.cost[y:y, s:s],1,reducer.nmontecarlo))
     # Electricity tariff
-    grid = (cost_in = hcat([ω.grid.cost_in[:, y, s] for (y,s) in idx]...), cost_out = hcat([ω.grid.cost_out[:, y, s] for (y,s) in idx]...))
+    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), cost_out = reshape(hcat([ω.grid.cost_out[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
     # Investment costs
-    liion = (cost =  ω.liion.cost[y, s],)
-    tes = (cost =  ω.tes.cost[y, s],)
-    h2tank = (cost =  ω.h2tank.cost[y, s],)
-    elyz = (cost =  ω.elyz.cost[y, s],)
-    fc = (cost =  ω.fc.cost[y, s],)
-    heater = (cost =  ω.heater.cost[y, s],)
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.nmontecarlo),)
     # Outputs
     ω_reduced = Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
     probabilities = ones(reducer.nmontecarlo) / reducer.nmontecarlo
@@ -70,26 +70,26 @@ function reduce(reducer::SAAReducer, ω::Scenarios{Array{DateTime,3}, Array{Floa
 end
 
 # Expected value reduction
-mutable struct ExpectedValueReducer <: AbstractScenariosReducer
-    ExpectedValueReducer() = new()
+mutable struct MeanValueReducer <: AbstractScenariosReducer
+    MeanValueReducer() = new()
 end
 
-function reduce(reducer::ExpectedValueReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
-    # Mean value - Array{Float64,2} pour MILP...
+function reduce(reducer::MeanValueReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
+    # Mean value
     # Demand
-    ld_E = (t = ω.ld_E.t[:, 1:1, 1], power = mean(ω.ld_E.power, dims=[2,3])[:, :, 1])
-    ld_H = (t = ω.ld_H.t[:, 1:1, 1], power = mean(ω.ld_H.power, dims=[2,3])[:, :, 1])
+    ld_E = (t = ω.ld_E.t[:, y:y, s:s], power = mean(ω.ld_E.power, dims=[2,3]))
+    ld_H = (t = ω.ld_H.t[:, y:y, s:s], power = mean(ω.ld_H.power, dims=[2,3]))
     # Production
-    pv = (t = ω.pv.t[:, 1:1, 1], power =  mean(ω.pv.power, dims=[2,3])[:, :, 1], cost =  ω.pv.cost[y, s])
+    pv = (t = ω.pv.t[:, y:y, s:s], power =  mean(ω.pv.power, dims=[2,3]), cost =  ω.pv.cost[y:y, s:s])
     # Electricity tariff
-    grid = (cost_in = mean(ω.grid.cost_in, dims=[2,3])[:, :, 1], cost_out =  mean(ω.grid.cost_out, dims=[2,3])[:, :, 1])
+    grid = (cost_in = mean(ω.grid.cost_in, dims=[2,3]), cost_out =  mean(ω.grid.cost_out, dims=[2,3]))
     # Investment costs
-    liion = (cost =  ω.liion.cost[y, s],)
-    tes = (cost =  ω.tes.cost[y, s],)
-    h2tank = (cost =  ω.h2tank.cost[y, s],)
-    elyz = (cost =  ω.elyz.cost[y, s],)
-    fc = (cost =  ω.fc.cost[y, s],)
-    heater = (cost =  ω.heater.cost[y, s],)
+    liion = (cost =  ω.liion.cost[y:y, s:s],)
+    tes = (cost =  ω.tes.cost[y:y, s:s],)
+    h2tank = (cost =  ω.h2tank.cost[y:y, s:s],)
+    elyz = (cost =  ω.elyz.cost[y:y, s:s],)
+    fc = (cost =  ω.fc.cost[y:y, s:s],)
+    heater = (cost =  ω.heater.cost[y:y, s:s],)
     # Outputs
     ω_reduced = Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
     probabilities = [1.]
@@ -100,39 +100,31 @@ end
 # Clustering reduction with kmeans
 mutable struct KmeansReducer <: AbstractScenariosReducer
     ncluster::Int64
-    typical_days::Bool
 
-    KmeansReducer(; ncluster = 10, typical_days = false) = new(ncluster, typical_days)
+    KmeansReducer(; ncluster = 10) = new(ncluster)
 end
 
 function reduce(reducer::KmeansReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
-    if reducer.typical_days
-        # Parmameters
-        nh = 24
-        # Clustering aggregated data
-        results = kmeans(reshape(ω.pv.power[:,y,s], nh, :, 1), reshape(ω.ld_E.power[:,y,s], nh, :, 1), reshape(ω.ld_H.power[:,y,s], nh, :, 1), reshape(ω.grid.cost_in[:,y,s], nh, :, 1), reshape(ω.grid.cost_out[:,y,s], nh, :, 1), ncluster = reducer.ncluster)
-    else
-        # Parmameters
-        nh = size(ω.ld_E.power,1)
-        # Clustering aggregated data
-        results = kmeans(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster)
-    end
+    # Parmameters
+    nh = size(ω.ld_E.power,1)
+    # Clustering aggregated data
+    results = kmeans(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster)
     # Demand
-    ld_E = (t = repeat(ω.ld_E.t[1:nh, y, s], 1, reducer.ncluster), power = results.centers[nh+1:2*nh,:])
-    ld_H = (t = repeat(ω.ld_H.t[1:nh, y, s], 1, reducer.ncluster), power = results.centers[2*nh+1:3*nh,:])
+    ld_E = (t = repeat(ω.ld_E.t[1:nh, 1, 1], 1, 1, reducer.ncluster), power = reshape(results.centers[nh+1:2*nh,:], nh, 1, reducer.ncluster))
+    ld_H = (t = repeat(ω.ld_H.t[1:nh, 1, 1], 1, 1, reducer.ncluster), power = reshape(results.centers[2*nh+1:3*nh,:], nh, 1, reducer.ncluster))
     # Production
-    pv = (t = repeat(ω.pv.t[1:nh, y, s], 1, reducer.ncluster), power = results.centers[1:nh,:], cost =  ω.pv.cost[y, s])
+    pv = (t = repeat(ω.pv.t[1:nh, 1, 1], 1, 1, reducer.ncluster), power = reshape(results.centers[1:nh,:], nh, 1, reducer.ncluster), cost =  repeat(ω.pv.cost[y:y, s:s],1,reducer.ncluster))
     # Electricity tariff
-    grid = (cost_in = results.centers[3*nh+1:4*nh,:], cost_out = results.centers[4*nh+1:5*nh,:])
+    grid = (cost_in = reshape(results.centers[3*nh+1:4*nh,:], nh, 1, reducer.ncluster), cost_out = reshape(results.centers[4*nh+1:5*nh,:], nh, 1, reducer.ncluster))
     # Investment costs
-    liion = (cost =  ω.liion.cost[y, s],)
-    tes = (cost =  ω.tes.cost[y, s],)
-    h2tank = (cost =  ω.h2tank.cost[y, s],)
-    elyz = (cost =  ω.elyz.cost[y, s],)
-    fc = (cost =  ω.fc.cost[y, s],)
-    heater = (cost =  ω.heater.cost[y, s],)
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.ncluster),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.ncluster),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.ncluster),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.ncluster),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.ncluster),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.ncluster),)
 
-    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts),  results.assignments
 end
 
 function Clustering.kmeans(data...; ncluster::Int64 = 10)
@@ -156,44 +148,29 @@ end
 mutable struct KmedoidsReducer <: AbstractScenariosReducer
     ncluster::Int64
     distance
-    typical_days::Bool
 
-    KmedoidsReducer(; ncluster = 10, distance = Distances.Euclidean(), typical_days = false) = new(ncluster, distance, typical_days)
+    KmedoidsReducer(; ncluster = 10, distance = Distances.Euclidean()) = new(ncluster, distance)
 end
 
 function reduce(reducer::KmedoidsReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
-    if reducer.typical_days
-        # Parmameters
-        nh, ns = 24, 1
-        # Clustering aggregated data
-        results = kmedoids(reshape(ω.pv.power[:,y,s], nh, :, ns), reshape(ω.ld_E.power[:,y,s], nh, :, ns), reshape(ω.ld_H.power[:,y,s], nh, :, ns), reshape(ω.grid.cost_in[:,y,s], nh, :, ns), reshape(ω.grid.cost_out[:,y,s], nh, :, ns), ncluster = reducer.ncluster, distance = reducer.distance)
-        # Demand
-        ld_E = (t = hcat([reshape(ω.ld_E.t[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids], power =  hcat([reshape(ω.ld_E.power[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids])
-        ld_H = (t = hcat([reshape(ω.ld_H.t[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids], power = hcat([reshape(ω.ld_H.power[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids])
-        # Production
-        pv = (t = hcat([reshape(ω.pv.t[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids], power = hcat([reshape(ω.pv.power[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids], cost =  ω.pv.cost[y, s])
-        # Electricity tariff
-        grid = (cost_in = hcat([reshape(ω.grid.cost_in[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids], cost_out = hcat([reshape(ω.grid.cost_out[:,y,s], nh, :, ns)[:,:,s] for s in 1:ns]...)[:, results.medoids])
-    else
-        # Parmameters
-        ns = size(ω.ld_E.power, 3)
-        # Clustering aggregated data
-        results = kmedoids(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster, distance = reducer.distance)
-        # Demand
-        ld_E = (t = hcat([ω.ld_E.t[:,:,s] for s in 1:ns]...)[:, results.medoids], power =  hcat([ω.ld_E.power[:,:,s] for s in 1:ns]...)[:, results.medoids])
-        ld_H = (t = hcat([ω.ld_H.t[:,:,s] for s in 1:ns]...)[:, results.medoids], power = hcat([ω.ld_H.power[:,:,s] for s in 1:ns]...)[:, results.medoids])
-        # Production
-        pv = (t = hcat([ω.pv.t[:,:,s] for s in 1:ns]...)[:, results.medoids], power = hcat([ω.pv.power[:,:,s] for s in 1:ns]...)[:, results.medoids], cost =  ω.pv.cost[y, s])
-        # Electricity tariff
-        grid = (cost_in = hcat([ω.grid.cost_in[:,:,s] for s in 1:ns]...)[:, results.medoids], cost_out = hcat([ω.grid.cost_out[:,:,s] for s in 1:ns]...)[:, results.medoids])
-    end
+    # Parmameters
+    ns = size(ω.ld_E.power,3)
+    # Clustering aggregated data
+    results = kmedoids(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster, distance = reducer.distance)
+    # Demand
+    ld_E = (t = reshape(hcat([ω.ld_E.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power =  reshape(hcat([ω.ld_E.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
+    ld_H = (t = reshape(hcat([ω.ld_H.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power = reshape(hcat([ω.ld_H.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
+    # Production
+    pv = (t = reshape(hcat([ω.pv.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power = reshape(hcat([ω.pv.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), cost =  repeat(ω.pv.cost[y:y, s:s],1,reducer.ncluster))
+    # Electricity tariff
+    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), cost_out = reshape(hcat([ω.grid.cost_out[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
     # Investment costs
-    liion = (cost =  ω.liion.cost[y, s],)
-    tes = (cost =  ω.tes.cost[y, s],)
-    h2tank = (cost =  ω.h2tank.cost[y, s],)
-    elyz = (cost =  ω.elyz.cost[y, s],)
-    fc = (cost =  ω.fc.cost[y, s],)
-    heater = (cost =  ω.heater.cost[y, s],)
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.ncluster),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.ncluster),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.ncluster),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.ncluster),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.ncluster),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.ncluster),)
 
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
 end

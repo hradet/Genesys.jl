@@ -104,10 +104,8 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     else
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
-        # Reshape along s dimension
-        ω_reduced = reshape(ω_reduced, des.parameters.nh, 1, designer.options.reducer.ncluster)
-        # Concatenation to simulate 2 years
-        ω_reduced = cat(ω_reduced, ω_reduced, dims=2)
+        # Repeat to simulate 2 years
+        ω_reduced = repeat(ω_reduced, 1, 2, 1)
     end
 
     # Bounds

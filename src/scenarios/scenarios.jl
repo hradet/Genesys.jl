@@ -61,7 +61,26 @@ function Base.cat(ω1::Scenarios, ω2::Scenarios; dims::Int64 = 2)
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
 end
 
-function Base.reshape(ω::Scenarios{Array{DateTime,2}, Array{Float64,2}, Float64}, nh::Int64, ny::Int64, ns::Int64)
+function Base.repeat(ω::Scenarios, nh::Int64, ny::Int64, ns::Int64)
+    # Demand
+    ld_E = (t = repeat(ω.ld_E.t, nh, ny, ns), power = repeat(ω.ld_E.power, nh, ny, ns))
+    ld_H = (t = repeat(ω.ld_H.t, nh, ny, ns), power = repeat(ω.ld_H.power, nh, ny, ns))
+    # Production
+    pv = (t = repeat(ω.pv.t, nh, ny, ns), power =  repeat(ω.pv.power, nh, ny, ns), cost =  repeat(ω.pv.cost, ny, ns))
+    # Investment costs
+    liion = (cost =  repeat(ω.liion.cost, ny, ns),)
+    tes = (cost =  repeat(ω.tes.cost, ny, ns),)
+    h2tank = (cost =  repeat(ω.h2tank.cost, ny, ns),)
+    elyz = (cost =  repeat(ω.elyz.cost, ny, ns),)
+    fc = (cost =  repeat(ω.fc.cost, ny, ns),)
+    heater = (cost =  repeat(ω.heater.cost, ny, ns),)
+    # Electricity tariff
+    grid = (cost_in =  repeat(ω.grid.cost_in, nh, ny, ns), cost_out =  repeat(ω.grid.cost_out, nh, ny, ns))
+
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
+end
+
+function Base.reshape(ω::Scenarios, nh::Int64, ny::Int64, ns::Int64)
     ld_E = (t = reshape(ω.ld_E.t, nh, ny, ns), power = reshape(ω.ld_E.power, nh, ny, ns))
     ld_H = (t = reshape(ω.ld_H.t, nh, ny, ns), power = reshape(ω.ld_H.power, nh, ny, ns))
     # Production

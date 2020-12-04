@@ -24,7 +24,7 @@ include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","utils.jl"))
 export Scenarios
-export ManualReducer, SAAReducer, ExpectedValueReducer, KmeansReducer, KmedoidsReducer
+export ManualReducer, SAAReducer, MeanValueReducer, KmeansReducer, KmedoidsReducer
 export MarkovGenerator
 export reduce, generate
 # Operation optimization

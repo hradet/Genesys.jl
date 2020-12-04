@@ -29,14 +29,14 @@ mutable struct MILP <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Array{Float64})
+function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Vector{Float64})
     # Sets
     nh = size(ω.ld_E.power,1) # Number of hours
-    ns = size(ω.ld_E.power,2) # Number of scenarios
+    ns = size(ω.ld_E.power,3) # Number of scenarios
 
     # Initialize
-    isa(des.ld_E, Load) ? ld_E = ω.ld_E.power : ld_E = zeros(nh, ns)
-    isa(des.ld_H, Load) ? ld_H = ω.ld_H.power : ld_H = zeros(nh, ns)
+    isa(des.ld_E, Load) ? ld_E = ω.ld_E.power : ld_E = zeros(nh, 1, ns)
+    isa(des.ld_H, Load) ? ld_H = ω.ld_H.power : ld_H = zeros(nh, 1, ns)
     isa(des.liion, Liion) ? liion = des.liion : liion = Liion()
     isa(des.tes, ThermalSto) ? tes = des.tes : tes = ThermalSto()
     isa(des.h2tank, H2Tank) ? h2tank = des.h2tank : h2tank = H2Tank()
@@ -109,16 +109,16 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [s in 1:ns], soc_h2tank[1,s] == h2tank.soc_ini * r_h2tank
     [s in 1:ns], soc_h2tank[nh,s] >= soc_h2tank[1,s]
     # Power balances
-    [h in 1:nh, s in 1:ns], ld_E[h,s] <= r_pv * ω.pv.power[h,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
-    [h in 1:nh, s in 1:ns], ld_H[h,s] <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
+    [h in 1:nh, s in 1:ns], ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
+    [h in 1:nh, s in 1:ns], ld_H[h,1,s] <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
     [h in 1:nh, s in 1:ns], 0. == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
     end)
 
     # Share of renewables constraint
     if designer.options.share_constraint == "hard"
-        @constraint(m, [s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,s] + ld_H[h,s] / heater.η_E_H) for h in 1:nh) <= 0.)
+        @constraint(m, [s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh) <= 0.)
     elseif designer.options.share_constraint == "soft"
-        @constraint(m, sum(probabilities[s] * (p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,s] + ld_H[h,s] / heater.η_E_H)) for h in 1:nh, s in 1:ns) <= 0.)
+        @constraint(m, sum(probabilities[s] * (p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H)) for h in 1:nh, s in 1:ns) <= 0.)
     end
 
     # CAPEX
@@ -132,7 +132,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     @expression(m, capex, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
 
     # OPEX
-    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,s] + p_g_out[h,s] * ω.grid.cost_out[h,s]) * des.parameters.Δh  for h in 1:nh))
+    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
     if designer.options.risk_measure == "expectation"
@@ -145,8 +145,6 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     else
       println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
     end
-
-
 
     return m
 end

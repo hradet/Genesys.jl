@@ -10,7 +10,7 @@ mutable struct Grid
      cost_in::AbstractArray{Float64,3}
      cost_out::AbstractArray{Float64,3}
      # Inner constructor
-     Grid(; powerMax = 12.) = new(powerMax)
+     Grid(; powerMax = 36.) = new(powerMax)
 end
 
 ### Preallocation
