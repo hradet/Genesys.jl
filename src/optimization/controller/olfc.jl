@@ -116,10 +116,10 @@ function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, 
      controller.model = build_model(des, controller)
 
      # Scenario reduciton
-     ω_markov = reduce(ManualReducer(), ω, h = 1:des.parameters.nh, y = 1:des.parameters.ny)[1]
+     ω_markov = reduce(ManualReducer(h = 1:des.parameters.nh, y = 1:des.parameters.ny), ω)[1]
 
      # Compute markov chain for scenario generation
-     controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H)
+     isa(des.ld_H, Load) ? controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H) : controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E)
 
      # Preallocate
      preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
@@ -143,8 +143,8 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
     fix_variables!(h, y, s, des, controller, forecast)
 
     # Objective function
-    proba = proba / sum(proba) # the sum must be equal to 1...
-    @objective(controller.model, Min, sum(proba .* controller.model[:p_g_in] .* cost_in .+ controller.model[:p_g_out] .* cost_out) * des.parameters.Δh)
+    proba = proba ./ sum(proba) # the sum must be equal to 1...
+    @objective(controller.model, Min, sum(proba[s] .* (controller.model[:p_g_in][h,s] .* cost_in[h] .+ controller.model[:p_g_out][h,s] .* cost_out[h]) * des.parameters.Δh for h in 1:controller.options.horizon, s in 1:controller.options.nscenarios))
 
     # Optimize
     optimize!(controller.model)
@@ -162,8 +162,8 @@ end
 # Fix JuMP variables with OLFC
 function fix_variables!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::OLFC, forecast)
     # Fix forecast and state variables
-    isa(des.ld_E, Load) ? fix.(controller.model[:p_net_E], forecast[2].power .- des.pv.powerMax[y,s] .* forecast[1].power) : fix.(controller.model[:p_net_E], 0.)
-    isa(des.ld_H, Load) ? fix.(controller.model[:p_net_H], forecast[3].power) : fix.(controller.model[:p_net_H], 0.)
+    isa(des.ld_E, Load) ? fix.(controller.model[:p_net_E], forecast[2] .- des.pv.powerMax[y,s] .* forecast[1]) : fix.(controller.model[:p_net_E], 0.)
+    isa(des.ld_H, Load) ? fix.(controller.model[:p_net_H], forecast[3]) : fix.(controller.model[:p_net_H], 0.)
 
     if isa(des.liion, Liion)
         fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])

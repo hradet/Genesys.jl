@@ -6,7 +6,7 @@ pygui(true)
 const nh, ny, ns = 8760, 5, 1
 
 # Load data
-data = load(joinpath("data","scenarios_ausgrid.jld"))
+data = load(joinpath("data","ausgrid_collective_5.jld"))
 
 # Initialize scenarios
 ω_simu = Scenarios(data["ω_simu"], 1:nh, 1:ny, 1:ns)

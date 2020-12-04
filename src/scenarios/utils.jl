@@ -59,7 +59,7 @@ function Base.reshape(ω::Scenarios, nh::Int64, ny::Int64, ns::Int64)
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
 end
 # True if t is a weeken day
-isweekend(t::Union{DateTime, Array{DateTime,1}, Array{DateTime,2}}) = (Dates.dayname.(t) .== "Saturday") .| (Dates.dayname.(t) .== "Sunday")
+isweekend(t::Union{DateTime, Array{DateTime}}) = (Dates.dayname.(t) .== "Saturday") .| (Dates.dayname.(t) .== "Sunday")
 # Chose the right markovchain as a function of t
 chose(generator::MarkovGenerator, t::DateTime) = isweekend(t) ? generator.markovchain.wkd : generator.markovchain.wk
 # Generate a yearly profile from typical days clustered data

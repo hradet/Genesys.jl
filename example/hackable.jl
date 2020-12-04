@@ -52,7 +52,7 @@ Let's simulate the microgrid with the dummies controller and designer...
 const nh, ny, ns = 8760, 20, 1
 
 # Load data
-data = load(joinpath("data","scenarios_ausgrid.jld"))
+data = load(joinpath("data","ausgrid_collective_5.jld"))
 
 # Initialize scenarios
 ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
