@@ -7,6 +7,7 @@
  mutable struct Costs
       capex::Union{Array{Float64,1}, Array{Float64,2}}
       opex::Union{Array{Float64,1}, Array{Float64,2}}
+      salvage::Union{Array{Float64,1}, Array{Float64,2}}
       cf::Union{Array{Float64,1}, Array{Float64,2}}
       cumulative_npv::Union{Array{Float64,1}, Array{Float64,2}}
       npv::Union{Float64, Array{Float64,1}}
@@ -24,8 +25,11 @@ function Costs(des::DistributedEnergySystem, designer::AbstractDesigner)
     # Discounted opex
     opex = γ .* (compute_baseline_cost(des) .- compute_grid_cost(des))
 
+    # Discounted salvage value
+    salvage = γ .* compute_salvage(des)
+
     # Discounted cash flow
-    cf = - capex .+ opex
+    cf = - capex .+ opex .+ salvage
 
     # Discounted NPV each year
     cumulative_npv = cumsum(cf, dims = 1)
@@ -33,7 +37,7 @@ function Costs(des::DistributedEnergySystem, designer::AbstractDesigner)
     # Discounted NPV
     npv = dropdims(sum(cf, dims=1), dims=1)
 
-    return Costs(capex, opex, cf, cumulative_npv, npv)
+    return Costs(capex, opex, salvage, cf, cumulative_npv, npv)
 end
 # Compute costs for a given scenario s
 function Costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigner)
@@ -47,8 +51,11 @@ function Costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigne
     # Discounted opex
     opex = γ .* (compute_baseline_cost(s, des) .- compute_grid_cost(s, des))
 
+    # Discounted salvage value
+    salvage = γ .* compute_salvage(s, des)
+
     # Discounted cash flow
-    cf = - capex .+ opex
+    cf = - capex .+ opex .+ salvage
 
     # Discounted NPV each year
     cumulative_npv = cumsum(cf, dims = 1)
@@ -56,7 +63,7 @@ function Costs(s::Int64, des::DistributedEnergySystem, designer::AbstractDesigne
     # Discounted NPV
     npv = sum(cf, dims=1)
 
-    return Costs(capex, opex, cf, cumulative_npv, npv)
+    return Costs(capex, opex, salvage, cf, cumulative_npv, npv)
 end
 
 # Baseline cost
@@ -121,6 +128,36 @@ function compute_annualised_capex(y::Int64, s::Int64, des::DistributedEnergySyst
     end
 
     return capex
+end
+
+# Salvage value
+function compute_salvage(des::DistributedEnergySystem)
+    # Linear depreciation of components
+    nh, ny = des.parameters.nh, des.parameters.ny
+    salvage = zeros(des.parameters.ny, des.parameters.ns)
+
+    salvage[ny, :] .= (isa(des.pv, Source) ? (des.pv.lifetime .- ny) ./ des.pv.lifetime .* des.pv.cost[ny, :] : 0.) .+
+                       (isa(des.liion, Liion) ? des.liion.soh[nh, ny, :] .* des.liion.Erated[ny,:] .* des.liion.cost[ny, :] : 0.) .+
+                       (isa(des.tes, ThermalSto) ? (des.tes.lifetime .- ny) ./ des.tes.lifetime .* des.tes.cost[ny, :] : 0.) .+
+                       (isa(des.h2tank, H2Tank) ? (des.h2tank.lifetime .- ny) ./ des.h2tank.lifetime .* des.h2tank.cost[ny, :] : 0.) .+
+                       (isa(des.elyz, Electrolyzer) ? des.elyz.soh[nh, ny, :] .* des.elyz.powerMax[ny,:] .* des.elyz.cost[ny, :] : 0.) .+
+                       (isa(des.fc, FuelCell) ? des.fc.soh[nh, ny, :] .* des.fc.powerMax[ny,:] .* des.fc.cost[ny, :] : 0.)
+    return salvage
+
+end
+# Salvage value for a given scenario s
+function compute_salvage(s::Int64, des::DistributedEnergySystem)
+    # Linear depreciation of components
+    nh, ny = des.parameters.nh, des.parameters.ny
+    salvage = zeros(des.parameters.ny)
+
+    salvage[ny] = (isa(des.pv, Source) ? (des.pv.lifetime .- ny) ./ des.pv.lifetime .* des.pv.cost[ny, s] : 0.) +
+                       (isa(des.liion, Liion) ? des.liion.soh[nh, ny, s] .* des.liion.Erated[ny,s] .* des.liion.cost[ny, s] : 0.) +
+                       (isa(des.tes, ThermalSto) ? (des.tes.lifetime .- ny) ./ des.tes.lifetime .* des.tes.cost[ny, s] : 0.) +
+                       (isa(des.h2tank, H2Tank) ? (des.h2tank.lifetime .- ny) ./ des.h2tank.lifetime .* des.h2tank.cost[ny, s] : 0.) +
+                       (isa(des.elyz, Electrolyzer) ? des.elyz.soh[nh, ny, s] .* des.elyz.powerMax[ny,s] .* des.elyz.cost[ny, s] : 0.) +
+                       (isa(des.fc, FuelCell) ? des.fc.soh[nh, ny, s] .* des.fc.powerMax[ny,s] .* des.fc.cost[ny, s] : 0.)
+    return salvage
 end
 
 # Share of renewables

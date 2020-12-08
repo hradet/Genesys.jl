@@ -87,7 +87,7 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     if designer.options.share_constraint == "hard"
         obj -= 1e32 * max(0., des.parameters.τ_share - minimum(compute_share(y, s, des_m) for s in 1:ns, y in 2:ny))
     elseif designer.options.share_constraint == "soft"
-        obj -= 1e32 * max(0., des.parameters.τ_share - sum(probabilities[s] * compute_share(y, s, des_m) for s in 1:ns, y in 2:ny))
+        obj -= 1e32 * max(0., des.parameters.τ_share - sum(probabilities[s] * mean(compute_share(y, s, des_m) for y in 2:ny) for s in 1:ns))
     end
 
     return obj
@@ -114,7 +114,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     # Optimize
     designer.results = Metaheuristics.optimize(lb, ub,
                                                designer.options.method,
-                                               options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=true)
+                                               options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=false)
     ) do decisions
         fobj(decisions, des, designer, ω_reduced, probabilities)
       end

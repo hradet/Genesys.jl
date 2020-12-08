@@ -102,6 +102,9 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_liion[1] == soc_liion_ini
     soc_tes[1] == soc_tes_ini
     soc_h2tank[1] == soc_h2tank_ini
+    soc_liion[end] >= soc_liion[1]
+    soc_tes[end] >= soc_tes[1]
+    soc_h2tank[end] >= soc_h2tank[1]
     # Power balances
     [h in 1:nh, s in 1:ns], p_net_E[h,s] <= p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], p_net_H[h,s] <= p_tes_ch[h] + p_tes_dch[h] - elyz.η_E_H .* p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E .* p_fc_E[h] - heater.η_E_H .* p_heater_E[h]
