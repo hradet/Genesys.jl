@@ -37,22 +37,16 @@ data = load(joinpath("data","ausgrid_scenarios.jld"))
 
 # Initialize DES
 DES = DistributedEnergySystem(ld_E = Load(),
-                              ld_H = Load(),
                               pv = Source(),
-                              liion = Liion(),
-                              tes = ThermalSto(),
-                              h2tank = H2Tank(),
-                              elyz = Electrolyzer(),
-                              fc = FuelCell(),
-                              heater = Heater(),
+                              liion = Liion(),                             
                               grid = Grid(),
                               parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
 
 # Initialize controller
-controller = initialize_controller!(DES, DummyController(), ω_optim)
+controller = initialize_controller!(DES, Dummy(), ω_optim)
 
 # Initialize designer
-designer = initialize_designer!(DES, DummyDesigner(), ω_optim)
+designer = initialize_designer!(DES, Manual(), ω_optim)
 
 # Simulate
 simulate!(DES, controller, designer, ω_simu, options = Genesys.Options(mode="multithreads"))
