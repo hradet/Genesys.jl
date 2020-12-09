@@ -42,7 +42,7 @@ function preallocate!(fc::FuelCell, nh::Int64, ny::Int64, ns::Int64)
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float64, Δh::Int64)
+function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_fc::Float64, Δh::Int64)
      #=
      INPUT :
              x_fc = (powerMax[y], soh[h,y]) tuple
@@ -67,7 +67,7 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union{Float64, Int64})
+function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_fc::Union{Float64, Int64})
      #=
          INPUT :
                  x_fc = [powerMax[y], soh[end,y]]

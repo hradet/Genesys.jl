@@ -2,22 +2,20 @@
     Rule based controller
 =#
 mutable struct RBCOptions
-    β_min_tes
-    β_max_tes
-    β_min_fc
-    β_max_fc
-    β_min_elyz
-    β_max_elyz
-    optim_threshold
+    β_min_tes::Float64
+    β_max_tes::Float64
+    β_min_fc::Float64
+    β_max_fc::Float64
+    β_min_elyz::Float64
+    β_max_elyz::Float64
 
     RBCOptions(; β_min_tes = 0.2,
                  β_max_tes = 0.9,
                  β_min_fc = 0.25,
                  β_max_fc = 0.3,
                  β_min_elyz = 0.45,
-                 β_max_elyz = 0.5,
-                 optim_threshold = false) =
-                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz,optim_threshold)
+                 β_max_elyz = 0.5) =
+                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz)
 end
 
 mutable struct RBC <: AbstractController
@@ -154,50 +152,8 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     controller.u.h2tank[h,y,s] = compute_operation_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[h,y,s]), - fc_H2 - elyz_H2, des.parameters.Δh)[2]
 end
 
-### Objective function to optimize the thresholds
-function fobj_threshold(decisions, des, controller, ω_m)
-    # Initialize DES
-    des_m = deepcopy(des)
-
-    # Initialize controller
-    controller_m = initialize_controller!(des_m, RBC(), ω_m)
-
-    # Initialize with the decisions variables
-    controller_m.options.β_min_tes = decisions[1]
-    controller_m.options.β_max_tes = decisions[2]
-    controller_m.options.β_min_fc = decisions[3]
-    controller_m.options.β_max_fc = decisions[4]
-    controller_m.options.β_min_elyz = decisions[5]
-    controller_m.options.β_max_elyz = decisions[6]
-
-    # Initialize with the dummy designer
-    designer_m = initialize_designer!(des_m, DummyDesigner(), ω_m)
-
-    # Simulate
-    for h in 1:des_m.parameters.nh
-        simulate!(h, 2, 1, des_m, controller_m, designer_m, ω_m, Options())
-    end
-
-    # Objective - algorithm find the maximum
-   obj = - compute_grid_cost(2, 1, des_m)
-
-   # Add the LPSP constraint for the heat
-   isa(des_m.ld_H, Load) ? obj -= 1e32 * max(0., Genesys.LPSP(2, 1, des_m).lpsp_H - 0.05) : nothing
-
-   # Add the soc constraint for the seasonal storage
-   obj -= 1e32 * max(0., des_m.h2tank.soc[1,2,1] - des_m.h2tank.soc[end,2,1])
-
-   # Add the share constraint TODO rajouter condition
-   obj -= 1e32 * max(0., des.parameters.τ_share - compute_share(2, 1, des_m))
-
-   return obj
-end
-
 ### Offline
 function initialize_controller!(des::DistributedEnergySystem, controller::RBC, ω::AbstractScenarios)
-    # Save history for online optimization
-    controller.history = ω
-
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
 
@@ -208,35 +164,7 @@ end
 function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
     # Chose policy TODO : better way !
     if isa(des.ld_H, Load)
-        if controller.options.optim_threshold
-            if s == 1 && y == 2 && h == 1
-
-                println("Starting threshold optimization for the operation...")
-
-                # Bounds
-                lb, ub = [0., 0., des.liion.α_soc_min, des.liion.α_soc_min, des.liion.α_soc_min, des.liion.α_soc_min], [1., 1., des.liion.α_soc_max, des.liion.α_soc_max, des.liion.α_soc_max, des.liion.α_soc_max]
-
-                # Optimize
-                results = Metaheuristics.optimize(lb, ub,
-                                                  Metaheuristics.Clearing(),
-                                                  options = Metaheuristics.Options(iterations = 20, multithreads = true)
-                ) do decisions
-                    fobj_threshold(decisions, des, controller, controller.history)
-                  end
-
-                # Assign values
-                controller.options.β_min_tes = results.minimizer[1]
-                controller.options.β_max_tes = results.minimizer[2]
-                controller.options.β_min_fc = results.minimizer[3]
-                controller.options.β_max_fc = results.minimizer[4]
-                controller.options.β_min_elyz = results.minimizer[5]
-                controller.options.β_max_elyz = results.minimizer[6]
-             end
-
-            return π_1(h, y, s, des, controller)
-        else
-            return π_3(h, y, s, des, controller)
-        end
+        return π_3(h, y, s, des, controller)
     else
         return π_2(h, y, s, des, controller)
     end

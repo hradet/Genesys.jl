@@ -268,20 +268,30 @@ function plot_costs(costs::Costs; s=1)
     grid()
 end
 # Statistics
-function plot_statistics(metrics::Metrics)
+function plot_statistics(metrics::Metrics; type = "hist")
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
+     if type == "hist"
+        figure("NPV")
+        hist(metrics.costs.npv / 1000, color="sandybrown")
+        ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+        xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
-    figure("NPV")
-    hist(metrics.costs.npv / 1000, color="sandybrown")
-    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
-    xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+        figure("SHARE OF RENEW.")
+        hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+        xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+    else
+        figure("NPV")
+        violinplot(metrics.costs.npv / 1000, color="sandybrown")
+        yticks(weight = "black", size = "medium")
+        xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
-    figure("SHARE OF RENEW.")
-    hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
-    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
-    xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-
+        figure("SHARE OF RENEW.")
+        violinplot(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        yticks(weight = "black", size = "medium")
+        xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+    end
 end
 
 # Discarded
@@ -364,4 +374,17 @@ function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
     xlabel("HOURS", weight="black", size="large"), xticks(weight="black")
     legend(fontsize="large",edgecolor="inherit")
     sp.grid()
+end
+function plot_cumulative_distribution(data, data_reduced)
+    # Parameters
+    nh, ny, ns = size(data)
+    # Cumulative distribution of initial data
+    cumu = sort(sum(hcat([data[:,:,s] for s in 1:ns]...), dims=1)[1,:])
+    proba = collect(1:ns*ny) ./ ns ./ ny
+    plot(cumu,proba)
+    # Cumulative distribution of reduced data
+    sum_data_reduced = sum(data_reduced, dims=1)[1,:]
+    cumu = sum_data_reduced[sortperm(sum_data_reduced)]
+    proba = cumsum(results.counts[sortperm(sum_data_reduced)]) / 1000
+    plot(cumu,proba, ds="steps-post")
 end

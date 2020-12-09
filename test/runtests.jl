@@ -21,13 +21,13 @@ heater = Heater() ; Genesys.preallocate!(heater, nh, ny, ns)
     end
     @testset "Battery SoC bounds" begin
         x_liion = (Erated=100, soc=0.5, soh=1)
-        @test Genesys.compute_operation_dynamics(liion, x_liion, 100., Δh) == (0.5 * (1. - 0.), 1.0, 0.0)
-        @test Genesys.compute_operation_dynamics(liion, x_liion, -100., Δh) == (0.5 * (1. - 0.), 1.0, 0.0)
+        @test Genesys.compute_operation_dynamics(liion, x_liion, 100., Δh) == (0.2, 0.99992, 24)
+        @test Genesys.compute_operation_dynamics(liion, x_liion, -100., Δh) == (0.8, 0.999875, -37.5)
     end
     @testset "Battery power bounds" begin
         x_liion = (Erated=100, soc=0.5, soh=1)
-        @test Genesys.compute_operation_dynamics(liion, x_liion, 1000000., Δh) == (0.5 * (1. - 0.), 1.0, 0.0)
-        @test Genesys.compute_operation_dynamics(liion, x_liion, -1000000., Δh) == (0.5 * (1. - 0.), 1.0, 0.0)
+        @test Genesys.compute_operation_dynamics(liion, x_liion, 1000000., Δh) == (0.2, 0.99992, 24)
+        @test Genesys.compute_operation_dynamics(liion, x_liion, -1000000., Δh) == (0.8, 0.999875, -37.5)
     end
     @testset "Battery soh" begin
         x_liion = (Erated=100, soc=0.5, soh=0)

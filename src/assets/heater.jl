@@ -30,7 +30,7 @@ function preallocate!(heater::Heater, nh::Int64, ny::Int64, ns::Int64)
 end
 
  ### Operation dynamic
- function compute_operation_dynamics(heater::Heater, x_heater::NamedTuple, u_heater::Float64, Δh::Int64)
+ function compute_operation_dynamics(heater::Heater, x_heater::NamedTuple{(:powerMax,), Tuple{Float64}}, u_heater::Float64, Δh::Int64)
      #=
      INPUT :
              x_heater = (powerMax[y]) tuple

@@ -1,8 +1,6 @@
 # Genesys
 
-A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods which could also be included into the resolution methods.  
-
-When the design method is "single-stage" (investment decisions are only made the first year), either technologies are supposed to be replaced with the same first year capacities or the design optimization is rerun everytime a technology need to be replaced with updated investment information during the simulation.  
+A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods and multi-scenarios assessment.  
 
 Note that **_out-of-sample_** assesment is made possible as we can optimize and simulate with different scenarios.
 
@@ -11,21 +9,18 @@ In order to use the package, follow the [managing package guideline](https://jul
 
 # Resolutions methods
 - Design
-  - Single-stage
-    - Dummy
-    - Equivalent annual cost (EAC)
-    - Stochastic equivalent annual cost (EACStoch)
-    - Metaheuristic
-  - Multi-stages
-    - Anticipative
+  - Manual
+  - MILP 
+  - Metaheuristic
  
 - Control
   - Dummy
+  - Anticipative
   - Rule based (RBC)
-  - Model predictive control (MPC)
+  - Open Loop Feedback Control (OLFC) - OLFC with a single scenario is equivalent to MPC...
   
 # Example
-We provide a simple example with the dummy controller and designer.
+We provide a simple example with the rule-based controller and metaheuristic designer.
 
 ```Julia
 # Load packages
@@ -38,26 +33,20 @@ const nh, ny, ns = 8760, 20, 1 # nh = operation stages, ny = investment stages, 
 data = load(joinpath("data","ausgrid_scenarios.jld"))
 
 # Initialize scenarios
-ω_optim, ω_simu = Scenarios(data["ω_optim"], nh, ny, ns), Scenarios(data["ω_simu"],  nh, ny, ns)
+ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
 
 # Initialize DES
 DES = DistributedEnergySystem(ld_E = Load(),
-                              ld_H = Load(),
                               pv = Source(),
-                              liion = Liion(),
-                              tes = ThermalSto(),
-                              h2tank = H2Tank(),
-                              elyz = Electrolyzer(),
-                              fc = FuelCell(),
-                              heater = Heater(),
+                              liion = Liion(),                             
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh = nh, ny = ny, ns = ns, τ_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
 
 # Initialize controller
-controller = initialize_controller!(DES, DummyController(), ω_optim)
+controller = initialize_controller!(DES, RBC(), ω_optim)
 
 # Initialize designer
-designer = initialize_designer!(DES, DummyDesigner(), ω_optim)
+designer = initialize_designer!(DES, Metaheuristic(), ω_optim)
 
 # Simulate
 simulate!(DES, controller, designer, ω_simu, options = Genesys.Options(mode="multithreads"))
