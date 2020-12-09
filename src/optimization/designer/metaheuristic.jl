@@ -50,16 +50,8 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     # Initialize controller
     controller_m = initialize_controller!(des_m, designer.options.controller, ω)
 
-    # Initialize with the dummy designer
-    designer_m = initialize_designer!(des_m, DummyDesigner(), ω)
-
-    # Initialize with the decisions variables
-    designer_m.u.pv[1,:] .= decisions[1]
-    designer_m.u.liion[1,:] .= decisions[2]
-    designer_m.u.h2tank[1,:] .= decisions[3]
-    designer_m.u.elyz[1,:] .= decisions[4]
-    designer_m.u.fc[1,:] .= decisions[5]
-    designer_m.u.tes[1,:] .= decisions[6]
+    # Initialize with the manual designer
+    designer_m = initialize_designer!(des_m, Manual(pv = decisions[1], liion = decisions[2], tes = decisions[3], h2tank = decisions[4], elyz = decisions[5], fc = decisions[6]), ω)
 
     # Simulate
     simulate!(des_m, controller_m, designer_m, ω, options = Genesys.Options(mode = "multithreads"))
@@ -122,10 +114,10 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     # Assign values
     designer.u.pv[1,:] .= designer.results.minimizer[1]
     designer.u.liion[1,:] .= designer.results.minimizer[2]
-    designer.u.h2tank[1,:] .= designer.results.minimizer[3]
-    designer.u.elyz[1,:] .= designer.results.minimizer[4]
-    designer.u.fc[1,:] .= designer.results.minimizer[5]
-    designer.u.tes[1,:] .= designer.results.minimizer[6]
+    designer.u.tes[1,:] .= designer.results.minimizer[3]
+    designer.u.h2tank[1,:] .= designer.results.minimizer[4]
+    designer.u.elyz[1,:] .= designer.results.minimizer[5]
+    designer.u.fc[1,:] .= designer.results.minimizer[6]
 
     # Save history for online optimization
     designer.history = ω_reduced
@@ -154,10 +146,10 @@ function set_bounds(des::DistributedEnergySystem)
     lb, ub = zeros(6), zeros(6)
     isa(des.pv, Source) ? ub[1] = 1000. : nothing
     isa(des.liion, Liion) ? ub[2] = 1000. : nothing
-    isa(des.h2tank, H2Tank) ? ub[3] = 50000. : nothing
-    isa(des.elyz, Electrolyzer) ? ub[4] = 50. : nothing
-    isa(des.fc, FuelCell) ? ub[5] = 50. : nothing
-    isa(des.tes, ThermalSto) ? ub[6] = 1000. : nothing
+    isa(des.tes, ThermalSto) ? ub[3] = 1000. : nothing
+    isa(des.h2tank, H2Tank) ? ub[4] = 50000. : nothing
+    isa(des.elyz, Electrolyzer) ? ub[5] = 50. : nothing
+    isa(des.fc, FuelCell) ? ub[6] = 50. : nothing
 
     return lb, ub
 end

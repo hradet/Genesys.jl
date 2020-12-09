@@ -33,15 +33,15 @@ include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","olfc.jl"))
-export DummyCcontroller, RBC, OLFC, Anticipative
+export Dummy, RBC, OLFC, Anticipative
 export OLFCOptions
 export initialize_controller!
 # Investment optimization
 include(joinpath("optimization","designer","abstract.jl"))
-include(joinpath("optimization","designer","dummy.jl"))
+include(joinpath("optimization","designer","manual.jl"))
 include(joinpath("optimization","designer","milp.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export DummyDesigner, MILP, Metaheuristic
+export Manual, MILP, Metaheuristic
 export MILPOptions, MetaheuristicOptions
 export initialize_designer!
 # Anticipative optimization
