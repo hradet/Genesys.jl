@@ -94,11 +94,11 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * h2tank.η_ch + p_h2tank_dch[h] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final states
     soc_liion[1] == liion.soc_ini * controller.liion
-    soc_liion[nh] >= soc_liion[1]
+    soc_liion[end] >= soc_liion[1]
     soc_tes[1] == tes.soc_ini * controller.tes
-    soc_tes[nh] >= soc_tes[1]
+    soc_tes[end] >= soc_tes[1]
     soc_h2tank[1] == h2tank.soc_ini * controller.h2tank
-    soc_h2tank[nh] >= soc_h2tank[1]
+    soc_h2tank[end] >= soc_h2tank[1]
     # Power balances
     [h in 1:nh], ld_E[h] <= controller.pv * ω.pv.power[h] + p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h] + p_g_out[h]
     [h in 1:nh], ld_H[h] <= p_tes_ch[h]  + p_tes_dch[h] - elyz.η_E_H * p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h] - heater.η_E_H * p_heater_E[h]
@@ -114,7 +114,7 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     @expression(m, opex, sum((p_g_in[h] * ω.grid.cost_in[h] + p_g_out[h] * ω.grid.cost_out[h]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
-    λ = 1e32
+    λ = 1e6
     @objective(m, Min, opex + λ * aux)
 
     return m

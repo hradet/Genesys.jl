@@ -103,11 +103,11 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h,s] * h2tank.η_ch + p_h2tank_dch[h,s] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final states
     [s in 1:ns], soc_liion[1,s] == liion.soc_ini * r_liion
-    [s in 1:ns], soc_liion[nh,s] >= soc_liion[1,s]
+    [s in 1:ns], soc_liion[end,s] >= soc_liion[1,s]
     [s in 1:ns], soc_tes[1,s] == tes.soc_ini * r_tes
-    [s in 1:ns], soc_tes[nh,s] >= soc_tes[1,s]
+    [s in 1:ns], soc_tes[end,s] >= soc_tes[1,s]
     [s in 1:ns], soc_h2tank[1,s] == h2tank.soc_ini * r_h2tank
-    [s in 1:ns], soc_h2tank[nh,s] >= soc_h2tank[1,s]
+    [s in 1:ns], soc_h2tank[end,s] >= soc_h2tank[1,s]
     # Power balances
     [h in 1:nh, s in 1:ns], ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], ld_H[h,1,s] <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
