@@ -8,16 +8,14 @@ mutable struct RBCOptions
     β_max_fc::Float64
     β_min_elyz::Float64
     β_max_elyz::Float64
-    optim_threshold::Float64
 
     RBCOptions(; β_min_tes = 0.2,
                  β_max_tes = 0.9,
                  β_min_fc = 0.25,
                  β_max_fc = 0.3,
                  β_min_elyz = 0.45,
-                 β_max_elyz = 0.5,
-                 optim_threshold = false) =
-                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz,optim_threshold)
+                 β_max_elyz = 0.5) =
+                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz)
 end
 
 mutable struct RBC <: AbstractController
@@ -156,9 +154,6 @@ end
 
 ### Offline
 function initialize_controller!(des::DistributedEnergySystem, controller::RBC, ω::AbstractScenarios)
-    # Save history for online optimization
-    # controller.history = ω
-
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
 
