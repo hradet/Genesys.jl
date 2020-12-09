@@ -8,11 +8,9 @@ mutable struct GlobalParameters
     τ::Float64 # discount rate
     τ_share::Float64 # share of renewables [0,1]
 
-    GlobalParameters(;ns = 1,
+    GlobalParameters(nh, ny, ns;
                 Δh = 1,
-                nh = 8760,
                 Δy = 1,
-                ny = 20,
                 τ = 0.045,
                 τ_share = 0.) =
                 new(ns, Δh, nh, Δy, ny, τ, τ_share)
@@ -47,7 +45,7 @@ function DistributedEnergySystem(; ld_E = nothing,
                                    elyz = nothing,
                                    fc = nothing,
                                    grid = nothing,
-                                   parameters = GlobalParameters())
+                                   parameters = GlobalParameters(8760, 20, 1))
     # Parameters
     nh = parameters.nh
     ny = parameters.ny
@@ -70,4 +68,20 @@ function DistributedEnergySystem(; ld_E = nothing,
     isa(grid, Grid) ? preallocate!(grid, nh, ny, ns) : nothing
 
     return DistributedEnergySystem(parameters, ld_E, ld_H, pv, liion, tes, h2tank, heater, elyz, fc, grid)
+end
+
+function Base.copy(des::DistributedEnergySystem, nh::Int64, ny::Int64, ns::Int64)
+    des_copy = DistributedEnergySystem(ld_E = isa(des.ld_E, Load) ? Load() : nothing,
+                                  ld_H = isa(des.ld_H, Load) ? Load() : nothing,
+                                  pv = isa(des.pv, Source) ? Source() : nothing,
+                                  liion = isa(des.liion, Liion) ? Liion() : nothing,
+                                  tes = isa(des.tes, ThermalSto) ? ThermalSto() : nothing,
+                                  h2tank = isa(des.h2tank, H2Tank) ? H2Tank() : nothing,
+                                  elyz = isa(des.elyz, Electrolyzer) ? Electrolyzer() : nothing,
+                                  fc = isa(des.fc, FuelCell) ? FuelCell() : nothing,
+                                  heater = isa(des.heater, Heater) ? Heater() : nothing,
+                                  grid = isa(des.grid, Grid) ? Grid() : nothing,
+                                  parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = des.parameters.τ_share))
+
+    return des_copy
 end

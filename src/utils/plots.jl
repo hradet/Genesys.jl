@@ -83,6 +83,89 @@ function plot_operation(des::DistributedEnergySystem ; y=2, s=1)
     ylabel("TES SOC", weight="bold")
     xlabel("HOURS", weight="bold")
 end
+function plot_operation(des::DistributedEnergySystem, designer::MILP ; y=2, s=1)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.5)
+
+    # Parameters
+    nh = des.parameters.nh
+    Δh = des.parameters.Δh
+    hours = range(1, length = nh, step = Δh) / Δh
+
+    isa(des.ld_E, Load) ? ld_E = des.ld_E.power[:,y,s] : ld_E = zeros(nh)
+    isa(des.ld_H, Load) ? ld_H = des.ld_H.power[:,y,s] : ld_H = zeros(nh)
+    isa(des.pv, Source) ? pv = des.pv.power_E[:,y,s] : pv = zeros(nh)
+    isa(des.grid, Grid) ? grid = (value.(designer.model[:p_g_in]) + value.(designer.model[:p_g_out]))[:,s] : grid = zeros(nh)
+    if isa(des.liion, Liion)
+        liion = (value.(designer.model[:p_liion_ch]) + value.(designer.model[:p_liion_dch]))[:,s]
+        soc_liion = value.(designer.model[:soc_liion])[1:end-1,s] ./ value.(designer.model[:r_liion])
+    else
+        liion, soc_liion = zeros(nh), zeros(nh)
+    end
+    if isa(des.tes, ThermalSto)
+        tes = (value.(designer.model[:p_tes_ch]) + value.(designer.model[:p_tes_dch]))[:,s]
+        soc_tes = value.(designer.model[:soc_tes])[1:end-1,s] ./ value.(designer.model[:r_tes])
+    else
+        tes, soc_tes = zeros(nh), zeros(nh)
+    end
+    if isa(des.h2tank, H2Tank)
+        h2tank = (value.(designer.model[:p_h2tank_ch]) + value.(designer.model[:p_h2tank_dch]))[:,s]
+        soc_h2tank = value.(designer.model[:soc_h2tank])[1:end-1,s] ./ value.(designer.model[:r_h2tank])
+    else
+        h2tank, soc_h2tank = zeros(nh), zeros(nh)
+    end
+    if isa(des.elyz, Electrolyzer)
+        elyz_E = value.(designer.model[:p_elyz_E])[:,s]
+        elyz_H = - des.elyz.η_E_H .* elyz_E
+    else
+        elyz_E, elyz_H = zeros(nh), zeros(nh)
+    end
+    if isa(des.fc, FuelCell)
+        fc_E = value.(designer.model[:p_fc_E])[:,s]
+        fc_H = des.fc.η_H2_H / des.fc.η_H2_E .* fc_E
+    else
+        fc_E, fc_H = zeros(nh), zeros(nh)
+    end
+    if isa(des.heater, Heater)
+        heater_E = value.(designer.model[:p_heater_E])[:,s]
+        heater_H = - des.heater.η_E_H .* heater_E
+    else
+        heater_E, heater_H = zeros(nh), zeros(nh)
+    end
+
+    # Plots
+    figure("POWERS MILP")
+    # Node E
+    sp=subplot(211)
+    plot(hours, ld_E, label="ld_E", color=(0., 0.098, 0.196), linestyle="--")
+    plot(hours, ld_E - heater_E, label="ld_E_TOT", color=(0., 0.098, 0.196))
+    plot(hours, pv, label="pv", color= (1., 0.784, 0.588))
+    plot(hours, liion, label="liion", color=(0., 0.588, 0.314))
+    plot(hours, elyz_E + fc_E, label="h2hub", color=(0.39, 1., 0.71))
+    plot(hours, grid, label="grid", color=(0.588, 0.588, 0.588))
+    ylabel("ELEC. POWER (kW)", weight="bold")
+    # Node H
+    sp=subplot(212, sharex=sp)
+    plot(hours, ld_H, label="ld_H", color=(0., 0.098, 0.196))
+    plot(hours, elyz_H + fc_H, label="h2hub", color=(1., 0.588, 0.588))
+    plot(hours, tes, label="tes", color=(1., 0., 0.))
+    plot(hours, heater_H, label="heater", color=(0.39, 0., 0.))
+    ylabel("HEAT. POWER (kW)", weight="bold")
+
+    figure("SoC MILP")
+    subplot(311, sharex=sp)
+    plot(hours, soc_liion, color=(0., 0.588, 0.314))
+    ylabel("BATTERY SOC", weight="bold")
+
+    subplot(312, sharex=sp)
+    plot(hours, soc_h2tank, color=(0.39, 1., 0.71))
+    ylabel("H2 SOC", weight="bold")
+
+    subplot(313, sharex=sp)
+    plot(hours, soc_tes, color=(1., 0., 0.))
+    ylabel("TES SOC", weight="bold")
+    xlabel("HOURS", weight="bold")
+end
 function plot_investment(des::DistributedEnergySystem, designer::AbstractDesigner; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.)
@@ -185,20 +268,30 @@ function plot_costs(costs::Costs; s=1)
     grid()
 end
 # Statistics
-function plot_statistics(metrics::Metrics)
+function plot_statistics(metrics::Metrics; type = "hist")
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
+     if type == "hist"
+        figure("NPV")
+        hist(metrics.costs.npv / 1000, color="sandybrown")
+        ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+        xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
-    figure("NPV")
-    hist(metrics.costs.npv / 1000, color="sandybrown")
-    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
-    xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+        figure("SHARE OF RENEW.")
+        hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
+        xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+    else
+        figure("NPV")
+        violinplot(metrics.costs.npv / 1000, color="sandybrown")
+        yticks(weight = "black", size = "medium")
+        xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
-    figure("SHARE OF RENEW.")
-    hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
-    ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
-    xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-
+        figure("SHARE OF RENEW.")
+        violinplot(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        yticks(weight = "black", size = "medium")
+        xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+    end
 end
 
 # Discarded
@@ -281,4 +374,17 @@ function plot_operation_stack(ld::Load, pv::Source, liion::Liion, h2tank::H2Tank
     xlabel("HOURS", weight="black", size="large"), xticks(weight="black")
     legend(fontsize="large",edgecolor="inherit")
     sp.grid()
+end
+function plot_cumulative_distribution(data, data_reduced)
+    # Parameters
+    nh, ny, ns = size(data)
+    # Cumulative distribution of initial data
+    cumu = sort(sum(hcat([data[:,:,s] for s in 1:ns]...), dims=1)[1,:])
+    proba = collect(1:ns*ny) ./ ns ./ ny
+    plot(cumu,proba)
+    # Cumulative distribution of reduced data
+    sum_data_reduced = sum(data_reduced, dims=1)[1,:]
+    cumu = sum_data_reduced[sortperm(sum_data_reduced)]
+    proba = cumsum(results.counts[sortperm(sum_data_reduced)]) / 1000
+    plot(cumu,proba, ds="steps-post")
 end
