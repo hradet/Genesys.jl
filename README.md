@@ -9,12 +9,13 @@ In order to use the package, follow the [managing package guideline](https://jul
 
 # Resolutions methods
 - Design
-  - Dummy
+  - Manual
   - MILP 
   - Metaheuristic
  
 - Control
   - Dummy
+  - Anticipative
   - Rule based (RBC)
   - Open Loop Feedback Control (OLFC) - OLFC with a single scenario is equivalent to MPC...
   
