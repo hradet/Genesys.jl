@@ -19,7 +19,7 @@ mutable struct FuelCell
      power_H2::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
-     C_fc::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      FuelCell(; α_p = 8/100,
              η_H2_E = 0.4,
@@ -38,11 +38,11 @@ function preallocate!(fc::FuelCell, nh::Int64, ny::Int64, ns::Int64)
      fc.power_H = convert(SharedArray,zeros(nh, ny, ns))
      fc.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
      fc.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; fc.soh[1,1,:] .= fc.soh_ini
-     fc.C_fc = convert(SharedArray,zeros(ny, ns))
+     fc.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float64, Δh::Int64)
+function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_fc::Float64, Δh::Int64)
      #=
      INPUT :
              x_fc = (powerMax[y], soh[h,y]) tuple
@@ -54,7 +54,7 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
      =#
 
      # Power constraint and correction
-     fc.α_p * x_fc.powerMax <= u_fc <= x_fc.powerMax ? power_E = u_fc : power_E = 0.
+     fc.α_p * x_fc.powerMax <= u_fc && x_fc.soh * fc.nHoursMax / Δh > 1. ? power_E = min(u_fc, x_fc.powerMax) : power_E = 0.
 
      # Power computations
      power_H2 = - power_E / fc.η_H2_E
@@ -63,15 +63,11 @@ function compute_operation_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Float6
      # SoH computation
      soh_next = x_fc.soh - (power_E > 0.) * Δh / fc.nHoursMax
 
-     # SoH constraint and correction
-     soh_next < 0. ? power_E = power_H = power_H2 = 0. : nothing
-     soh_next < 0. ? soh_next = x_fc.soh : nothing
-
      return power_E, power_H, power_H2, soh_next
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union{Float64, Int64})
+function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_fc::Union{Float64, Int64})
      #=
          INPUT :
                  x_fc = [powerMax[y], soh[end,y]]
@@ -82,7 +78,7 @@ function compute_investment_dynamics(fc::FuelCell, x_fc::NamedTuple, u_fc::Union
      =#
 
      # Model
-     if round(u_fc) > 0.
+     if u_fc > 1e-2
          powerMax_next = u_fc
          soh_next = 1.
      else

@@ -4,13 +4,11 @@
 
 mutable struct AnticipativeMultiStagesOptions
     solver
-    scenario_reduction::String
-    s::Int64
 
-    AnticipativeMultiStagesOptions(; solver = CPLEX, scenario_reduction = "manual", s = 1) = new(solver, scenario_reduction, s)
+    AnticipativeMultiStagesOptions(; solver = CPLEX) = new(solver)
 end
 
-mutable struct AnticipativeMultiStages <: AbstractMultiStageDesigner
+mutable struct AnticipativeMultiStages <: AbstractDesigner
     options::AnticipativeMultiStagesOptions
     u::NamedTuple
     model::JuMP.Model
@@ -18,7 +16,7 @@ mutable struct AnticipativeMultiStages <: AbstractMultiStageDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::AbstractScenarios)
+function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::Scenarios)
 
     # Parameters
     M = 1000 # big-M value
@@ -57,6 +55,7 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         [h in 1:nh, y in 1:ny], p_liion_dch[h,y] <= des.liion.α_p_dch * E_liion[y]
         [h in 1:nh, y in 1:ny], p_liion_ch[h,y] >= -des.liion.α_p_ch * E_liion[y]
         [h in 1:nh, y in 2:ny], p_g_in[h,y] <= des.grid.powerMax
+        [h in 1:nh, y in 2:ny], p_g_out[h,y] >= -des.grid.powerMax
         # Operation state bounds
         [h in 1:nh+1, y in 1:ny], soc_liion[h,y] <= des.liion.α_soc_max * E_liion[y]
         [h in 1:nh+1, y in 1:ny], soc_liion[h,y] >= des.liion.α_soc_min * E_liion[y]
@@ -65,9 +64,9 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         [h in 1:nh, y in 1:ny], soc_liion[h+1,y] == soc_liion[h,y] * (1. - des.liion.η_self * des.parameters.Δh) - (p_liion_ch[h,y] * des.liion.η_ch + p_liion_dch[h,y] / des.liion.η_dch) * des.parameters.Δh
         [h in 1:nh, y in 1:ny], soh_liion[h+1,y] == soh_liion[h,y] - (p_liion_dch[h,y] - p_liion_ch[h,y]) * des.parameters.Δh / (2. * (des.liion.α_soc_max - des.liion.α_soc_min) * des.liion.nCycle)
         # Power balance
-        [h in 1:nh, y in 1:ny], ω.values.ld_E[h,y] - pMax_pv[y] *  ω.values.pv_E[h,y] <= p_g_out[h,y] + p_g_in[h,y] + p_liion_ch[h,y] + p_liion_dch[h,y]
+        [h in 1:nh, y in 1:ny], ω.ld_E.power[h,y] - pMax_pv[y] *  ω.pv.power[h,y] <= p_g_out[h,y] + p_g_in[h,y] + p_liion_ch[h,y] + p_liion_dch[h,y]
         # Self-sufficiency constraint
-        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ω.values.ld_E[h,y] for h in 1:nh)
+        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ω.ld_E.power[h,y] for h in 1:nh)
         # Investment bounds
         [y in 1:ny], r_liion[y] <= 1000. * δ_inv_liion[y]
         [y in 1:ny], r_pv[y] <= 1000. * δ_inv_pv[y]
@@ -103,33 +102,33 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
     end
 
     # Objective
-    @objective(m, Min, sum( γ[y] * ( ω.values.C_liion[y] * r_liion[y] + ω.values.C_pv[y] * r_pv[y] +
-    sum( (p_g_in[h, y] * ω.values.C_grid_in[h,y] + p_g_out[h, y] * ω.values.C_grid_out[h,y]) * des.parameters.Δh for h=1:nh) ) for y=1:ny))
+    @objective(m, Min, sum( γ[y] * ( ω.liion.cost[y] * r_liion[y] + ω.pv.cost[y] * r_pv[y] +
+    sum( (p_g_in[h, y] * ω.grid.cost_in[h,y] + p_g_out[h, y] * ω.grid.cost_out[h,y]) * des.parameters.Δh for h=1:nh) ) for y=1:ny))
 
     return m
 end
 
 ### Offline
-function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::AbstractScenarios)
+function offline_optimization!(des::DistributedEnergySystem, designer::AnticipativeMultiStages, ω::Scenarios)
+    # Build anticipative controller
+    controller = Anticipative()
 
-     # Scenario reduction from the optimization scenario pool
-     ω_anticipative = scenarios_reduction(designer, ω)
+    # Pre-allocate
+    preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
+    preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
-     # Build model
-     designer.model = build_model(des, designer, ω_anticipative)
+    # Build model
+    designer.model = build_model(des, designer, ω)
 
-     # Compute both investment and operation decisions
-     optimize!(designer.model)
+    # Compute both investment and operation decisions
+    optimize!(designer.model)
 
-     # Preallocate and assigned values to the controller
-     controller = Anticipative()
-     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
-     isa(des.liion, Liion) ? controller.u.liion .= value.(designer.model[:p_liion_ch] + designer.model[:p_liion_dch]) : nothing
+    # Assign controller values
+    isa(des.liion, Liion) ? controller.u.liion .= value.(designer.model[:p_liion_ch] + designer.model[:p_liion_dch]) : nothing
 
-     # Preallocate and assigned values to the designer
-     preallocate!(designer, des.parameters.ny, des.parameters.ns)
-     isa(des.liion, Liion) ? designer.u.liion .= value.(designer.model[:r_liion]) : nothing
-     isa(des.pv, Source) ? designer.u.pv .= value.(designer.model[:r_pv]) : nothing
+    # Assign designer values
+    isa(des.liion, Liion) ? designer.u.liion .= value.(designer.model[:r_liion]) : nothing
+    isa(des.pv, Source) ? designer.u.pv .= value.(designer.model[:r_pv]) : nothing
 
      return controller, designer
 end

@@ -19,7 +19,7 @@ mutable struct Electrolyzer
      power_H2::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
-     C_elyz::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      Electrolyzer(; α_p = 5/100,
                  η_E_H2 = 0.5,
@@ -38,11 +38,11 @@ function preallocate!(elyz::Electrolyzer, nh::Int64, ny::Int64, ns::Int64)
      elyz.power_H = convert(SharedArray,zeros(nh, ny, ns))
      elyz.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
      elyz.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; elyz.soh[1,1,:] .= elyz.soh_ini
-     elyz.C_elyz = convert(SharedArray,zeros(ny, ns))
+     elyz.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Float64, Δh::Int64)
+function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Float64, Δh::Int64)
     #=
     INPUT :
             x_elyz = (powerMax[y], soh[h,y]) tuple
@@ -54,7 +54,7 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
     =#
 
     # Power constraint and correction
-    elyz.α_p * x_elyz.powerMax <= -u_elyz <= x_elyz.powerMax ? power_E = u_elyz : power_E = 0
+    elyz.α_p * x_elyz.powerMax >= u_elyz && x_elyz.soh * elyz.nHoursMax / Δh > 1. ? power_E = max(u_elyz, -x_elyz.powerMax) : power_E = 0
 
     # Power computations
     power_H2 = - power_E * elyz.η_E_H2
@@ -63,15 +63,11 @@ function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_el
     # SoH computation
     soh_next = x_elyz.soh - (power_E < 0.) * Δh / elyz.nHoursMax
 
-    # SoH constraint and correction
-    soh_next < 0. ? power_E = power_H = power_H2 = 0. : nothing
-    soh_next < 0. ? soh_next = x_elyz.soh : nothing
-
     return power_E, power_H, power_H2, soh_next
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_elyz::Union{Float64, Int64})
+function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Union{Float64, Int64})
     #=
         INPUT :
                 x_elyz = [powerMax[y], soh[end,y]]
@@ -82,7 +78,7 @@ function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple, u_e
     =#
 
     # Model
-    if round(u_elyz) > 0.
+    if u_elyz > 1e-2
         powerMax_next = u_elyz
         soh_next = 1.
     else

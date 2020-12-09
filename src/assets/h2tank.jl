@@ -20,7 +20,7 @@ mutable struct H2Tank
      power_H2::AbstractArray{Float64,3}
      soc::AbstractArray{Float64,3}
      # Eco
-     C_tank::AbstractArray{Float64,2}
+     cost::AbstractArray{Float64,2}
      # Inner constructor
      H2Tank(; α_p_ch = 1.5,
         α_p_dch = 1.5,
@@ -30,7 +30,7 @@ mutable struct H2Tank
         α_soc_min = 0.,
         α_soc_max = 1.,
         lifetime = 25,
-        Erated_ini = 0.,
+        Erated_ini = 1e-6,
         soc_ini = 0.5) =
         new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
 end
@@ -40,11 +40,11 @@ function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
    h2tank.Erated = convert(SharedArray,zeros(ny+1, ns)) ; h2tank.Erated[1,:] .= h2tank.Erated_ini
    h2tank.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
    h2tank.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; h2tank.soc[1,1,:] .= h2tank.soc_ini
-   h2tank.C_tank = convert(SharedArray,zeros(ny, ns))
+   h2tank.cost = convert(SharedArray,zeros(ny, ns))
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Float64, Δh::Int64)
+function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_h2tank::Float64, Δh::Int64)
      #=
      INPUT :
              x_h2 = (Erated[y], soc[h,y]) tuple
@@ -55,23 +55,18 @@ function compute_operation_dynamics(h2tank::H2Tank, x_h2::NamedTuple, u_h2::Floa
      =#
 
      # Power constraint and correction
-     0. <= u_h2 <= h2tank.α_p_dch * x_h2.Erated ? power_dch = u_h2 : power_dch = 0.
-     0. <= -u_h2 <= h2tank.α_p_ch * x_h2.Erated ? power_ch = u_h2 : power_ch = 0.
+     # Control power constraint and correction
+      power_dch = max(min(u_h2tank, h2tank.α_p_dch * x_h2tank.Erated, h2tank.η_dch * (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * x_h2tank.Erated / Δh), 0.)
+      power_ch = min(max(u_h2tank, -h2tank.α_p_ch * x_h2tank.Erated, (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * x_h2tank.Erated / Δh / h2tank.η_ch), 0.)
 
-     # SoC dynamic
-     soc_next = x_h2.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2.Erated
-
-     # State variable bounds
-     overshoot = (round(soc_next;digits=3) < h2tank.α_soc_min) || (round(soc_next;digits=3) > h2tank.α_soc_max)
-
-     overshoot ? soc_next = max(x_h2.soc * (1. - h2tank.η_self * Δh), h2tank.α_soc_min) : nothing
-     overshoot ? power_ch = power_dch = 0. : nothing
+      # SoC dynamic
+      soc_next = x_h2tank.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2tank.Erated
 
      return soc_next, power_ch + power_dch
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank::Union{Float64, Int64})
+function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_tank::Union{Float64, Int64})
      #=
          INPUT :
                  x_tank = [Erated[y], soc[end,y]]
@@ -82,7 +77,7 @@ function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple, u_tank:
      =#
 
      # Model
-     if round(u_tank) > 0.
+     if u_tank > 1e-2
          E_next = u_tank
          soc_next = h2tank.soc[1,1,1]
      else
