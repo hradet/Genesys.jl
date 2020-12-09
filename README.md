@@ -20,7 +20,7 @@ In order to use the package, follow the [managing package guideline](https://jul
   - Open Loop Feedback Control (OLFC) - OLFC with a single scenario is equivalent to MPC...
   
 # Example
-We provide a simple example with the dummy controller and designer.
+We provide a simple example with the rule-based controller and metaheuristic designer.
 
 ```Julia
 # Load packages
@@ -43,10 +43,10 @@ DES = DistributedEnergySystem(ld_E = Load(),
                               parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
 
 # Initialize controller
-controller = initialize_controller!(DES, Dummy(), ω_optim)
+controller = initialize_controller!(DES, RBC(), ω_optim)
 
 # Initialize designer
-designer = initialize_designer!(DES, Manual(), ω_optim)
+designer = initialize_designer!(DES, Metaheuristic(), ω_optim)
 
 # Simulate
 simulate!(DES, controller, designer, ω_simu, options = Genesys.Options(mode="multithreads"))
