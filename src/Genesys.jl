@@ -27,6 +27,9 @@ export Scenarios
 export ManualReducer, SAAReducer, MeanValueReducer, KmeansReducer, KmedoidsReducer
 export MarkovGenerator
 export reduce, generate
+# Risk measures
+include(joinpath("optimization","risk_measures.jl"))
+export Expectation, CVaR, WorstCase
 # Operation optimization
 include(joinpath("optimization","controller","abstract.jl"))
 include(joinpath("optimization","controller","dummy.jl"))

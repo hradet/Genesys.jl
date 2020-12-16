@@ -127,7 +127,7 @@ end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
-    ϵ = 0.1
+    ϵ = 0.2
 
     if designer.options.reopt && y != 1
         # Do we need to reoptimize ?
