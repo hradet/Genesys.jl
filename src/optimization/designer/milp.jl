@@ -113,7 +113,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     end)
 
     # Share of renewables constraint
-    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
+    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.renewable_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
     if isa(designer.options.share_risk, WorstCase)
         β_s = 0.999
     elseif isa(designer.options.share_risk, Expectation)
@@ -153,7 +153,7 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     elseif isa(designer.options.objective_risk, CVaR)
         β_o = designer.options.objective_risk.β
     else
-        return println("Risk measure unknown for share constraint...")
+        return println("Risk measure unknown for objective...")
     end
     @variables(m, begin
     ζ_o

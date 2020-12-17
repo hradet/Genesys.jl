@@ -19,3 +19,16 @@ struct CVaR <: AbstractRiskMeasure
         return new(β)
     end
 end
+
+function conditional_value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, α::Float64)
+    # Value at risk
+    var = value_at_risk(support, probabilities, α)
+    # Tail values
+    tail = support .< var
+    return (sum(probabilities[tail] .* support[tail]) - (sum(probabilities[tail]) - α) * var) / α
+end
+
+function value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, α::Float64)
+    i = findfirst(cumsum(probabilities[sortperm(support)]) .>= α)
+    return sort(support)[i]
+end

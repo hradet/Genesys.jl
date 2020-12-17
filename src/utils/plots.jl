@@ -278,7 +278,7 @@ function plot_statistics(metrics::Metrics; type = "hist")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
         figure("SHARE OF RENEW.")
-        hist(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        hist(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
         ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
         xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
     else
@@ -288,7 +288,7 @@ function plot_statistics(metrics::Metrics; type = "hist")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
         figure("SHARE OF RENEW.")
-        violinplot(reshape(metrics.τ_share[2:end, :], :) * 100, color="sandybrown")
+        violinplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
         yticks(weight = "black", size = "medium")
         xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
     end

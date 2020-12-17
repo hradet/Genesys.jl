@@ -106,9 +106,9 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     end)
 
     # Share of renewables constraint - max(0, share)
-    @expression(m, share_constraint, sum(p_g_in[h] - (1. - des.parameters.τ_share) * (ld_E[h] + ld_H[h] / heater.η_E_H) for h in 1:nh))
+    @expression(m, share, sum(p_g_in[h] - (1. - des.parameters.renewable_share) * (ld_E[h] + ld_H[h] / heater.η_E_H) for h in 1:nh))
     @variable(m, aux >= 0.)
-    @constraint(m, aux >= share_constraint)
+    @constraint(m, aux >= share)
 
     # OPEX
     @expression(m, opex, sum((p_g_in[h] * ω.grid.cost_in[h] + p_g_out[h] * ω.grid.cost_out[h]) * des.parameters.Δh  for h in 1:nh))
