@@ -245,24 +245,24 @@ function plot_soh(des::DistributedEnergySystem; s=1)
     xlabel("YEARS", weight = "black", size = "large"), xlim(1,20), xticks([1,5,10,15,20], weight = "black", size = "large")
 end
 # Economics
-function plot_costs(costs::Costs; s=1)
+function plot_costs(npv::NPV; s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
 
     # Horizon
-    years = 1:size(costs.capex, 1)
+    years = 1:size(npv.capex, 1)
 
     # Plots
     figure("CASH FLOWS")
-    bar(years, costs.capex[:,s] ./ 1000, label="Investment", color="steelblue")
-    bar(years, costs.opex[:,s] ./ 1000, label="Income", color="coral")
+    bar(years, npv.capex[:,s] ./ 1000, label="Investment", color="steelblue")
+    bar(years, npv.opex[:,s] ./ 1000, label="Income", color="coral")
     ylabel("CASH FLOWS (k€)", weight = "bold"), yticks(weight = "bold")
     xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
     legend(fontsize="xx-large", edgecolor="inherit")
     grid()
 
     figure("CUMULATIVE NPV")
-    bar(years, costs.cumulative_npv[:,s] ./ 1000, color="steelblue")
+    bar(years, npv.cumulative[:,s] ./ 1000, color="steelblue")
     ylabel("CUMULATIVE NPV (k€)", weight = "bold"), yticks(weight = "bold")
     xlabel("YEARS", weight = "bold"), xticks(0:5:20, weight = "bold"), xlim(0,21)
     grid()
@@ -273,7 +273,7 @@ function plot_statistics(metrics::Metrics; type = "hist")
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
      if type == "hist"
         figure("NPV")
-        hist(metrics.costs.npv / 1000, color="sandybrown")
+        hist(metrics.npv.total / 1000, color="sandybrown")
         ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 
@@ -283,7 +283,7 @@ function plot_statistics(metrics::Metrics; type = "hist")
         xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
     else
         figure("NPV")
-        violinplot(metrics.costs.npv / 1000, color="sandybrown")
+        violinplot(metrics.npv.total / 1000, color="sandybrown")
         yticks(weight = "black", size = "medium")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
 

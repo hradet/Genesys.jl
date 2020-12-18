@@ -4,51 +4,52 @@
  =#
 
 
- mutable struct Costs{T <: Array{Float64}}
+ mutable struct NPV{T <: Array{Float64}}
       capex::T
       opex::T
       salvage::T
       cf::T
       cumulative_npv::T
-      npv::T
+      total::T
  end
 
  # Compute costs
-Costs(des::DistributedEnergySystem, designer::AbstractDesigner) = Costs(1:des.parameters.ns, des, designer)
+NPV(des::DistributedEnergySystem, designer::AbstractDesigner) = NPV(1:des.parameters.ns, des, designer)
 # Compute costs for a given scenario s
-function Costs(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
+function NPV(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
 
-     # Discount factor
-     γ = repeat(1. ./ (1. + des.parameters.τ) .^ range(0, length = des.parameters.ny, step = des.parameters.Δy), 1, length(s))
+    # Discount factor
+    γ = repeat(1. ./ (1. + des.parameters.τ) .^ range(0, length = des.parameters.ny, step = des.parameters.Δy), 1, length(s))
 
     # Discounted capex
     capexx = γ .* capex(s, des, designer)
 
     # Discounted opex
-    opex = γ .* (baseline_cost(s, des) .- grid_cost(s, des))
+    opex = γ .* dropdims(baseline_cost(s, des) .-  grid_cost(s, des), dims=1)
 
     # Discounted salvage value
-    salvage = γ .* salvage_value(s, des)
+    salvage = γ .*  salvage_value(s, des)
 
     # Discounted cash flow
     cf = - capexx .+ opex .+ salvage
 
     # Discounted NPV each year
-    cumulative_npv = cumsum(cf, dims = 1)
+    cumulative = cumsum(cf, dims = 1)
 
     # Discounted NPV
-    npv = sum(cf, dims=1)
+    total = sum(cf, dims=1)
 
-    return Costs(capexx, opex, salvage, cf, cumulative_npv, npv)
+    return NPV(capexx, opex, salvage, cf, cumulative, total)
 end
 
 # Baseline cost
 baseline_cost(des::DistributedEnergySystem) = baseline_cost(1:des.parameters.ns, des)
-baseline_cost(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = sum(max.(0, (isa(des.ld_E, Load) ? des.ld_E.power[:,:,s] : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power[:,:,s] ./ des.heater.η_E_H : 0.)) .* des.grid.cost_in[:,:,s] .* des.parameters.Δh, dims=1)[1,:,:]
+baseline_cost(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = baseline_cost(1:des.parameters.ny, s, des)
+baseline_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = sum(max.(0, (isa(des.ld_E, Load) ? des.ld_E.power[:,y,s] : 0. ) .+ (isa(des.ld_H, Load) ? des.ld_H.power[:,y,s] ./ des.heater.η_E_H : 0.)) .* des.grid.cost_in[:,y,s] .* des.parameters.Δh, dims=1)
 # Grid cost
 grid_cost(des::DistributedEnergySystem) = grid_cost(1:des.parameters.ns, des)
 grid_cost(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = grid_cost(1:des.parameters.ny, s, des)
-grid_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = sum((max.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_in[:,y,s] .- min.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_out[:,y,s]) .* des.parameters.Δh, dims=1)[1,:,:]
+grid_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem) = sum((max.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_in[:,y,s] .- min.(0., des.grid.power_E[:,y,s]) .* des.grid.cost_out[:,y,s]) .* des.parameters.Δh, dims=1)
 
 # CAPEX
 capex(des::DistributedEnergySystem, designer::AbstractDesigner) = capex(1:des.parameters.ns, des, designer)
@@ -60,6 +61,38 @@ function capex(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, 
             designer.u.h2tank[:,s] .* (isa(des.h2tank, H2Tank) ? des.h2tank.cost[:,s] : 0.) .+
             designer.u.elyz[:,s] .* (isa(des.elyz, Electrolyzer) ? des.elyz.cost[:,s] : 0.) .+
             designer.u.fc[:,s] .* (isa(des.fc, FuelCell) ? des.fc.cost[:,s] : 0.)
+end
+
+# Salvage value
+salvage_value(des::DistributedEnergySystem) = salvage_value(1:des.parameters.ns, des)
+# Salvage value for a given scenario s
+function salvage_value(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem)
+    # Linear depreciation of components
+    nh, ny = des.parameters.nh, des.parameters.ny
+    salvage = zeros(des.parameters.ny, length(s))
+
+    salvage[ny,:] .= (isa(des.pv, Source) ? (des.pv.lifetime .- ny) ./ des.pv.lifetime .* des.pv.cost[ny, s] : 0.) .+
+                       (isa(des.liion, Liion) ? des.liion.soh[nh, ny, s] .* des.liion.Erated[ny,s] .* des.liion.cost[ny, s] : 0.) .+
+                       (isa(des.tes, ThermalSto) ? (des.tes.lifetime .- ny) ./ des.tes.lifetime .* des.tes.cost[ny, s] : 0.) .+
+                       (isa(des.h2tank, H2Tank) ? (des.h2tank.lifetime .- ny) ./ des.h2tank.lifetime .* des.h2tank.cost[ny, s] : 0.) .+
+                       (isa(des.elyz, Electrolyzer) ? des.elyz.soh[nh, ny, s] .* des.elyz.powerMax[ny,s] .* des.elyz.cost[ny, s] : 0.) .+
+                       (isa(des.fc, FuelCell) ? des.fc.soh[nh, ny, s] .* des.fc.powerMax[ny,s] .* des.fc.cost[ny, s] : 0.)
+    return salvage
+end
+
+mutable struct EAC{T <: Array{Float64}}
+     capex::T
+     opex::T
+     total::T
+end
+
+function EAC(y::Int64, s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
+    # Annualised capex
+    capex = Genesys.annualised_capex(y:y, s, des, designer)
+    # opex
+    opex = grid_cost(y+1, s, des)
+
+    return EAC(capex, opex, capex .+ opex)
 end
 # Annualised CAPEX
 function annualised_capex(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
@@ -99,23 +132,6 @@ function annualised_capex(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, Uni
     return capex
 end
 
-# Salvage value
-salvage_value(des::DistributedEnergySystem) = salvage_value(1:des.parameters.ns, des)
-# Salvage value for a given scenario s
-function salvage_value(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem)
-    # Linear depreciation of components
-    nh, ny = des.parameters.nh, des.parameters.ny
-    salvage = zeros(des.parameters.ny, length(s))
-
-    salvage[ny,:] .= (isa(des.pv, Source) ? (des.pv.lifetime .- ny) ./ des.pv.lifetime .* des.pv.cost[ny, s] : 0.) .+
-                       (isa(des.liion, Liion) ? des.liion.soh[nh, ny, s] .* des.liion.Erated[ny,s] .* des.liion.cost[ny, s] : 0.) .+
-                       (isa(des.tes, ThermalSto) ? (des.tes.lifetime .- ny) ./ des.tes.lifetime .* des.tes.cost[ny, s] : 0.) .+
-                       (isa(des.h2tank, H2Tank) ? (des.h2tank.lifetime .- ny) ./ des.h2tank.lifetime .* des.h2tank.cost[ny, s] : 0.) .+
-                       (isa(des.elyz, Electrolyzer) ? des.elyz.soh[nh, ny, s] .* des.elyz.powerMax[ny,s] .* des.elyz.cost[ny, s] : 0.) .+
-                       (isa(des.fc, FuelCell) ? des.fc.soh[nh, ny, s] .* des.fc.powerMax[ny,s] .* des.fc.cost[ny, s] : 0.)
-    return salvage
-end
-
 # Share of renewables
 renewable_share(des::DistributedEnergySystem) = renewable_share(1:des.parameters.ns, des)
 # Share of renewables for a given scenario s
@@ -127,8 +143,8 @@ end
 
 # LPSP
 mutable struct LPSP{T}
-    lpsp_E::Union{Nothing, T}
-    lpsp_H::Union{Nothing, T}
+    elec::Union{Nothing, T}
+    heat::Union{Nothing, T}
 end
 
 LPSP(des::DistributedEnergySystem) = LPSP(1:des.parameters.ns, des)
@@ -146,7 +162,7 @@ function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64
     isa(des.fc, FuelCell) ? fc = des.fc.power_E[:,y,s] : fc = 0.
     isa(des.grid, Grid) ? grid = des.grid.power_E[:,y,s] : grid = 0.
 
-    isa(des.ld_E, Load) ? lpsp_E = sum(max.(0., ld_E .- pv .- liion .- elyz .- fc .- heater .- grid), dims=1)[1,:,:] ./ sum(ld_E, dims=1)[1,:,:] : lpsp_E = nothing
+    isa(des.ld_E, Load) ? elec = sum(max.(0., ld_E .- pv .- liion .- elyz .- fc .- heater .- grid), dims=1)[1,:,:] ./ sum(ld_E, dims=1)[1,:,:] : elec = nothing
 
     # Heat
     isa(des.ld_H, Load) ? ld_H = des.ld_H.power[:,y,s] : ld_H = 0.
@@ -155,13 +171,14 @@ function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64
     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H[:,y,s] : elyz = 0.
     isa(des.fc, FuelCell) ? fc = des.fc.power_H[:,y,s] : fc = 0.
 
-    isa(des.ld_H, Load) ? lpsp_H = sum(max.(0., ld_H .- heater .- fc .- elyz .- tes), dims=1)[1,:,:] ./ sum(ld_H, dims=1)[1,:,:] : lpsp_H = nothing
+    isa(des.ld_H, Load) ? heat = sum(max.(0., ld_H .- heater .- fc .- elyz .- tes), dims=1)[1,:,:] ./ sum(ld_H, dims=1)[1,:,:] : heat = nothing
 
-    return LPSP(lpsp_E, lpsp_H)
+    return LPSP(elec, heat)
 end
 
 mutable struct Metrics{T}
-    costs::Costs{T}
+    npv::NPV{T}
+    eac::EAC{T}
     renewable_share::T
     lpsp::LPSP{T}
 end
@@ -170,14 +187,14 @@ end
 Metrics(des::DistributedEnergySystem, designer::AbstractDesigner) = Metrics(1:des.parameters.ns, des, designer)
 # Compute indicators for a given scenario s
 function Metrics(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
-    # Econmics
-    costs = Costs(s, des, designer)
-
+    # NPV
+    npv = NPV(s, des, designer)
+    # EAC
+    eac = EAC(1, s, des, designer)
     # Share of renewables
     share = renewable_share(s, des)
-
     # LPSP
     lpsp = LPSP(s, des)
 
-    return Metrics(costs, share, lpsp)
+    return Metrics(npv, eac, share, lpsp)
 end
