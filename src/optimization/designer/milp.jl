@@ -114,53 +114,34 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
 
     # Share of renewables constraint
     @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.renewable_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
-    if isa(designer.options.share_risk, WorstCase)
-        β_s = 0.999
-    elseif isa(designer.options.share_risk, Expectation)
-        β_s = 0.
-    elseif isa(designer.options.share_risk, CVaR)
-        β_s = designer.options.share_risk.β
-    else
-        return println("Risk measure unknown for share constraint...")
-    end
     @variables(m, begin
     ζ_s
     α_s[1:ns] >= 0.
     end)
     @constraints(m, begin
     [s in 1:ns], α_s[s] >= share[s] - ζ_s
-    ζ_s + 1 / (1 - β_s) * sum(probabilities[s] * α_s[s] for s in 1:ns) <= 0.
+    ζ_s + 1 / (1 - beta(designer.options.share_risk)) * sum(probabilities[s] * α_s[s] for s in 1:ns) <= 0.
     end)
 
     # CAPEX
     # Annualized factor
-    Γ_liion = (des.parameters.τ * (des.parameters.τ + 1.) ^ liion.lifetime) / ((des.parameters.τ + 1.) ^ liion.lifetime - 1.)
-    Γ_tes = (des.parameters.τ * (des.parameters.τ + 1.) ^ tes.lifetime) / ((des.parameters.τ + 1.) ^ tes.lifetime - 1.)
-    Γ_h2tank = (des.parameters.τ * (des.parameters.τ + 1.) ^ h2tank.lifetime) / ((des.parameters.τ + 1.) ^ h2tank.lifetime - 1.)
-    Γ_elyz = (des.parameters.τ * (des.parameters.τ + 1.) ^ elyz.lifetime) / ((des.parameters.τ + 1.) ^ elyz.lifetime - 1.)
-    Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ fc.lifetime) / ((des.parameters.τ + 1.) ^ fc.lifetime - 1.)
-    Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ pv.lifetime) / ((des.parameters.τ + 1.) ^ pv.lifetime - 1.)
-    @expression(m, capex, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
+    @expression(m, capex, annualised_factor(des.parameters.τ, liion.lifetime) * ω.liion.cost[1] * r_liion +
+                          annualised_factor(des.parameters.τ, tes.lifetime) * ω.tes.cost[1] * r_tes +
+                          annualised_factor(des.parameters.τ, h2tank.lifetime) * ω.h2tank.cost[1] * r_h2tank +
+                          annualised_factor(des.parameters.τ, elyz.lifetime) * ω.elyz.cost[1] * r_elyz +
+                          annualised_factor(des.parameters.τ, fc.lifetime) * ω.fc.cost[1] * r_fc +
+                          annualised_factor(des.parameters.τ, pv.lifetime) * ω.pv.cost[1] * r_pv)
 
     # OPEX
     @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
-    if isa(designer.options.objective_risk, WorstCase)
-        β_o = 0.999
-    elseif isa(designer.options.objective_risk, Expectation)
-        β_o = 0.
-    elseif isa(designer.options.objective_risk, CVaR)
-        β_o = designer.options.objective_risk.β
-    else
-        return println("Risk measure unknown for objective...")
-    end
     @variables(m, begin
     ζ_o
     α_o[1:ns] >= 0.
     end)
     @constraint(m, [s in 1:ns], α_o[s] >= capex + opex[s] - ζ_o)
-    @objective(m, Min, ζ_o + 1 / (1 - β_o) * sum(probabilities[s] * α_o[s] for s in 1:ns))
+    @objective(m, Min, ζ_o + 1 / (1 - beta(designer.options.objective_risk)) * sum(probabilities[s] * α_o[s] for s in 1:ns))
 
     return m
 end
@@ -233,3 +214,9 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
     end
 end
+
+### Utils
+beta(risk::WorstCase) = 1. - 1e-6
+beta(risk::Expectation) = 0.
+beta(risk::CVaR) = risk.β
+annualised_factor(τ::Float64, lifetime::Float64) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)

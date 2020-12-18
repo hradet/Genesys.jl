@@ -20,15 +20,28 @@ struct CVaR <: AbstractRiskMeasure
     end
 end
 
+conditional_value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, risk::WorstCase) = conditional_value_at_risk(support, probabilities, 0.)
+conditional_value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, risk::Expectation) = conditional_value_at_risk(support, probabilities, 1.)
+conditional_value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, risk::CVaR) = conditional_value_at_risk(support, probabilities, 1. - risk.β)
+
+# From https://github.com/jaantollander/ConditionalValueAtRisk
 function conditional_value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, α::Float64)
     # Value at risk
     var = value_at_risk(support, probabilities, α)
     # Tail values
-    tail = support .< var
-    return (sum(probabilities[tail] .* support[tail]) - (sum(probabilities[tail]) - α) * var) / α
+    if α == 0.
+        return var
+    else
+        tail = support .< var
+        return (sum(probabilities[tail] .* support[tail]) - (sum(probabilities[tail]) - α) * var) / α
+    end
 end
 
 function value_at_risk(support::Array{Float64,1}, probabilities::Array{Float64,1}, α::Float64)
     i = findfirst(cumsum(probabilities[sortperm(support)]) .>= α)
-    return sort(support)[i]
+    if i == nothing
+        return sort(support)[end]
+    else
+        return sort(support)[i]
+    end
 end

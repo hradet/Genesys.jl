@@ -5,7 +5,7 @@
  mutable struct Options
      mode::String
      firstyear::Bool
-     Options(; mode = "serial", firstyear = false) = new(mode, firstyear)
+     Options(; mode = "multithreads", firstyear = false) = new(mode, firstyear)
  end
 
 # Simulate function
