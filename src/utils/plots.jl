@@ -1,5 +1,4 @@
 # This file includes all the plot functions for the DES
-
 function plot_operation(des::DistributedEnergySystem ; y=2, s=1)
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.5)
@@ -268,25 +267,33 @@ function plot_costs(npv::NPV; s=1)
     grid()
 end
 # Statistics
-function plot_statistics(metrics::Metrics; type = "hist")
+function plot_statistics(metrics::Metrics; type = "whisker")
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
-     if type == "hist"
+
+    if type == "whisker"
+        figure("NPV")
+        boxplot(metrics.npv.total / 1000, color="sandybrown", whis = [5,95], showfliers = false)
+        yticks(weight = "black", size = "medium")
+        xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+        figure("SHARE OF RENEW.")
+        boxplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown", whis = [5,95], showfliers = false)
+        yticks(weight = "black", size = "medium")
+        xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
+    elseif type == "hist"
         figure("NPV")
         hist(metrics.npv.total / 1000, color="sandybrown")
         ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-
         figure("SHARE OF RENEW.")
         hist(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
         ylabel("SCENARIO COUNT", weight = "black", size = "large"), yticks(weight = "black", size = "medium")
         xlabel("SHARE OF RENEW. (%)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-    else
+    elseif type == "violin"
         figure("NPV")
         violinplot(metrics.npv.total / 1000, color="sandybrown")
         yticks(weight = "black", size = "medium")
         xlabel("NPV (k€)", weight = "black", size = "large"), xticks(weight = "black", size = "medium")
-
         figure("SHARE OF RENEW.")
         violinplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
         yticks(weight = "black", size = "medium")

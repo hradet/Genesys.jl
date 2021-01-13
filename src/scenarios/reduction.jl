@@ -131,15 +131,13 @@ function Clustering.kmeans(data...; ncluster::Int64 = 10)
     # Parameters
     nk = length(data)
     nh, ny, ns = size(data[1])
-    # Normalization
-    data_n = data ./ maximum.(data)
-    # Aggregation
-    data_agg = vcat([hcat([data_n[k][:,:,s] for s in 1:ns]...) for k in 1:nk]...)
+    # Normalization & aggregation
+    data_agg = vcat([min_max_normalization(hcat([data[k][:,:,s] for s in 1:ns]...)) for k in 1:nk]...)
     # Clustering
     results = kmeans(data_agg, ncluster)
     # Denormalization
     for k in 1:nk
-        results.centers[(k-1)*nh+1:k*nh,:] .*= maximum(data[k])
+        results.centers[(k-1)*nh+1:k*nh,:] .= results.centers[(k-1)*nh+1:k*nh,:] .* (maximum(data[k]) .- minimum(data[k])) .+ minimum(data[k])
     end
     return results
 end
@@ -156,7 +154,7 @@ function reduce(reducer::KmedoidsReducer, ω::Scenarios{Array{DateTime,3}, Array
     # Parmameters
     ns = size(ω.ld_E.power,3)
     # Clustering aggregated data
-    results = kmedoids(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster, distance = reducer.distance)
+    results = kmedoids(ω.pv.power, ω.ld_E.power, ω.ld_H.power, ω.grid.cost_in, ω.grid.cost_out, ncluster = reducer.ncluster, distance = reducer.distance, display = :final)
     # Demand
     ld_E = (t = reshape(hcat([ω.ld_E.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power =  reshape(hcat([ω.ld_E.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
     ld_H = (t = reshape(hcat([ω.ld_H.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power = reshape(hcat([ω.ld_H.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
@@ -175,17 +173,52 @@ function reduce(reducer::KmedoidsReducer, ω::Scenarios{Array{DateTime,3}, Array
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
 end
 
-function Clustering.kmedoids(data...; ncluster::Int64 = 10, distance = Distances.Euclidean())
+function Clustering.kmedoids(data...; ncluster::Int64 = 10, distance = Distances.Euclidean(), display::Symbol = :iter)
     # Parameters
     nk = length(data)
     nh, ny, ns = size(data[1])
-    # Normalization
-    data_n = data ./ maximum.(data)
-    # Aggregation
-    data_agg = vcat([hcat([data_n[k][:,:,s] for s in 1:ns]...) for k in 1:nk]...)
+    # Normalization & aggregation
+    data_agg = vcat([min_max_normalization(hcat([data[k][:,:,s] for s in 1:ns]...)) for k in 1:nk]...)
     # Compute euclidean distance matrix
     dist = pairwise(distance, data_agg, dims = 2 )
     # Clustering
-    results = kmedoids(dist, ncluster)
+    results = kmedoids(dist, ncluster, display=display)
     return results
+end
+
+# Clustering reduction with kmedoids
+mutable struct FeatureBasedReducer <: AbstractScenariosReducer
+    ncluster::Int64
+    distance
+
+    FeatureBasedReducer(; ncluster = 10, distance = Distances.Euclidean()) = new(ncluster, distance)
+end
+
+function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
+    # Parmameters
+    ny, ns = size(ω.ld_E.power,2), size(ω.ld_E.power,3)
+    # Features extraction - mean, variance, skewness, kurtosis
+    pv_features = vcat(mean(ω.pv.power, dims=1), var(ω.pv.power, dims=1), reshape([skewness(ω.pv.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns), reshape([kurtosis(ω.pv.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns))
+    ld_E_features = vcat(mean(ω.ld_E.power, dims=1), var(ω.ld_E.power, dims=1), reshape([skewness(ω.ld_E.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns), reshape([kurtosis(ω.ld_E.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns))
+    ld_H_features = vcat(mean(ω.ld_H.power, dims=1), var(ω.ld_H.power, dims=1), reshape([skewness(ω.ld_H.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns), reshape([kurtosis(ω.ld_H.power[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns))
+    cost_in_features = vcat(mean(ω.grid.cost_in, dims=1), var(ω.grid.cost_in, dims=1), reshape([skewness(ω.grid.cost_in[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns), reshape([kurtosis(ω.grid.cost_in[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns))
+    cost_out_features = vcat(mean(ω.grid.cost_out, dims=1), var(ω.grid.cost_out, dims=1), reshape([skewness(ω.grid.cost_out[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns), reshape([kurtosis(ω.grid.cost_out[:,y,s]) for y in 1:ny, s in 1:ns],1,ny,ns))
+    # Clustering aggregated data
+    results = kmedoids(pv_features, ld_E_features, ld_H_features, cost_in_features, cost_out_features, ncluster = reducer.ncluster, distance = reducer.distance, display = :final)
+    # Demand
+    ld_E = (t = reshape(hcat([ω.ld_E.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power =  reshape(hcat([ω.ld_E.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
+    ld_H = (t = reshape(hcat([ω.ld_H.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power = reshape(hcat([ω.ld_H.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
+    # Production
+    pv = (t = reshape(hcat([ω.pv.t[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), power = reshape(hcat([ω.pv.power[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), cost =  repeat(ω.pv.cost[y:y, s:s],1,reducer.ncluster))
+    # Electricity tariff
+    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster), cost_out = reshape(hcat([ω.grid.cost_out[:,:,s] for s in 1:ns]...)[:, results.medoids],:,1,reducer.ncluster))
+    # Investment costs
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.ncluster),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.ncluster),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.ncluster),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.ncluster),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.ncluster),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.ncluster),)
+
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), results.counts / sum(results.counts), results.assignments
 end

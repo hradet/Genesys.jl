@@ -64,3 +64,5 @@ isweekend(t::Union{DateTime, Array{DateTime}}) = (Dates.dayname.(t) .== "Saturda
 chose(generator::MarkovGenerator, t::DateTime) = isweekend(t) ? generator.markovchain.wkd : generator.markovchain.wk
 # Generate a yearly profile from typical days clustered data
 generate(data_td::Array{Float64,2}, assignments::Array{Int64,1}) = reshape(data_td[:, assignments, :], size(data_td, 1) * size(assignments, 1))
+# Normalization
+min_max_normalization(x::AbstractArray) = maximum(x) == minimum(x) ? x ./ maximum(x) : (x .- minimum(x)) ./ (maximum(x) .- minimum(x))
