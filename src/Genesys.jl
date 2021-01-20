@@ -3,7 +3,7 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics
 # Math
-using Statistics, Clustering, Distributions, Distances, LinearAlgebra
+using Statistics, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
@@ -19,12 +19,14 @@ include(joinpath("assets","loads.jl"))
 include(joinpath("assets","des.jl"))
 export DistributedEnergySystem, Source, Liion, ThermalSto, H2Tank, Electrolyzer, FuelCell, Heater, Grid, Load
 # Scenarios
+include(joinpath("scenarios","HDBSCAN.jl","src","HDBSCAN.jl"))
 include(joinpath("scenarios","scenarios.jl"))
 include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","utils.jl"))
 export Scenarios
-export ManualReducer, SAAReducer, MeanValueReducer, KmeansReducer, KmedoidsReducer, FeatureBasedReducer
+export ManualReducer, SAAReducer, MeanValueReducer, ClusteringReducer
+export Kmedoids, DensityBased, MinMax, UMAP, Moments, PrincipalComponentAnalysis 
 export MarkovGenerator
 export reduce, generate
 # Risk measures

@@ -91,46 +91,22 @@ function plot_operation(des::DistributedEnergySystem, designer::MILP ; y=2, s=1)
     Δh = des.parameters.Δh
     hours = range(1, length = nh, step = Δh) / Δh
 
-    isa(des.ld_E, Load) ? ld_E = des.ld_E.power[:,y,s] : ld_E = zeros(nh)
-    isa(des.ld_H, Load) ? ld_H = des.ld_H.power[:,y,s] : ld_H = zeros(nh)
-    isa(des.pv, Source) ? pv = des.pv.power_E[:,y,s] : pv = zeros(nh)
-    isa(des.grid, Grid) ? grid = (value.(designer.model[:p_g_in]) + value.(designer.model[:p_g_out]))[:,s] : grid = zeros(nh)
-    if isa(des.liion, Liion)
-        liion = (value.(designer.model[:p_liion_ch]) + value.(designer.model[:p_liion_dch]))[:,s]
-        soc_liion = value.(designer.model[:soc_liion])[1:end-1,s] ./ value.(designer.model[:r_liion])
-    else
-        liion, soc_liion = zeros(nh), zeros(nh)
-    end
-    if isa(des.tes, ThermalSto)
-        tes = (value.(designer.model[:p_tes_ch]) + value.(designer.model[:p_tes_dch]))[:,s]
-        soc_tes = value.(designer.model[:soc_tes])[1:end-1,s] ./ value.(designer.model[:r_tes])
-    else
-        tes, soc_tes = zeros(nh), zeros(nh)
-    end
-    if isa(des.h2tank, H2Tank)
-        h2tank = (value.(designer.model[:p_h2tank_ch]) + value.(designer.model[:p_h2tank_dch]))[:,s]
-        soc_h2tank = value.(designer.model[:soc_h2tank])[1:end-1,s] ./ value.(designer.model[:r_h2tank])
-    else
-        h2tank, soc_h2tank = zeros(nh), zeros(nh)
-    end
-    if isa(des.elyz, Electrolyzer)
-        elyz_E = value.(designer.model[:p_elyz_E])[:,s]
-        elyz_H = - des.elyz.η_E_H .* elyz_E
-    else
-        elyz_E, elyz_H = zeros(nh), zeros(nh)
-    end
-    if isa(des.fc, FuelCell)
-        fc_E = value.(designer.model[:p_fc_E])[:,s]
-        fc_H = des.fc.η_H2_H / des.fc.η_H2_E .* fc_E
-    else
-        fc_E, fc_H = zeros(nh), zeros(nh)
-    end
-    if isa(des.heater, Heater)
-        heater_E = value.(designer.model[:p_heater_E])[:,s]
-        heater_H = - des.heater.η_E_H .* heater_E
-    else
-        heater_E, heater_H = zeros(nh), zeros(nh)
-    end
+    ld_E = designer.history.ld_E.power[:,1,s]
+    ld_H = designer.history.ld_H.power[:,1,s]
+    pv = value(designer.model[:r_pv]) * designer.history.pv.power[:,1,s]
+    grid = (value.(designer.model[:p_g_in]) + value.(designer.model[:p_g_out]))[:,s]
+    liion = (value.(designer.model[:p_liion_ch]) + value.(designer.model[:p_liion_dch]))[:,s]
+    soc_liion = value.(designer.model[:soc_liion])[1:end-1,s] ./ value.(designer.model[:r_liion])
+    tes = (value.(designer.model[:p_tes_ch]) + value.(designer.model[:p_tes_dch]))[:,s]
+    soc_tes = value.(designer.model[:soc_tes])[1:end-1,s] ./ value.(designer.model[:r_tes])
+    h2tank = (value.(designer.model[:p_h2tank_ch]) + value.(designer.model[:p_h2tank_dch]))[:,s]
+    soc_h2tank = value.(designer.model[:soc_h2tank])[1:end-1,s] ./ value.(designer.model[:r_h2tank])
+    elyz_E = value.(designer.model[:p_elyz_E])[:,s]
+    elyz_H = - des.elyz.η_E_H .* elyz_E
+    fc_E = value.(designer.model[:p_fc_E])[:,s]
+    fc_H = des.fc.η_H2_H / des.fc.η_H2_E .* fc_E
+    heater_E = value.(designer.model[:p_heater_E])[:,s]
+    heater_H = - des.heater.η_E_H .* heater_E
 
     # Plots
     figure("POWERS MILP")

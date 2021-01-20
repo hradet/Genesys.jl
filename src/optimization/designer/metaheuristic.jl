@@ -64,20 +64,22 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     share = max(0., des.parameters.renewable_share - conditional_value_at_risk([reshape(metrics.renewable_share[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.share_risk))
 
     # LPSP constraint for the heat
-    isa(des_m.ld_H, Load) ? lpsp = max(0., designer.options.lpsp_tol - conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.lpsp_risk)) : lpsp = 0.
+    isa(des_m.ld_H, Load) ? lpsp = max(0., conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.lpsp_risk) - designer.options.lpsp_tol) : lpsp = 0.
 
-    # SoC constraint for the seasonal storage
-    isa(des_m.h2tank, H2Tank) ? soc_h2tank = max(0., maximum(des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s] for y in 2:ny, s in 1:ns)) : soc_h2tank = 0.
+    # SoC constraint for the storages
+    isa(des_m.liion, Liion) ? soc_liion = sum(max(0., des_m.liion.soc[1,y,s] - des_m.liion.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_liion = 0.
+    isa(des_m.tes, ThermalSto) ? soc_tes = sum(max(0., des_m.tes.soc[1,y,s] - des_m.tes.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_tes = 0.
+    isa(des_m.h2tank, H2Tank) ? soc_h2tank = sum(max(0., des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_h2tank = 0.
 
     # Objective - Algortihm find the maximum
     if designer.options.isnpv
         # NPV
         npv = conditional_value_at_risk([metrics.npv.total...], probabilities, designer.options.objective_risk)
-        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank
+        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank - λ3 * soc_liion - λ3 * soc_tes
     else
         # Equivalent annual cost
         eac = conditional_value_at_risk([metrics.eac.total...], probabilities, designer.options.objective_risk)
-        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank
+        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank - λ3 * soc_liion - λ3 * soc_tes
     end
 end
 
