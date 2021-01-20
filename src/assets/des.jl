@@ -6,14 +6,14 @@ mutable struct GlobalParameters
     Δy::Int64 # investment time step in years
     ny::Int64 # number of investment stages
     τ::Float64 # discount rate
-    τ_share::Float64 # share of renewables [0,1]
+    renewable_share::Float64 # share of renewables [0,1]
 
     GlobalParameters(nh, ny, ns;
                 Δh = 1,
                 Δy = 1,
                 τ = 0.045,
-                τ_share = 0.) =
-                new(ns, Δh, nh, Δy, ny, τ, τ_share)
+                renewable_share = 0.) =
+                new(ns, Δh, nh, Δy, ny, τ, renewable_share)
 end
 
 mutable struct DistributedEnergySystem
@@ -81,7 +81,7 @@ function Base.copy(des::DistributedEnergySystem, nh::Int64, ny::Int64, ns::Int64
                                   fc = isa(des.fc, FuelCell) ? FuelCell() : nothing,
                                   heater = isa(des.heater, Heater) ? Heater() : nothing,
                                   grid = isa(des.grid, Grid) ? Grid() : nothing,
-                                  parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = des.parameters.τ_share))
+                                  parameters = Genesys.GlobalParameters(nh, ny, ns, renewable_share = des.parameters.renewable_share))
 
     return des_copy
 end

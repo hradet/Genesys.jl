@@ -38,7 +38,7 @@ end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Manual)
-    ϵ = 0.1
+    ϵ = 0.2
 
     if y != 1
         isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = designer.u.liion[1,s] : nothing

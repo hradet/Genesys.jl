@@ -4,19 +4,17 @@
 
 mutable struct MILPOptions
   solver::Module
-  risk_measure::String
-  q::Float64
   reducer::AbstractScenariosReducer
-  share_constraint::String
+  objective_risk::AbstractRiskMeasure
+  share_risk::AbstractRiskMeasure
   reopt::Bool
 
   MILPOptions(; solver = CPLEX,
-                risk_measure = "expectation",
-                q = 0.95,
-                reducer = KmeansReducer(),
-                share_constraint = "hard",
+                reducer = KmedoidsReducer(),
+                objective_risk = Expectation(),
+                share_risk = Expectation(),
                 reopt=false) =
-                new(solver, risk_measure, q, reducer, share_constraint, reopt)
+                new(solver, reducer, objective_risk, share_risk, reopt)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -115,36 +113,35 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     end)
 
     # Share of renewables constraint
-    if designer.options.share_constraint == "hard"
-        @constraint(m, [s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh) <= 0.)
-    elseif designer.options.share_constraint == "soft"
-        @constraint(m, sum(probabilities[s] * (p_g_in[h,s] - (1. - des.parameters.τ_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H)) for h in 1:nh, s in 1:ns) <= 0.)
-    end
+    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.renewable_share) * (ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
+    @variables(m, begin
+    ζ_s
+    α_s[1:ns] >= 0.
+    end)
+    @constraints(m, begin
+    [s in 1:ns], α_s[s] >= share[s] - ζ_s
+    ζ_s + 1 / (1 - beta(designer.options.share_risk)) * sum(probabilities[s] * α_s[s] for s in 1:ns) <= 0.
+    end)
 
     # CAPEX
     # Annualized factor
-    Γ_liion = (des.parameters.τ * (des.parameters.τ + 1.) ^ liion.lifetime) / ((des.parameters.τ + 1.) ^ liion.lifetime - 1.)
-    Γ_tes = (des.parameters.τ * (des.parameters.τ + 1.) ^ tes.lifetime) / ((des.parameters.τ + 1.) ^ tes.lifetime - 1.)
-    Γ_h2tank = (des.parameters.τ * (des.parameters.τ + 1.) ^ h2tank.lifetime) / ((des.parameters.τ + 1.) ^ h2tank.lifetime - 1.)
-    Γ_elyz = (des.parameters.τ * (des.parameters.τ + 1.) ^ elyz.lifetime) / ((des.parameters.τ + 1.) ^ elyz.lifetime - 1.)
-    Γ_fc = (des.parameters.τ * (des.parameters.τ + 1.) ^ fc.lifetime) / ((des.parameters.τ + 1.) ^ fc.lifetime - 1.)
-    Γ_pv = (des.parameters.τ * (des.parameters.τ + 1.) ^ pv.lifetime) / ((des.parameters.τ + 1.) ^ pv.lifetime - 1.)
-    @expression(m, capex, Γ_liion * ω.liion.cost[1] * r_liion + Γ_tes * ω.tes.cost[1] * r_tes + Γ_h2tank * ω.h2tank.cost[1] * r_h2tank + Γ_elyz * ω.elyz.cost[1] * r_elyz + Γ_fc * ω.fc.cost[1] * r_fc + Γ_pv * ω.pv.cost[1] * r_pv)
+    @expression(m, capex, annualised_factor(des.parameters.τ, liion.lifetime) * ω.liion.cost[1] * r_liion +
+                          annualised_factor(des.parameters.τ, tes.lifetime) * ω.tes.cost[1] * r_tes +
+                          annualised_factor(des.parameters.τ, h2tank.lifetime) * ω.h2tank.cost[1] * r_h2tank +
+                          annualised_factor(des.parameters.τ, elyz.lifetime) * ω.elyz.cost[1] * r_elyz +
+                          annualised_factor(des.parameters.τ, fc.lifetime) * ω.fc.cost[1] * r_fc +
+                          annualised_factor(des.parameters.τ, pv.lifetime) * ω.pv.cost[1] * r_pv)
 
     # OPEX
     @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
-    if designer.options.risk_measure == "expectation"
-        @objective(m, Min, capex + sum(probabilities[s] * opex[s] for s in 1:ns))
-    elseif designer.options.risk_measure == "cvar"
-        @variable(m, ζ)
-        @variable(m, α[1:ns] >= 0.)
-        @constraint(m, [s in 1:ns], α[s] >= capex + opex[s] - ζ)
-        @objective(m, Min, ζ + 1 / (1 - designer.options.q) * sum(probabilities[s] * α[s] for s in 1:ns))
-    else
-      println("Unknown risk measure... Chose between 'esperance' or 'cvar' ")
-    end
+    @variables(m, begin
+    ζ_o
+    α_o[1:ns] >= 0.
+    end)
+    @constraint(m, [s in 1:ns], α_o[s] >= capex + opex[s] - ζ_o)
+    @objective(m, Min, ζ_o + 1 / (1 - beta(designer.options.objective_risk)) * sum(probabilities[s] * α_o[s] for s in 1:ns))
 
     return m
 end
@@ -182,7 +179,7 @@ end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::MILP)
-    ϵ = 0.1
+    ϵ = 0.2
 
     # TODO : fix reoptimize function !!
     if designer.options.reopt && y != 1
@@ -217,3 +214,9 @@ function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnerg
         isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
     end
 end
+
+### Utils
+beta(risk::WorstCase) = 1. - 1e-6
+beta(risk::Expectation) = 0.
+beta(risk::CVaR) = risk.β
+annualised_factor(τ::Float64, lifetime::Float64) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)

@@ -5,26 +5,28 @@
 mutable struct MetaheuristicOptions
     method::Metaheuristics.AbstractMetaheuristic
     iterations::Int64
+    multithreads::Bool
     controller::AbstractController
     isnpv::Bool
-    risk_measure::String
     reducer::AbstractScenariosReducer
-    share_constraint::String
-    lpsp_constraint::String
-    tol_lpsp::Float64
+    objective_risk::AbstractRiskMeasure
+    share_risk::AbstractRiskMeasure
+    lpsp_risk::AbstractRiskMeasure
+    lpsp_tol::Float64
     reopt::Bool
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
                            iterations = 20,
+                           multithreads = false,
                            controller = RBC(),
                            isnpv = false,
-                           risk_measure = "esperance",
-                           reducer = KmeansReducer(),
-                           share_constraint = "hard",
-                           lpsp_constraint = "soft",
-                           tol_lpsp = 0.05,
+                           reducer = KmedoidsReducer(),
+                           objective_risk = Expectation(),
+                           share_risk = Expectation(),
+                           lpsp_risk = Expectation(),
+                           lpsp_tol = 0.05,
                            reopt = false) =
-                           new(method, iterations, controller, isnpv, risk_measure, reducer, share_constraint, lpsp_constraint, tol_lpsp, reopt)
+                           new(method, iterations, multithreads, controller, isnpv, reducer, objective_risk, share_risk, lpsp_risk, lpsp_tol, reopt)
 
 end
 
@@ -40,9 +42,8 @@ end
 # Objective functions
 function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios, probabilities::Array{Float64})
     # Paramters
-    nh = size(ω.ld_E.power,1)
-    ny = size(ω.ld_E.power,2)
-    ns = size(ω.ld_E.power,3)
+    nh, ny, ns = size(ω.ld_E.power)
+    λ1 = λ2 = λ3 = 1e9
 
     # Initialize DES
     des_m = copy(des, nh, ny, ns)
@@ -54,35 +55,32 @@ function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designe
     designer_m = initialize_designer!(des_m, Manual(pv = decisions[1], liion = decisions[2], tes = decisions[3], h2tank = decisions[4], elyz = decisions[5], fc = decisions[6]), ω)
 
     # Simulate
-    simulate!(des_m, controller_m, designer_m, ω, options = Genesys.Options(mode = "multithreads"))
+    simulate!(des_m, controller_m, designer_m, ω)
 
-    # Objective - algorithm find the maximum
-    if designer.options.isnpv
-        obj = sum(probabilities[s] * Costs(des_m,designer_m).npv[s] for s in 1:ns)
-    else
-        obj = - compute_annualised_capex(1, 1, des_m, designer_m) - sum(probabilities[s] * compute_grid_cost(2, s, des_m) for s in 1:ns)
-    end
-
-    # LPSP constraint for the heat
-    if isa(des_m.ld_H, Load)
-        if designer.options.lpsp_constraint == "soft"
-            obj -= 1e32 * max(0., sum(probabilities[s] * LPSP(y, s, des_m).lpsp_H - designer.options.tol_lpsp for s in 1:ns, y in 2:ny))
-        elseif designer.options.lpsp_constraint == "hard"
-            obj -= 1e32 * max(0., maximum(LPSP(y, s, des_m).lpsp_H - designer.options.tol_lpsp for s in 1:ns, y in 2:ny))
-        end
-    end
-
-    # SoC constraint for the seasonal storage
-    isa(des_m.h2tank, H2Tank) ? obj -= 1e32 *  max(0., maximum(des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s] for s in 1:ns, y in 2:ny)) : nothing
+    # Metrics
+    metrics = Metrics(des_m, designer_m)
 
     # Share constraint
-    if designer.options.share_constraint == "hard"
-        obj -= 1e32 * max(0., des.parameters.τ_share - minimum(compute_share(y, s, des_m) for s in 1:ns, y in 2:ny))
-    elseif designer.options.share_constraint == "soft"
-        obj -= 1e32 * max(0., des.parameters.τ_share - sum(probabilities[s] * mean(compute_share(y, s, des_m) for y in 2:ny) for s in 1:ns))
-    end
+    share = max(0., des.parameters.renewable_share - conditional_value_at_risk([reshape(metrics.renewable_share[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.share_risk))
 
-    return obj
+    # LPSP constraint for the heat
+    isa(des_m.ld_H, Load) ? lpsp = max(0., conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.lpsp_risk) - designer.options.lpsp_tol) : lpsp = 0.
+
+    # SoC constraint for the storages
+    isa(des_m.liion, Liion) ? soc_liion = sum(max(0., des_m.liion.soc[1,y,s] - des_m.liion.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_liion = 0.
+    isa(des_m.tes, ThermalSto) ? soc_tes = sum(max(0., des_m.tes.soc[1,y,s] - des_m.tes.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_tes = 0.
+    isa(des_m.h2tank, H2Tank) ? soc_h2tank = sum(max(0., des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_h2tank = 0.
+
+    # Objective - Algortihm find the maximum
+    if designer.options.isnpv
+        # NPV
+        npv = conditional_value_at_risk([metrics.npv.total...], probabilities, designer.options.objective_risk)
+        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank - λ3 * soc_liion - λ3 * soc_tes
+    else
+        # Equivalent annual cost
+        eac = conditional_value_at_risk([metrics.eac.total...], probabilities, designer.options.objective_risk)
+        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank - λ3 * soc_liion - λ3 * soc_tes
+    end
 end
 
 ### Offline
@@ -106,7 +104,7 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     # Optimize
     designer.results = Metaheuristics.optimize(lb, ub,
                                                designer.options.method,
-                                               options = Metaheuristics.Options(iterations=designer.options.iterations, multithreads=false)
+                                               options = Metaheuristics.Options(iterations = designer.options.iterations, multithreads = designer.options.multithreads)
     ) do decisions
         fobj(decisions, des, designer, ω_reduced, probabilities)
       end
@@ -127,7 +125,7 @@ end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
-    ϵ = 0.1
+    ϵ = 0.2
 
     if designer.options.reopt && y != 1
         # Do we need to reoptimize ?
@@ -142,7 +140,6 @@ end
 
 ### Utils
 function set_bounds(des::DistributedEnergySystem)
-
     lb, ub = zeros(6), zeros(6)
     isa(des.pv, Source) ? ub[1] = 1000. : nothing
     isa(des.liion, Liion) ? ub[2] = 1000. : nothing
@@ -150,6 +147,5 @@ function set_bounds(des::DistributedEnergySystem)
     isa(des.h2tank, H2Tank) ? ub[4] = 50000. : nothing
     isa(des.elyz, Electrolyzer) ? ub[5] = 50. : nothing
     isa(des.fc, FuelCell) ? ub[6] = 50. : nothing
-
     return lb, ub
 end

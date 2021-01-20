@@ -66,7 +66,7 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         # Power balance
         [h in 1:nh, y in 1:ny], ω.ld_E.power[h,y] - pMax_pv[y] *  ω.pv.power[h,y] <= p_g_out[h,y] + p_g_in[h,y] + p_liion_ch[h,y] + p_liion_dch[h,y]
         # Self-sufficiency constraint
-        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.τ_share) * sum(ω.ld_E.power[h,y] for h in 1:nh)
+        [y in 2:ny], sum(p_g_in[h,y] for h in 1:nh) <= (1. - des.parameters.renewable_share) * sum(ω.ld_E.power[h,y] for h in 1:nh)
         # Investment bounds
         [y in 1:ny], r_liion[y] <= 1000. * δ_inv_liion[y]
         [y in 1:ny], r_pv[y] <= 1000. * δ_inv_pv[y]
