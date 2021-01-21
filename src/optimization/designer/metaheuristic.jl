@@ -20,7 +20,7 @@ mutable struct MetaheuristicOptions
                            multithreads = false,
                            controller = RBC(),
                            isnpv = false,
-                           reducer = KmedoidsReducer(),
+                           reducer = FeatureBasedReducer(),
                            objective_risk = Expectation(),
                            share_risk = Expectation(),
                            lpsp_risk = Expectation(),

@@ -3,7 +3,7 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics
 # Math
-using Statistics, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
+using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
@@ -25,8 +25,10 @@ include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","utils.jl"))
 export Scenarios
-export ManualReducer, SAAReducer, MeanValueReducer, ClusteringReducer
-export Kmedoids, DensityBased, MinMax, UMAP, Moments, PrincipalComponentAnalysis 
+export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
+export UnitRangeTransform, ZScoreTransform
+export UMAPReduction, PCAReduction, StatMomentReduction
+export KmedoidsClustering, HDBSCANClustering
 export MarkovGenerator
 export reduce, generate
 # Risk measures

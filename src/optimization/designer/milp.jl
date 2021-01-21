@@ -10,7 +10,7 @@ mutable struct MILPOptions
   reopt::Bool
 
   MILPOptions(; solver = CPLEX,
-                reducer = KmedoidsReducer(),
+                reducer = FeatureBasedReducer(),
                 objective_risk = Expectation(),
                 share_risk = Expectation(),
                 reopt=false) =

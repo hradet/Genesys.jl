@@ -4,7 +4,6 @@
 abstract type AbstractScenariosReducer end
 abstract type AbstractDimensionReducer end
 abstract type AbstractClusteringMethod end
-abstract type AbstractNormalizer end
 
 # Manual scenario reduction
 mutable struct ManualReducer <: AbstractScenariosReducer
@@ -101,90 +100,86 @@ function reduce(reducer::MeanValueReducer, ω::Scenarios{Array{DateTime,3}, Arra
 end
 
 # Clustering scenario reduction
-mutable struct ClusteringReducer <: AbstractScenariosReducer
-    normalization::AbstractNormalizer
-    dimension_reduction::AbstractDimensionReducer
+mutable struct FeatureBasedReducer <: AbstractScenariosReducer
+    transformation::Union{UnionAll, Nothing}
+    reduction::AbstractDimensionReducer
     clustering::AbstractClusteringMethod
 
-    ClusteringReducer(; normalization = MinMax(),
-                        dimension_reduction = UMAP(),
-                        clustering = DensityBased()) = new(normalization, dimension_reduction, clustering)
+    FeatureBasedReducer(; transformation = UnitRangeTransform,
+                        reduction = UMAPReduction(),
+                        clustering = HDBSCANClustering()) = new(transformation, reduction, clustering)
 end
 
-function reduce(reducer::ClusteringReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
-    # Normalisation & aggregation
-    norm = Genesys.normalization(reducer.normalization, ω.ld_E.power[:,2:end,:], ω.ld_H.power[:,2:end,:], ω.pv.power[:,2:end,:])#, ω.grid.cost_in[:,2:end,:], ω.grid.cost_out[:,2:end,:])
+function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
+    # Parameters
+    nh, ny, ns = size(ω.ld_E.power)
+    # Data to be reduced : data is a tuple of d x n matrix with d dimension and n observation
+    t = [reshape(ω.ld_E.t[:,2:end,:], nh, :), reshape(ω.ld_H.t[:,2:end,:], nh, :), reshape(ω.pv.t[:,2:end,:], nh, :)]
+    data = [reshape(ω.ld_E.power[:,2:end,:], nh, :), reshape(ω.ld_H.power[:,2:end,:], nh, :), reshape(ω.pv.power[:,2:end,:], nh, :), reshape(ω.grid.cost_in[:,2:end,:], nh, :), reshape(ω.grid.cost_out[:,2:end,:], nh, :)]
+    # Transformation & aggregation
+    norm = replace!(vcat([Genesys.StatsBase.standardize(reducer.transformation, d, dims = 1) for d in data]...), NaN => 0.)
     # Dimension reduction
-    embedding = Genesys.dimension_reduction(reducer.dimension_reduction, norm)
+    embedding = dimension_reduction(reducer.reduction, norm)
     # Clustering
-    medoids, probabilities, assignments = Genesys.clustering(reducer.clustering, embedding)
+    medoids, probabilities, assignments = clustering(reducer.clustering, embedding)
     # Building reduced scenario
     # Demand
-    ld_E = (t = reshape(hcat([ω.ld_E.t[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters), power =  reshape(hcat([ω.ld_E.power[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters))
-    ld_H = (t = reshape(hcat([ω.ld_H.t[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters), power = reshape(hcat([ω.ld_H.power[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters))
+    ld_E = (t = reshape(t[1][:,medoids], nh, 1, :), power = reshape(data[1][:,medoids], nh, 1, :))
+    ld_H = (t = reshape(t[2][:,medoids], nh, 1, :), power = reshape(data[2][:,medoids], nh, 1, :))
     # Production
-    pv = (t = reshape(hcat([ω.pv.t[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters), power = reshape(hcat([ω.pv.power[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters), cost =  repeat(ω.pv.cost[y:y, s:s],1,reducer.clustering.n_clusters))
+    pv = (t = reshape(t[3][:,medoids], nh, 1, :), power = reshape(data[3][:,medoids], nh, 1, :), cost =  repeat(ω.pv.cost[y:y, s:s], 1, length(medoids)))
     # Electricity tariff
-    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters), cost_out = reshape(hcat([ω.grid.cost_out[:,:,s] for s in 1:ns]...)[:, medoids],:,1,reducer.clustering.n_clusters))
+    grid = (cost_in = reshape(data[4][:,medoids], nh, 1, :), cost_out = reshape(data[5][:,medoids], nh, 1, :))
     # Investment costs
-    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
-    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
-    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
-    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
-    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
-    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.clustering.n_clusters),)
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s], 1, length(medoids)),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s], 1, length(medoids)),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s], 1, length(medoids)),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s], 1, length(medoids)),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s], 1, length(medoids)),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s], 1, length(medoids)),)
 
     return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), probabilities, assignments
 end
 
-# Normalization
-struct MinMax <: AbstractNormalizer end
-
-function normalization(method::MinMax, data...)
-    # Dimensions
-    d = size(data[1], 1)
-    # Normalization
-    norm = [reshape(maximum(x) == minimum(x) ? x ./ maximum(x) : (x .- minimum(x)) ./ (maximum(x) .- minimum(x)), d, :) for x in data]
-    # Aggregation
-    return vcat(norm...)
-end
+# Transformation
+StatsBase.standardize(DT::Nothing, X; dims=nothing, kwargs...) = X
 
 # Dimension reduction
 # UMAP
-mutable struct UMAP <: AbstractDimensionReducer
+mutable struct UMAPReduction <: AbstractDimensionReducer
     n_components::Int64
     n_neighbors::Int64
     distance::Distances.SemiMetric
 
-    UMAP(; n_components = 2, n_neighbors = 15, distance = Distances.Euclidean()) = new(n_components, n_neighbors, distance)
+    UMAPReduction(; n_components = 2, n_neighbors = 15, distance = Distances.Euclidean()) = new(n_components, n_neighbors, distance)
 end
 
-function dimension_reduction(reducer::UMAP, data::AbstractArray{Float64,2})
+function dimension_reduction(reducer::UMAPReduction, data::AbstractArray{Float64,2})
     # data is a d x n matrix with d dimension and n observation
     return umap(data, reducer.n_components)
 end
 
 # PCA
-mutable struct PrincipalComponentAnalysis <: AbstractDimensionReducer
+mutable struct PCAReduction <: AbstractDimensionReducer
     n_components::Int64
 
-    PrincipalComponentAnalysis(; n_components = 2) = new(n_components)
+    PCAReduction(; n_components = 2) = new(n_components)
 end
 
-function dimension_reduction(reducer::PrincipalComponentAnalysis, data::AbstractArray{Float64,2})
+function dimension_reduction(reducer::PCAReduction, data::AbstractArray{Float64,2})
     # data is a d x n matrix with d dimension and n observation
     m = MultivariateStats.fit(PCA, data, maxoutdim = reducer.n_components)
     return MultivariateStats.transform(m, data)
 end
 
 # Statistical moments
-struct Moments <: AbstractDimensionReducer
+struct StatMomentReduction <: AbstractDimensionReducer
     n_moments::Int64
 
-    Moments(; n_moments = 4) = new(n_moments)
+    StatMomentReduction(; n_moments = 4) = new(n_moments)
 end
 
-function dimension_reduction(reducer::Moments, data::AbstractArray{Float64,2})
+function dimension_reduction(reducer::StatMomentReduction, data::AbstractArray{Float64,2})
     # data is a d x n matrix with d dimension and n observation
     out = hcat([moment(data[:,j], m) for j in 1:size(data,2), m in 1:reducer.n_moments])
     return permutedims(out)
@@ -192,15 +187,15 @@ end
 
 # Clustering methods
 # K-medoids
-mutable struct Kmedoids <: AbstractClusteringMethod
+mutable struct KmedoidsClustering <: AbstractClusteringMethod
     n_clusters::Int64
     distance::Distances.SemiMetric
     log::Bool
 
-    Kmedoids(; n_clusters = 10, distance = Distances.Euclidean(), log = true) = new(n_clusters, distance, log)
+    KmedoidsClustering(; n_clusters = 10, distance = Distances.Euclidean(), log = true) = new(n_clusters, distance, log)
 end
 
-function clustering(method::Kmedoids, embedding::AbstractArray{Float64,2})
+function clustering(method::KmedoidsClustering, embedding::AbstractArray{Float64,2})
     # data is a d x n matrix with d dimension and n observation
     # Distance matrix
     D = pairwise(method.distance, embedding, dims = 2)
@@ -211,14 +206,14 @@ function clustering(method::Kmedoids, embedding::AbstractArray{Float64,2})
 end
 
 # HDBSCAN
-mutable struct DensityBased <: AbstractClusteringMethod
+mutable struct HDBSCANClustering <: AbstractClusteringMethod
     n_clusters::Int64
     min_cluster_size::Int64
 
-    DensityBased(; n_clusters = 10, min_cluster_size = 5) = new(n_clusters, min_cluster_size)
+    HDBSCANClustering(; n_clusters = 10, min_cluster_size = 5) = new(n_clusters, min_cluster_size)
 end
 
-function clustering(method::DensityBased, embedding::AbstractArray{Float64,2})
+function clustering(method::HDBSCANClustering, embedding::AbstractArray{Float64,2})
     # data is a d x n matrix with d dimension and n observation
     results = HDBSCAN.hdbscan(embedding, min_cluster_size = method.min_cluster_size)
     # Retrieve vectors and of each cluster
