@@ -102,7 +102,7 @@ end
 # Clustering scenario reduction
 mutable struct FeatureBasedReducer <: AbstractScenariosReducer
     transformation::Union{UnionAll, Nothing}
-    reduction::AbstractDimensionReducer
+    reduction::Union{AbstractDimensionReducer, Nothing}
     clustering::AbstractClusteringMethod
 
     FeatureBasedReducer(; transformation = UnitRangeTransform,
@@ -115,9 +115,9 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, A
     nh, ny, ns = size(ω.ld_E.power)
     # Data to be reduced : data is a tuple of d x n matrix with d dimension and n observation
     t = [reshape(ω.ld_E.t[:,2:end,:], nh, :), reshape(ω.ld_H.t[:,2:end,:], nh, :), reshape(ω.pv.t[:,2:end,:], nh, :)]
-    data = [reshape(ω.ld_E.power[:,2:end,:], nh, :), reshape(ω.ld_H.power[:,2:end,:], nh, :), reshape(ω.pv.power[:,2:end,:], nh, :), reshape(ω.grid.cost_in[:,2:end,:], nh, :), reshape(ω.grid.cost_out[:,2:end,:], nh, :)]
-    # Transformation & aggregation
-    norm = replace!(vcat([Genesys.StatsBase.standardize(reducer.transformation, d, dims = 1) for d in data]...), NaN => 0.)
+    data = [reshape(ω.ld_E.power[:,2:end,:], nh, :), reshape(ω.ld_H.power[:,2:end,:], nh, :), reshape(ω.pv.power[:,2:end,:], nh, :), reshape(ω.grid.cost_in[:,2:end,:], nh, :)]
+    # Transformation
+    norm = replace!.([Genesys.StatsBase.standardize(reducer.transformation, d, dims = 1) for d in data], NaN => 0.)
     # Dimension reduction
     embedding = dimension_reduction(reducer.reduction, norm)
     # Clustering
@@ -129,7 +129,7 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, A
     # Production
     pv = (t = reshape(t[3][:,medoids], nh, 1, :), power = reshape(data[3][:,medoids], nh, 1, :), cost =  repeat(ω.pv.cost[y:y, s:s], 1, length(medoids)))
     # Electricity tariff
-    grid = (cost_in = reshape(data[4][:,medoids], nh, 1, :), cost_out = reshape(data[5][:,medoids], nh, 1, :))
+    grid = (cost_in = reshape(data[4][:,medoids], nh, 1, :), cost_out = reshape(reshape(ω.grid.cost_out[:,2:end,:], nh, :)[:,medoids], nh, 1, :))
     # Investment costs
     liion = (cost =  repeat(ω.liion.cost[y:y, s:s], 1, length(medoids)),)
     tes = (cost =  repeat(ω.tes.cost[y:y, s:s], 1, length(medoids)),)
@@ -154,9 +154,13 @@ mutable struct UMAPReduction <: AbstractDimensionReducer
     UMAPReduction(; n_components = 2, n_neighbors = 15, distance = Distances.Euclidean()) = new(n_components, n_neighbors, distance)
 end
 
-function dimension_reduction(reducer::UMAPReduction, data::AbstractArray{Float64,2})
-    # data is a d x n matrix with d dimension and n observation
-    return umap(data, reducer.n_components)
+function dimension_reduction(reducer::UMAPReduction, data::Array{Array{Float64,2}}; aggregated::Bool=false)
+    # data is a vector of d x n matrix with d dimension and n observation
+    if aggregated
+        return umap(vcat(data...), reducer.n_components)
+    else
+        return vcat([umap(d, reducer.n_components) for d in data]...)
+    end
 end
 
 # PCA
@@ -166,24 +170,50 @@ mutable struct PCAReduction <: AbstractDimensionReducer
     PCAReduction(; n_components = 2) = new(n_components)
 end
 
-function dimension_reduction(reducer::PCAReduction, data::AbstractArray{Float64,2})
-    # data is a d x n matrix with d dimension and n observation
-    m = MultivariateStats.fit(PCA, data, maxoutdim = reducer.n_components)
-    return MultivariateStats.transform(m, data)
+function dimension_reduction(reducer::PCAReduction, data::Array{Array{Float64,2}}; aggregated::Bool=false)
+    # data is a vector of d x n matrix with d dimension and n observation
+    if aggregated
+        m = MultivariateStats.fit(PCA, vcat(data...), maxoutdim = reducer.n_components)
+        return MultivariateStats.transform(m, data)
+    else
+        M = [MultivariateStats.fit(PCA, d, maxoutdim = reducer.n_components) for d in data]
+        return vcat([MultivariateStats.transform(M[k], data[k]) for k in 1:length(data)]...)
+    end
 end
 
 # Statistical moments
-struct StatMomentReduction <: AbstractDimensionReducer
-    n_moments::Int64
+struct StatsReduction <: AbstractDimensionReducer end
 
-    StatMomentReduction(; n_moments = 4) = new(n_moments)
+function dimension_reduction(reducer::StatsReduction, data::Array{Array{Float64,2}}; aggregated::Bool=false)
+    # data is a vector of d x n matrix with d dimension and n observation
+    if aggregated
+        d = vcat(data...)
+        # Sum
+        s = sum(d, dims = 1)
+        # Max
+        max = maximum(d, dims = 1)
+        # 4 moments
+        m = mean(d, dims = 1)
+        v = var(d, dims = 1)
+        kurt = permutedims([kurtosis(d[:,j]) for j in 1:size(d, 2)])
+        skew = permutedims([skewness(d[:,j]) for j in 1:size(d, 2)])
+    else
+        # Sum
+        s = vcat([sum(d, dims = 1) for d in data]...)
+        # Max
+        max = vcat([maximum(d, dims = 1) for d in data]...)
+        # 4 moments
+        m = vcat([mean(d, dims = 1) for d in data]...)
+        v = vcat([var(d, dims = 1) for d in data]...)
+        kurt = vcat([permutedims([kurtosis(d[:,j]) for j in 1:size(d, 2)]) for d in data]...)
+        skew = vcat([permutedims([skewness(d[:,j]) for j in 1:size(d, 2)]) for d in data]...)
+    end
+    # Return aggregated values
+    return vcat(s, max, m, v, kurt, skew)
 end
 
-function dimension_reduction(reducer::StatMomentReduction, data::AbstractArray{Float64,2})
-    # data is a d x n matrix with d dimension and n observation
-    out = hcat([moment(data[:,j], m) for j in 1:size(data,2), m in 1:reducer.n_moments])
-    return permutedims(out)
-end
+# No reduction
+dimension_reduction(reducer::Nothing, data::AbstractArray{Float64,2}) = data
 
 # Clustering methods
 # K-medoids

@@ -27,7 +27,7 @@ include(joinpath("scenarios","utils.jl"))
 export Scenarios
 export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
 export UnitRangeTransform, ZScoreTransform
-export UMAPReduction, PCAReduction, StatMomentReduction
+export UMAPReduction, PCAReduction, StatsReduction
 export KmedoidsClustering, HDBSCANClustering
 export MarkovGenerator
 export reduce, generate
