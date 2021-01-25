@@ -30,7 +30,7 @@ using Genesys, CSV, DataFrames, JLD, Dates
 const nh, ny, ns = 8760, 2, 1000 # nh = operation stages, ny = investment stages, ns = scenarios
 
 # Load data
-data = load(joinpath("data","ausgrid_scenarios.jld"))
+data = load(...path\scenarios.jld"))
 
 # Initialize scenarios
 ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
