@@ -51,4 +51,8 @@ designer = initialize_designer!(DES, Metaheuristic(), ω_optim)
 # Simulate
 simulate!(DES, controller, designer, ω_simu, options = Genesys.Options(mode="multithreads"))
 
+# Metrics
+metrics = Metrics(DES, designer)
+
+
 ```
