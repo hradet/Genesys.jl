@@ -29,7 +29,7 @@ export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
 export UnitRangeTransform, ZScoreTransform
 export UMAPReduction, PCAReduction, StatsReduction
 export KmedoidsClustering, HDBSCANClustering
-export MarkovGenerator
+export MarkovGenerator, AnticipativeGenerator
 export reduce, generate
 # Risk measures
 include(joinpath("optimization","risk_measures.jl"))

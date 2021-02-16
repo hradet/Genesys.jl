@@ -7,7 +7,7 @@ mutable struct Heater
      η_E_H::Float64
      lifetime::Float64
      # Initial conditions
-     powerMax_ini
+     powerMax_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
      power_E::AbstractArray{Float64,3}
