@@ -4,14 +4,18 @@
 
 mutable struct OLFCOptions
     solver
+    reducer::AbstractScenariosReducer
     generator::AbstractScenariosGenerator
     horizon::Int64
     nscenarios::Int64
+    deterministic_targets::Union{JuMP.Model, Nothing}
 
     OLFCOptions(; solver = CPLEX,
+                  reducer = ManualReducer(y=2:2),
                   generator = MarkovGenerator(),
                   horizon = 24,
-                  nscenarios = 1) = new(solver, generator, horizon, nscenarios)
+                  nscenarios = 1,
+                  deterministic_targets = nothing) = new(solver, reducer, generator, horizon, nscenarios, deterministic_targets)
 end
 
 mutable struct OLFC <: AbstractController
@@ -63,10 +67,13 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_liion[1:nh+1]
     soc_tes[1:nh+1]
     soc_h2tank[1:nh+1]
-    # Initial states to be fixed
+    # Initial and final states to be fixed
     soc_liion_ini
+    soc_liion_end
     soc_tes_ini
+    soc_tes_end
     soc_h2tank_ini
+    soc_h2tank_end
     # Investment variables to be fixed
     r_liion == 0
     r_tes == 0
@@ -102,9 +109,9 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_liion[1] == soc_liion_ini
     soc_tes[1] == soc_tes_ini
     soc_h2tank[1] == soc_h2tank_ini
-    soc_liion[end] >= soc_liion[1]
-    soc_tes[end] >= soc_tes[1]
-    soc_h2tank[end] >= soc_h2tank[1]
+    soc_liion[end] >= soc_liion_end
+    soc_tes[end] >= soc_tes_end
+    soc_h2tank[end] >= soc_h2tank_end
     # Power balances
     [h in 1:nh, s in 1:ns], p_net_E[h,s] <= p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], p_net_H[h,s] <= p_tes_ch[h] + p_tes_dch[h] - elyz.η_E_H .* p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E .* p_fc_E[h] - heater.η_E_H .* p_heater_E[h]
@@ -118,11 +125,11 @@ function initialize_controller!(des::DistributedEnergySystem, controller::OLFC, 
      # Build model
      controller.model = build_model(des, controller)
 
-     # Scenario reduciton
-     ω_markov = reduce(ManualReducer(h = 1:des.parameters.nh, y = 1:des.parameters.ny), ω)[1]
+     # Scenario reduction
+     ω_reduced = reduce(controller.options.reducer, ω)[1]
 
      # Compute markov chain for scenario generation
-     isa(des.ld_H, Load) ? controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E, ω_markov.ld_H) : controller.options.generator = initialize_generator!(controller.options.generator, ω_markov.pv, ω_markov.ld_E)
+     isa(des.ld_H, Load) ? controller.options.generator = initialize_generator!(controller.options.generator, ω_reduced.pv, ω_reduced.ld_E, ω_reduced.ld_H) : controller.options.generator = initialize_generator!(controller.options.generator, ω_reduced.pv, ω_reduced.ld_E)
 
      # Preallocate
      preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
@@ -138,15 +145,16 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
     isa(des.ld_H, Load) ? s0 = [des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.ld_E.power[h,y,s], des.ld_H.power[h,y,s]] : s0 = [des.pv.power_E[h,y,s] / des.pv.powerMax[y,s], des.ld_E.power[h,y,s]]
     t0 = des.pv.timestamp[h,y,s]
 
-    # Compute forecast
+    # Demand and production forecast
     forecast, proba = generate(controller.options.generator, s0, t0, controller.options.horizon, ny = controller.options.nscenarios)
+
+    # Operating cost
     cost_in = vcat(des.grid.cost_in[window,y,s], zeros(n_zeros)) ; cost_out = vcat(des.grid.cost_out[window,y,s], zeros(n_zeros))
 
     # Fix forecast and state variables
     fix_variables!(h, y, s, des, controller, forecast)
 
     # Objective function
-    proba = proba ./ sum(proba) # the sum must be equal to 1...
     @objective(controller.model, Min, sum(proba[s] .* (controller.model[:p_g_in][h,s] .* cost_in[h] .+ controller.model[:p_g_out][h,s] .* cost_out[h]) * des.parameters.Δh for h in 1:controller.options.horizon, s in 1:controller.options.nscenarios))
 
     # Optimize
@@ -170,16 +178,24 @@ function fix_variables!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySyst
 
     if isa(des.liion, Liion)
         fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
+        fix(controller.model[:soc_liion_end], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
         fix(controller.model[:r_liion], des.liion.Erated[y,s])
     end
 
     if isa(des.tes, ThermalSto)
         fix(controller.model[:soc_tes_ini], des.tes.soc[h,y,s] * des.tes.Erated[y,s])
+        fix(controller.model[:soc_tes_end], des.tes.soc[h,y,s] * des.tes.Erated[y,s])
         fix(controller.model[:r_tes], des.tes.Erated[y,s])
     end
 
     if isa(des.h2tank, H2Tank)
+
         fix(controller.model[:soc_h2tank_ini], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
+        if isa(controller.options.deterministic_targets, Nothing)
+            fix(controller.model[:soc_h2tank_end], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
+        else
+            fix(controller.model[:soc_h2tank_end], minimum(value.(controller.options.deterministic_targets[:soc_h2tank])[min(des.parameters.nh,h+controller.options.horizon-1),:]))
+        end
         fix(controller.model[:r_h2tank], des.h2tank.Erated[y,s])
     end
 

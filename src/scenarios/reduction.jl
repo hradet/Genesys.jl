@@ -106,8 +106,8 @@ mutable struct FeatureBasedReducer <: AbstractScenariosReducer
     clustering::AbstractClusteringMethod
 
     FeatureBasedReducer(; transformation = UnitRangeTransform,
-                        reduction = UMAPReduction(),
-                        clustering = HDBSCANClustering()) = new(transformation, reduction, clustering)
+                        reduction = StatsReduction(),
+                        clustering = KmedoidsClustering()) = new(transformation, reduction, clustering)
 end
 
 function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)

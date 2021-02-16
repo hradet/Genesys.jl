@@ -227,5 +227,38 @@ function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny
         idx_0 = idx_1
     end
 
-    return ω_generated, prod(probabilities, dims=1)[1,:,:]
+    return ω_generated, prod(probabilities, dims=1)[1,:,:] / sum(prod(probabilities, dims=1)[1,:,:])
+end
+
+# Perfect foresight generator
+mutable struct AnticipativeGenerator <: AbstractScenariosGenerator
+    forecast
+    AnticipativeGenerator() = new()
+end
+
+function initialize_generator!(generator::AnticipativeGenerator, data...)
+    # Store anticipative forecast
+    generator.forecast = [d for d in data]
+    return generator
+end
+
+# Generate perfect forecast
+function generate(generator::AnticipativeGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
+    # Current index
+    idx = findfirst(generator.forecast[1].t .== t0)[1]
+    if length(generator.forecast[1].t[idx:end]) < nstep
+        # Windows
+        windows = idx : idx + length(generator.forecast[1].t[idx:end]) - 1
+        # Add zeros to have a constant size
+        n_zeros = nstep - length(windows)
+        # Forecast
+        forecast = [vcat(d.power[windows], zeros(n_zeros)) for d in generator.forecast]
+    else
+        # Windows
+        windows = idx : idx + nstep - 1
+        # Forecast
+        forecast = [d.power[windows] for d in generator.forecast]
+    end
+
+    return forecast, [1.]
 end
