@@ -189,9 +189,9 @@ function dimension_reduction(reducer::StatsReduction, data::Array{Array{Float64,
     if aggregated
         d = vcat(data...)
         # Sum
-        s = sum(d, dims = 1)
+        # s = sum(d, dims = 1)
         # Max
-        max = maximum(d, dims = 1)
+        # max = maximum(d, dims = 1)
         # 4 moments
         m = mean(d, dims = 1)
         v = var(d, dims = 1)
@@ -199,9 +199,9 @@ function dimension_reduction(reducer::StatsReduction, data::Array{Array{Float64,
         skew = permutedims([skewness(d[:,j]) for j in 1:size(d, 2)])
     else
         # Sum
-        s = vcat([sum(d, dims = 1) for d in data]...)
+        # s = vcat([sum(d, dims = 1) for d in data]...)
         # Max
-        max = vcat([maximum(d, dims = 1) for d in data]...)
+        # max = vcat([maximum(d, dims = 1) for d in data]...)
         # 4 moments
         m = vcat([mean(d, dims = 1) for d in data]...)
         v = vcat([var(d, dims = 1) for d in data]...)
@@ -209,11 +209,12 @@ function dimension_reduction(reducer::StatsReduction, data::Array{Array{Float64,
         skew = vcat([permutedims([skewness(d[:,j]) for j in 1:size(d, 2)]) for d in data]...)
     end
     # Return aggregated values
-    return vcat(s, max, m, v, kurt, skew)
+    # return vcat(s, max, m, v, kurt, skew)
+    return vcat(m, v, kurt, skew)
 end
 
 # No reduction
-dimension_reduction(reducer::Nothing, data::AbstractArray{Float64,2}) = data
+dimension_reduction(reducer::Nothing, data::Array{Array{Float64,2}}) = vcat(data...)
 
 # Clustering methods
 # K-medoids

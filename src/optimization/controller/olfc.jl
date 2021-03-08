@@ -146,7 +146,7 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
     t0 = des.pv.timestamp[h,y,s]
 
     # Demand and production forecast
-    forecast, proba = generate(controller.options.generator, s0, t0, controller.options.horizon, ny = controller.options.nscenarios)
+    forecast, proba = generate(controller.options.generator, s0, t0, controller.options.horizon, ny = controller.options.nscenarios, h = h)
 
     # Operating cost
     cost_in = vcat(des.grid.cost_in[window,y,s], zeros(n_zeros)) ; cost_out = vcat(des.grid.cost_out[window,y,s], zeros(n_zeros))

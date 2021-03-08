@@ -190,7 +190,7 @@ function initialize_generator!(generator::MarkovGenerator, data...)
 end
 
 # Generate scenario from markov chains
-function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
+function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1, h::Int64 = 1)
     # Initialize state with the closest value
     mc = chose(generator, t0)
     Δ_s0 = [s0 .- mc.states[Dates.month(t0)][Dates.hour(t0)+1, :, :][:,state] for state in 1:generator.nstate]
@@ -243,19 +243,18 @@ function initialize_generator!(generator::AnticipativeGenerator, data...)
 end
 
 # Generate perfect forecast
-function generate(generator::AnticipativeGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
+function generate(generator::AnticipativeGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1, h::Int64=1)
     # Current index
-    idx = findfirst(generator.forecast[1].t .== t0)[1]
-    if length(generator.forecast[1].t[idx:end]) < nstep
+    if length(generator.forecast[1].t[h:end]) < nstep
         # Windows
-        windows = idx : idx + length(generator.forecast[1].t[idx:end]) - 1
+        windows = h : h + length(generator.forecast[1].t[h:end]) - 1
         # Add zeros to have a constant size
         n_zeros = nstep - length(windows)
         # Forecast
         forecast = [vcat(d.power[windows], zeros(n_zeros)) for d in generator.forecast]
     else
         # Windows
-        windows = idx : idx + nstep - 1
+        windows = h : h + nstep - 1
         # Forecast
         forecast = [d.power[windows] for d in generator.forecast]
     end
