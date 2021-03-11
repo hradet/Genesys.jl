@@ -2,8 +2,6 @@
 
 A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods and multi-scenarios assessment.  
 
-Note that **_out-of-sample_** assesment is made possible as we can optimize and simulate with different scenarios.
-
 # Installation
 In order to use the package, follow the [managing package guideline](https://julialang.github.io/Pkg.jl/v1/managing-packages/) for uneregistred packages.
 
