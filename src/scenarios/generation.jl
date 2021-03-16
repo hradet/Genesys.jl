@@ -41,7 +41,7 @@ function compute_markov_states(data, nstate::Int64, algo::String)
     sequences = zeros(Int64, nh+1, nd)
 
     # Normalization
-    data_n = data ./ maximum.(data)
+    data_n = replace!.(data ./ maximum.(data), NaN => 0.)
 
     # Clustering
     for h in 1:nh

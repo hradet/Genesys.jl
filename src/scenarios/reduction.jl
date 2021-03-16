@@ -119,7 +119,7 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, A
     # Transformation
     norm = replace!.([Genesys.StatsBase.standardize(reducer.transformation, d, dims = 1) for d in data], NaN => 0.)
     # Dimension reduction
-    embedding = dimension_reduction(reducer.reduction, norm)
+    embedding = replace!(dimension_reduction(reducer.reduction, norm), NaN => 0.)
     # Clustering
     medoids, probabilities, assignments = clustering(reducer.clustering, embedding)
     # Building reduced scenario
@@ -223,7 +223,7 @@ mutable struct KmedoidsClustering <: AbstractClusteringMethod
     distance::Distances.SemiMetric
     log::Bool
 
-    KmedoidsClustering(; n_clusters = 10, distance = Distances.Euclidean(), log = true) = new(n_clusters, distance, log)
+    KmedoidsClustering(; n_clusters = 20, distance = Distances.Euclidean(), log = true) = new(n_clusters, distance, log)
 end
 
 function clustering(method::KmedoidsClustering, embedding::AbstractArray{Float64,2})
