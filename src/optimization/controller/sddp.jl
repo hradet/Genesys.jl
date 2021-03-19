@@ -138,7 +138,7 @@ function initialize_controller!(des::DistributedEnergySystem, controller::SDDPC,
     # Train policy
     SDDP.train(controller.model,
                risk_measure = controller.options.risk,
-               parallel_scheme = controller.options.parallel
+               parallel_scheme = controller.options.parallel,
                iteration_limit = controller.options.iterations,
                print_level = 0)
 
