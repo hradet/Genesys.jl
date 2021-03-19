@@ -19,14 +19,14 @@ In order to use the package, follow the [managing package guideline](https://jul
   - Stochastic dual dynamic programming (SDDP)
  
  # Scenario generation and reduction methods
- - Generation
-  - Markov
+- Generation  
   - Anticipative
- 
- - Reduction
+  - Markov
+
+- Reduction
   - Manual
-  - Monte Carlo
-  - Mean
+  - Mean value
+  - Monte Carlo  
   - Feature based
   
 # Example
