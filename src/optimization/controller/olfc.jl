@@ -8,22 +8,35 @@ mutable struct OLFCOptions
     generator::AbstractScenariosGenerator
     horizon::Int64
     nscenarios::Int64
-    deterministic_targets::Union{JuMP.Model, Nothing}
+    seasonal_targets::Union{Array{Float64,2}, Nothing}
 
     OLFCOptions(; solver = CPLEX,
                   reducer = ManualReducer(y=2:2),
                   generator = MarkovGenerator(),
                   horizon = 24,
                   nscenarios = 1,
-                  deterministic_targets = nothing) = new(solver, reducer, generator, horizon, nscenarios, deterministic_targets)
+                  seasonal_targets = nothing) = new(solver, reducer, generator, horizon, nscenarios, seasonal_targets)
 end
 
 mutable struct OLFC <: AbstractController
     options::OLFCOptions
+    pv::Float64
+    liion::Float64
+    tes::Float64
+    h2tank::Float64
+    elyz::Float64
+    fc::Float64
     u::NamedTuple
     model::JuMP.Model
     history::AbstractScenarios
-    OLFC(; options = OLFCOptions()) = new(options)
+    OLFC(; options = OLFCOptions(),
+                pv = 0.,
+                liion = 0.,
+                tes = 0.,
+                h2tank = 0.,
+                elyz = 0.,
+                fc = 0.) =
+                new(options, pv, liion, tes, h2tank, elyz, fc)
 end
 
 ### Model
@@ -47,20 +60,19 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
      set_optimizer_attribute(m,"CPX_PARAM_SCRIND", 0)
 
     # Build model
-
     @variables(m, begin
     # Operation decisions variables
-    p_liion_ch[1:nh] <= 0.
-    p_liion_dch[1:nh] >= 0.
-    p_tes_ch[1:nh] <= 0.
-    p_tes_dch[1:nh] >= 0.
-    p_h2tank_ch[1:nh] <= 0.
-    p_h2tank_dch[1:nh] >= 0.
-    p_elyz_E[1:nh] <= 0.
-    p_fc_E[1:nh] >= 0.
-    p_heater_E[1:nh] <= 0.
+    p_liion_ch[1:nh]    <= 0.
+    p_liion_dch[1:nh]   >= 0.
+    p_tes_ch[1:nh]      <= 0.
+    p_tes_dch[1:nh]     >= 0.
+    p_h2tank_ch[1:nh]   <= 0.
+    p_h2tank_dch[1:nh]  >= 0.
+    p_elyz_E[1:nh]      <= 0.
+    p_fc_E[1:nh]        >= 0.
+    p_heater_E[1:nh]    <= 0.
     p_g_out[1:nh, 1:ns] <= 0.
-    p_g_in[1:nh, 1:ns] >= 0.
+    p_g_in[1:nh, 1:ns]  >= 0.
     p_net_E[1:nh, 1:ns]
     p_net_H[1:nh, 1:ns]
     # Operation state variables
@@ -69,53 +81,45 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_h2tank[1:nh+1]
     # Initial and final states to be fixed
     soc_liion_ini
-    soc_liion_end
     soc_tes_ini
-    soc_tes_end
     soc_h2tank_ini
     soc_h2tank_end
-    # Investment variables to be fixed
-    r_liion == 0
-    r_tes == 0
-    r_h2tank == 0
-    r_elyz == 0
-    r_fc == 0
     end)
     @constraints(m, begin
     # Power bounds
-    [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * r_liion
-    [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * r_liion
-    [h in 1:nh], p_tes_dch[h] <= tes.α_p_dch * r_tes
-    [h in 1:nh], p_tes_ch[h] >= -tes.α_p_ch * r_tes
-    [h in 1:nh], p_h2tank_dch[h] <= h2tank.α_p_dch * r_h2tank
-    [h in 1:nh], p_h2tank_ch[h] >= -h2tank.α_p_ch * r_h2tank
-    [h in 1:nh], p_elyz_E[h] >= -r_elyz
-    [h in 1:nh], p_fc_E[h] <= r_fc
-    [h in 1:nh], p_heater_E[h] >= -heater.powerMax_ini
-    [h in 1:nh, s in 1:ns], p_g_in[h,s] <= grid.powerMax
+    [h in 1:nh], p_liion_dch[h]          <= liion.α_p_dch * controller.liion
+    [h in 1:nh], p_liion_ch[h]           >= -liion.α_p_ch * controller.liion
+    [h in 1:nh], p_tes_dch[h]            <= tes.α_p_dch * controller.tes
+    [h in 1:nh], p_tes_ch[h]             >= -tes.α_p_ch * controller.tes
+    [h in 1:nh], p_h2tank_dch[h]         <= h2tank.α_p_dch * controller.h2tank
+    [h in 1:nh], p_h2tank_ch[h]          >= -h2tank.α_p_ch * controller.h2tank
+    [h in 1:nh], p_elyz_E[h]             >= -controller.elyz
+    [h in 1:nh], p_fc_E[h]               <= controller.fc
+    [h in 1:nh], p_heater_E[h]           >= -heater.powerMax_ini
+    [h in 1:nh, s in 1:ns], p_g_in[h,s]  <= grid.powerMax
     [h in 1:nh, s in 1:ns], p_g_out[h,s] >= -grid.powerMax
     # SoC bounds
-    [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * r_liion
-    [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * r_liion
-    [h in 1:nh+1], soc_tes[h] <= tes.α_soc_max * r_tes
-    [h in 1:nh+1], soc_tes[h] >= tes.α_soc_min * r_tes
-    [h in 1:nh+1], soc_h2tank[h] <= h2tank.α_soc_max * r_h2tank
-    [h in 1:nh+1], soc_h2tank[h] >= h2tank.α_soc_min * r_h2tank
+    [h in 1:nh+1], soc_liion[h]  <= liion.α_soc_max * controller.liion
+    [h in 1:nh+1], soc_liion[h]  >= liion.α_soc_min * controller.liion
+    [h in 1:nh+1], soc_tes[h]    <= tes.α_soc_max * controller.tes
+    [h in 1:nh+1], soc_tes[h]    >= tes.α_soc_min * controller.tes
+    [h in 1:nh+1], soc_h2tank[h] <= h2tank.α_soc_max * controller.h2tank
+    [h in 1:nh+1], soc_h2tank[h] >= h2tank.α_soc_min * controller.h2tank
     # State dynamics
-    [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * des.parameters.Δh
-    [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * tes.η_ch + p_tes_dch[h] / tes.η_dch) * des.parameters.Δh
+    [h in 1:nh], soc_liion[h+1]  == soc_liion[h] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * des.parameters.Δh
+    [h in 1:nh], soc_tes[h+1]    == soc_tes[h] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * tes.η_ch + p_tes_dch[h] / tes.η_dch) * des.parameters.Δh
     [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * h2tank.η_ch + p_h2tank_dch[h] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final conditions
-    soc_liion[1] == soc_liion_ini
-    soc_tes[1] == soc_tes_ini
-    soc_h2tank[1] == soc_h2tank_ini
-    soc_liion[end] >= soc_liion_end
-    soc_tes[end] >= soc_tes_end
+    soc_liion[1]    == soc_liion_ini
+    soc_tes[1]      == soc_tes_ini
+    soc_h2tank[1]   == soc_h2tank_ini
+    soc_liion[end]  >= soc_liion[1]
+    soc_tes[end]    >= soc_tes[1]
     soc_h2tank[end] >= soc_h2tank_end
     # Power balances
     [h in 1:nh, s in 1:ns], p_net_E[h,s] <= p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], p_net_H[h,s] <= p_tes_ch[h] + p_tes_dch[h] - elyz.η_E_H .* p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E .* p_fc_E[h] - heater.η_E_H .* p_heater_E[h]
-    [h in 1:nh, s in 1:ns], 0. == p_h2tank_ch[h] + p_h2tank_dch[h] - elyz.η_E_H2 * p_elyz_E[h] - p_fc_E[h] / fc.η_H2_E
+    [h in 1:nh, s in 1:ns], 0.           == p_h2tank_ch[h] + p_h2tank_dch[h] - elyz.η_E_H2 * p_elyz_E[h] - p_fc_E[h] / fc.η_H2_E
     end)
 
     return m
@@ -175,30 +179,15 @@ function fix_variables!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySyst
     # Fix forecast and state variables
     isa(des.ld_E, Load) ? fix.(controller.model[:p_net_E], forecast[2] .- des.pv.powerMax[y,s] .* forecast[1]) : fix.(controller.model[:p_net_E], 0.)
     isa(des.ld_H, Load) ? fix.(controller.model[:p_net_H], forecast[3]) : fix.(controller.model[:p_net_H], 0.)
-
-    if isa(des.liion, Liion)
-        fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
-        fix(controller.model[:soc_liion_end], des.liion.soc[h,y,s] * des.liion.Erated[y,s])
-        fix(controller.model[:r_liion], des.liion.Erated[y,s])
-    end
-
-    if isa(des.tes, ThermalSto)
-        fix(controller.model[:soc_tes_ini], des.tes.soc[h,y,s] * des.tes.Erated[y,s])
-        fix(controller.model[:soc_tes_end], des.tes.soc[h,y,s] * des.tes.Erated[y,s])
-        fix(controller.model[:r_tes], des.tes.Erated[y,s])
-    end
-
+    # Initial value for SoC
+    isa(des.liion, Liion) ? fix(controller.model[:soc_liion_ini], des.liion.soc[h,y,s] * des.liion.Erated[y,s]) : nothing
+    isa(des.tes, ThermalSto) ? fix(controller.model[:soc_tes_ini], des.tes.soc[h,y,s] * des.tes.Erated[y,s]) : nothing
     if isa(des.h2tank, H2Tank)
-
         fix(controller.model[:soc_h2tank_ini], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
-        if isa(controller.options.deterministic_targets, Nothing)
+        if isa(controller.options.seasonal_targets, Nothing)
             fix(controller.model[:soc_h2tank_end], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
         else
-            fix(controller.model[:soc_h2tank_end], minimum(value.(controller.options.deterministic_targets[:soc_h2tank])[min(des.parameters.nh,h+controller.options.horizon-1),:]))
+            fix(controller.model[:soc_h2tank_end], controller.options.seasonal_targets[min(des.parameters.nh,h+controller.options.horizon-1)])
         end
-        fix(controller.model[:r_h2tank], des.h2tank.Erated[y,s])
     end
-
-    isa(des.elyz, Electrolyzer) ? fix(controller.model[:r_elyz], des.elyz.powerMax[y,s]) : nothing
-    isa(des.fc, FuelCell) ? fix(controller.model[:r_fc], des.fc.powerMax[y,s]) : nothing
 end
