@@ -1,7 +1,7 @@
 module Genesys
 
 # Optimisation
-using JuMP, CPLEX, Metaheuristics
+using JuMP, CPLEX, Metaheuristics, SDDP
 # Math
 using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
 # Others
@@ -40,8 +40,9 @@ include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","olfc.jl"))
-export Dummy, RBC, OLFC, Anticipative
-export OLFCOptions, AnticipativeOptions
+include(joinpath("optimization","controller","sddp.jl"))
+export Dummy, RBC, OLFC, Anticipative, SDDPC
+export OLFCOptions, AnticipativeOptions, SDDPCOptions
 export initialize_controller!
 # Investment optimization
 include(joinpath("optimization","designer","abstract.jl"))
