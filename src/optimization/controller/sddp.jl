@@ -1,17 +1,19 @@
 #=
     Stochastic dual dynamic programming controller
 =#
-# TODO rajouter mode parallele
+
 mutable struct SDDPCOptions
     solver
     reducer::AbstractScenariosReducer
     risk::SDDP.AbstractRiskMeasure
+    parallel::SDDP.AbstractParallelScheme
     iterations::Int64
     seasonal_targets::Union{Array{Float64,2}, Nothing}
 
     SDDPCOptions(; solver = CPLEX,
                   reducer = ManualReducer(y=2:2),
                   risk = SDDP.Expectation(),
+                  parallel = SDDP.Serial(),
                   iterations = 100,
                   seasonal_targets = nothing) = new(solver, reducer, risk, iterations, seasonal_targets)
 end
@@ -134,7 +136,11 @@ function initialize_controller!(des::DistributedEnergySystem, controller::SDDPC,
     controller.model = build_model(des, controller, ω_reduced)
 
     # Train policy
-    SDDP.train(controller.model; risk_measure = controller.options.risk, iteration_limit = controller.options.iterations, print_level = 0)
+    SDDP.train(controller.model,
+               risk_measure = controller.options.risk,
+               parallel_scheme = controller.options.parallel
+               iteration_limit = controller.options.iterations,
+               print_level = 0)
 
     # Store policy for each stage
     controller.policy = [SDDP.DecisionRule(controller.model; node = h) for h in 1:des.parameters.nh]
