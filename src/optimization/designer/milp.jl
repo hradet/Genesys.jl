@@ -51,24 +51,24 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     # Variables
     @variables(m, begin
     # Operation decisions variables
-    p_liion_ch[1:nh, 1:ns] <= 0.
-    p_liion_dch[1:nh, 1:ns] >= 0.
-    p_tes_ch[1:nh, 1:ns] <= 0.
-    p_tes_dch[1:nh, 1:ns] >= 0.
-    p_h2tank_ch[1:nh, 1:ns] <= 0.
+    p_liion_ch[1:nh, 1:ns]   <= 0.
+    p_liion_dch[1:nh, 1:ns]  >= 0.
+    p_tes_ch[1:nh, 1:ns]     <= 0.
+    p_tes_dch[1:nh, 1:ns]    >= 0.
+    p_h2tank_ch[1:nh, 1:ns]  <= 0.
     p_h2tank_dch[1:nh, 1:ns] >= 0.
-    p_elyz_E[1:nh, 1:ns] <= 0.
-    p_fc_E[1:nh, 1:ns] >= 0.
-    p_heater_E[1:nh, 1:ns] <= 0.
-    p_g_out[1:nh, 1:ns] <= 0.
-    p_g_in[1:nh, 1:ns] >= 0.
+    p_elyz_E[1:nh, 1:ns]     <= 0.
+    p_fc_E[1:nh, 1:ns]       >= 0.
+    p_heater_E[1:nh, 1:ns]   <= 0.
+    p_g_out[1:nh, 1:ns]      <= 0.
+    p_g_in[1:nh, 1:ns]       >= 0.
     # Investment decisions variables
-    0 <= r_liion <= (isa(des.liion, Liion) ? 1000 : 0)
-    0 <= r_tes <= (isa(des.tes, ThermalSto) ? 1000 : 0)
+    0 <= r_liion  <= (isa(des.liion, Liion) ? 1000 : 0)
+    0 <= r_tes    <= (isa(des.tes, ThermalSto) ? 1000 : 0)
     0 <= r_h2tank <= (isa(des.h2tank, H2Tank) ? 50000 : 0)
-    0 <= r_elyz <= (isa(des.elyz, Electrolyzer) ? 50 : 0)
-    0 <= r_fc <= (isa(des.fc, FuelCell) ? 50 : 0)
-    0 <= r_pv <= (isa(des.pv, Source) ? 1000 : 0)
+    0 <= r_elyz   <= (isa(des.elyz, Electrolyzer) ? 50 : 0)
+    0 <= r_fc     <= (isa(des.fc, FuelCell) ? 50 : 0)
+    0 <= r_pv     <= (isa(des.pv, Source) ? 1000 : 0)
     # Operation state variables
     soc_liion[1:nh+1, 1:ns]
     soc_tes[1:nh+1, 1:ns]
@@ -77,39 +77,39 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     # Constraints
     @constraints(m, begin
     # Power bounds
-    [h in 1:nh, s in 1:ns], p_liion_dch[h,s] <= liion.α_p_dch * r_liion
-    [h in 1:nh, s in 1:ns], p_liion_ch[h,s] >= -liion.α_p_ch * r_liion
-    [h in 1:nh, s in 1:ns], p_tes_dch[h,s] <= tes.α_p_dch * r_tes
-    [h in 1:nh, s in 1:ns], p_tes_ch[h,s] >= -tes.α_p_ch * r_tes
+    [h in 1:nh, s in 1:ns], p_liion_dch[h,s]  <= liion.α_p_dch * r_liion
+    [h in 1:nh, s in 1:ns], p_liion_ch[h,s]   >= -liion.α_p_ch * r_liion
+    [h in 1:nh, s in 1:ns], p_tes_dch[h,s]    <= tes.α_p_dch * r_tes
+    [h in 1:nh, s in 1:ns], p_tes_ch[h,s]     >= -tes.α_p_ch * r_tes
     [h in 1:nh, s in 1:ns], p_h2tank_dch[h,s] <= h2tank.α_p_dch * r_h2tank
-    [h in 1:nh, s in 1:ns], p_h2tank_ch[h,s] >= -h2tank.α_p_ch * r_h2tank
-    [h in 1:nh, s in 1:ns], p_elyz_E[h,s] >= -r_elyz
-    [h in 1:nh, s in 1:ns], p_fc_E[h,s] <= r_fc
-    [h in 1:nh, s in 1:ns], p_heater_E[h,s] >= -heater.powerMax_ini
-    [h in 1:nh, s in 1:ns], p_g_in[h,s] <= grid.powerMax
-    [h in 1:nh, s in 1:ns], p_g_out[h,s] >= -grid.powerMax
+    [h in 1:nh, s in 1:ns], p_h2tank_ch[h,s]  >= -h2tank.α_p_ch * r_h2tank
+    [h in 1:nh, s in 1:ns], p_elyz_E[h,s]     >= -r_elyz
+    [h in 1:nh, s in 1:ns], p_fc_E[h,s]       <= r_fc
+    [h in 1:nh, s in 1:ns], p_heater_E[h,s]   >= -heater.powerMax_ini
+    [h in 1:nh, s in 1:ns], p_g_in[h,s]       <= grid.powerMax
+    [h in 1:nh, s in 1:ns], p_g_out[h,s]      >= -grid.powerMax
     # SoC bounds
-    [h in 1:nh+1, s in 1:ns], soc_liion[h,s] <= liion.α_soc_max * r_liion
-    [h in 1:nh+1, s in 1:ns], soc_liion[h,s] >= liion.α_soc_min * r_liion
-    [h in 1:nh+1, s in 1:ns], soc_tes[h,s] <= tes.α_soc_max * r_tes
-    [h in 1:nh+1, s in 1:ns], soc_tes[h,s] >= tes.α_soc_min * r_tes
+    [h in 1:nh+1, s in 1:ns], soc_liion[h,s]  <= liion.α_soc_max * r_liion
+    [h in 1:nh+1, s in 1:ns], soc_liion[h,s]  >= liion.α_soc_min * r_liion
+    [h in 1:nh+1, s in 1:ns], soc_tes[h,s]    <= tes.α_soc_max * r_tes
+    [h in 1:nh+1, s in 1:ns], soc_tes[h,s]    >= tes.α_soc_min * r_tes
     [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] <= h2tank.α_soc_max * r_h2tank
     [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] >= h2tank.α_soc_min * r_h2tank
     # State dynamics
-    [h in 1:nh, s in 1:ns], soc_liion[h+1,s] == soc_liion[h,s] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * des.parameters.Δh
-    [h in 1:nh, s in 1:ns], soc_tes[h+1,s] == soc_tes[h,s] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h,s] * tes.η_ch + p_tes_dch[h,s] / tes.η_dch) * des.parameters.Δh
+    [h in 1:nh, s in 1:ns], soc_liion[h+1,s]  == soc_liion[h,s] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * des.parameters.Δh
+    [h in 1:nh, s in 1:ns], soc_tes[h+1,s]    == soc_tes[h,s] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h,s] * tes.η_ch + p_tes_dch[h,s] / tes.η_dch) * des.parameters.Δh
     [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h,s] * h2tank.η_ch + p_h2tank_dch[h,s] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final states
-    [s in 1:ns], soc_liion[1,s] == liion.soc_ini * r_liion
-    [s in 1:ns], soc_liion[end,s] >= soc_liion[1,s]
-    [s in 1:ns], soc_tes[1,s] == tes.soc_ini * r_tes
-    [s in 1:ns], soc_tes[end,s] >= soc_tes[1,s]
-    [s in 1:ns], soc_h2tank[1,s] == h2tank.soc_ini * r_h2tank
+    [s in 1:ns], soc_liion[1,s]    == liion.soc_ini * r_liion
+    [s in 1:ns], soc_liion[end,s]  >= soc_liion[1,s]
+    [s in 1:ns], soc_tes[1,s]      == tes.soc_ini * r_tes
+    [s in 1:ns], soc_tes[end,s]    >= soc_tes[1,s]
+    [s in 1:ns], soc_h2tank[1,s]   == h2tank.soc_ini * r_h2tank
     [s in 1:ns], soc_h2tank[end,s] >= soc_h2tank[1,s]
     # Power balances
     [h in 1:nh, s in 1:ns], ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], ld_H[h,1,s] <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
-    [h in 1:nh, s in 1:ns], 0. == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
+    [h in 1:nh, s in 1:ns], 0.          == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
     end)
 
     # Share of renewables constraint
