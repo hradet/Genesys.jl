@@ -16,6 +16,18 @@ In order to use the package, follow the [managing package guideline](https://jul
   - Anticipative
   - Rule based (RBC)
   - Open Loop Feedback Control (OLFC) - OLFC with a single scenario is equivalent to MPC...
+  - Stochastic dual dynamic programming (SDDP)
+ 
+ # Scenario generation and reduction methods
+ - Generation
+  - Markov
+  - Anticipative
+ 
+ - Reduction
+  - Manual
+  - Monte Carlo
+  - Mean
+  - Feature based
   
 # Example
 We provide a simple example with the rule-based controller and metaheuristic designer.
