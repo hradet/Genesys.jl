@@ -16,7 +16,7 @@ mutable struct MetaheuristicOptions
     reopt::Bool
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
-                           iterations = 20,
+                           iterations = 100,
                            multithreads = false,
                            controller = RBC(),
                            isnpv = false,
@@ -24,7 +24,7 @@ mutable struct MetaheuristicOptions
                            objective_risk = Expectation(),
                            share_risk = Expectation(),
                            lpsp_risk = Expectation(),
-                           lpsp_tol = 0.05,
+                           lpsp_tol = 1e-3,
                            reopt = false) =
                            new(method, iterations, multithreads, controller, isnpv, reducer, objective_risk, share_risk, lpsp_risk, lpsp_tol, reopt)
 
