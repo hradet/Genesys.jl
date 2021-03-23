@@ -24,7 +24,7 @@ mutable struct FuelCell
      FuelCell(; α_p = 8/100,
              η_H2_E = 0.4,
              η_H2_H = 0.4,
-             lifetime = 5.,
+             lifetime = 14.,
              nHoursMax = 10000.,
              powerMax_ini = 0.,
              soh_ini = 1.) =

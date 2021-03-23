@@ -5,7 +5,7 @@
 mutable struct Source
      lifetime::Float64
      # Initial conditions
-     powerMax_ini
+     powerMax_ini::Float64
      # Variables
      power_E::AbstractArray{Float64,3}
      powerMax::AbstractArray{Float64,2}

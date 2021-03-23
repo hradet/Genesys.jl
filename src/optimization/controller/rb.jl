@@ -96,14 +96,12 @@ function π_2(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     controller.u.liion[h,y,s] = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 end
 function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
-    # Control parameters
-    β_min_tank, β_max_tank = 0.2, 0.8
 
     # Net power elec
     p_net_E = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
 
     if p_net_E < 0
-# Elyz
+        # Elyz
         u_elyz_E, elyz_H, elyz_H2, _ = compute_operation_dynamics(des.elyz, (powerMax = des.elyz.powerMax[y,s], soh = des.elyz.soh[h,y,s]), p_net_E, des.parameters.Δh)
         # H2 tank
         soc_h2tank, u_h2tank = compute_operation_dynamics(des.h2tank, (Erated = des.h2tank.Erated[y,s], soc = des.h2tank.soc[h,y,s]), - elyz_H2, des.parameters.Δh)
@@ -113,8 +111,6 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         u_fc_E, fc_H, fc_H2 = 0., 0., 0.
         # Liion
         u_liion = compute_operation_dynamics(des.liion, (Erated = des.liion.Erated[y,s], soc = des.liion.soc[h,y,s], soh = des.liion.soh[h,y,s]), p_net_E - u_elyz_E, des.parameters.Δh)[3]
-        # Heater
-        u_heater_E, heater_H = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), p_net_E - u_liion - u_elyz_E, des.parameters.Δh)
 
     else
         # Liion
@@ -127,15 +123,25 @@ function π_3(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         fc_H2 == - u_h2tank ? nothing : u_fc_E = fc_H = fc_H2 = u_h2tank = 0.
         # Elyz
         u_elyz_E, elyz_H, elyz_H2 = 0., 0., 0.
-        # Heater
-        u_heater_E, heater_H = 0., 0.
     end
 
-    # Net power heating post H2
-    p_net_H = des.ld_H.power[h,y,s] - fc_H - elyz_H - heater_H
+    # Net elec power post H2
+    p_net_E = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s] - u_liion - u_elyz_E - u_fc_E
 
-    # TES
-    u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
+    # Net heating power post H2
+    p_net_H = des.ld_H.power[h,y,s] - fc_H - elyz_H
+
+    if p_net_H < 0
+        # Heater
+        u_heater_E, heater_H = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), p_net_E, des.parameters.Δh)
+        # TES
+        u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H - heater_H, des.parameters.Δh)[2]
+    else
+        # TES
+        u_tes = compute_operation_dynamics(des.tes, (Erated = des.tes.Erated[y], soc = des.tes.soc[h,y,s]), p_net_H, des.parameters.Δh)[2]
+        # Heater
+        u_heater_E, heater_H = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), - (p_net_H - u_tes) / des.heater.η_E_H, des.parameters.Δh)
+    end
 
     # Store values
     controller.u.liion[h,y,s] = u_liion

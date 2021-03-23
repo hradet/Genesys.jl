@@ -24,7 +24,7 @@ mutable struct Electrolyzer
      Electrolyzer(; α_p = 5/100,
                  η_E_H2 = 0.5,
                  η_E_H = 0.3,
-                 lifetime = 10.,
+                 lifetime = 15.,
                  nHoursMax = 26000.,
                  powerMax_ini = 0.,
                  soh_ini = 1.) =
