@@ -101,9 +101,15 @@ function build_model(des::DistributedEnergySystem, designer::AnticipativeMultiSt
         end)
     end
 
+    # CAPEX
+    @expression(m, capex[y in 1:ny],  ω.liion.cost[y] * r_liion[y] + ω.pv.cost[y] * r_pv[y])
+    # OPEX
+    @expression(m, opex[h in 1:nh, y in 1:ny], (p_g_in[h,y] * ω.grid.cost_in[h,y] + p_g_out[h,y] * ω.grid.cost_out[h,y]) * des.parameters.Δh)
+    # Salvage
+    @expression(m, salvage, γ[end] * ω.liion.cost[end] * soh_liion[end, end] / (2. * (des.liion.α_soc_max - des.liion.α_soc_min) * des.liion.nCycle))
+
     # Objective
-    @objective(m, Min, sum( γ[y] * ( ω.liion.cost[y] * r_liion[y] + ω.pv.cost[y] * r_pv[y] +
-    sum( (p_g_in[h, y] * ω.grid.cost_in[h,y] + p_g_out[h, y] * ω.grid.cost_out[h,y]) * des.parameters.Δh for h=1:nh) ) for y=1:ny))
+    @objective(m, Min, sum(γ[y] * (capex[y] + sum(opex[h,y] for h in 1:nh)) for y in 1:ny) - salvage)
 
     return m
 end

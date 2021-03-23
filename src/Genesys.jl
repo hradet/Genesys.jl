@@ -1,9 +1,9 @@
 module Genesys
 
 # Optimisation
-using JuMP, CPLEX, Metaheuristics
+using JuMP, CPLEX, Metaheuristics, SDDP
 # Math
-using Statistics, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
+using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Components
@@ -25,9 +25,11 @@ include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
 include(joinpath("scenarios","utils.jl"))
 export Scenarios
-export ManualReducer, SAAReducer, MeanValueReducer, ClusteringReducer
-export Kmedoids, DensityBased, MinMax, UMAP, Moments, PrincipalComponentAnalysis 
-export MarkovGenerator
+export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
+export UnitRangeTransform, ZScoreTransform
+export UMAPReduction, PCAReduction, StatsReduction
+export KmedoidsClustering, HDBSCANClustering
+export MarkovGenerator, AnticipativeGenerator
 export reduce, generate
 # Risk measures
 include(joinpath("optimization","risk_measures.jl"))
@@ -38,8 +40,9 @@ include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","olfc.jl"))
-export Dummy, RBC, OLFC, Anticipative
-export OLFCOptions, AnticipativeOptions
+include(joinpath("optimization","controller","sddp.jl"))
+export Dummy, RBC, OLFC, Anticipative, SDDPC
+export OLFCOptions, AnticipativeOptions, SDDPCOptions
 export initialize_controller!
 # Investment optimization
 include(joinpath("optimization","designer","abstract.jl"))
@@ -64,7 +67,6 @@ export simulate!
 include(joinpath("utils","metrics.jl"))
 include(joinpath("utils","plots.jl"))
 include(joinpath("utils","saves.jl"))
-include(joinpath("utils","GUI.jl"))
 export Metrics
 export plot_operation, plot_investment, plot_soh, plot_costs, plot_statistics
 

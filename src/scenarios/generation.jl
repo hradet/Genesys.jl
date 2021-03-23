@@ -41,7 +41,7 @@ function compute_markov_states(data, nstate::Int64, algo::String)
     sequences = zeros(Int64, nh+1, nd)
 
     # Normalization
-    data_n = data ./ maximum.(data)
+    data_n = replace!.(data ./ maximum.(data), NaN => 0.)
 
     # Clustering
     for h in 1:nh
@@ -190,7 +190,7 @@ function initialize_generator!(generator::MarkovGenerator, data...)
 end
 
 # Generate scenario from markov chains
-function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
+function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1, h::Int64 = 1)
     # Initialize state with the closest value
     mc = chose(generator, t0)
     Δ_s0 = [s0 .- mc.states[Dates.month(t0)][Dates.hour(t0)+1, :, :][:,state] for state in 1:generator.nstate]
@@ -227,5 +227,37 @@ function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny
         idx_0 = idx_1
     end
 
-    return ω_generated, prod(probabilities, dims=1)[1,:,:]
+    return ω_generated, prod(probabilities, dims=1)[1,:,:] / sum(prod(probabilities, dims=1)[1,:,:])
+end
+
+# Perfect foresight generator
+mutable struct AnticipativeGenerator <: AbstractScenariosGenerator
+    forecast
+    AnticipativeGenerator() = new()
+end
+
+function initialize_generator!(generator::AnticipativeGenerator, data...)
+    # Store anticipative forecast
+    generator.forecast = [d for d in data]
+    return generator
+end
+
+# Generate perfect forecast
+function generate(generator::AnticipativeGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1, h::Int64=1)
+    # Current index
+    if length(generator.forecast[1].t[h:end]) < nstep
+        # Windows
+        windows = h : h + length(generator.forecast[1].t[h:end]) - 1
+        # Add zeros to have a constant size
+        n_zeros = nstep - length(windows)
+        # Forecast
+        forecast = [vcat(d.power[windows], zeros(n_zeros)) for d in generator.forecast]
+    else
+        # Windows
+        windows = h : h + nstep - 1
+        # Forecast
+        forecast = [d.power[windows] for d in generator.forecast]
+    end
+
+    return forecast, [1.]
 end

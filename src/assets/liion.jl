@@ -27,9 +27,9 @@
      # Inner constructor
      Liion(; α_p_ch = 1.5,
         α_p_dch = 1.5,
-        η_ch = 0.8,
-        η_dch = 0.8,
-        η_self = 0.,
+        η_ch = 0.9,
+        η_dch = 0.9,
+        η_self = 0.0005,
         α_soc_min = 0.2,
         α_soc_max = 0.8,
         lifetime = 12,

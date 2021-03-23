@@ -51,17 +51,17 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     # Variables
     @variables(m, begin
     # Operation decisions variables
-    p_liion_ch[1:nh] <= 0.
-    p_liion_dch[1:nh] >= 0.
-    p_tes_ch[1:nh] <= 0.
-    p_tes_dch[1:nh] >= 0.
-    p_h2tank_ch[1:nh] <= 0.
+    p_liion_ch[1:nh]   <= 0.
+    p_liion_dch[1:nh]  >= 0.
+    p_tes_ch[1:nh]     <= 0.
+    p_tes_dch[1:nh]    >= 0.
+    p_h2tank_ch[1:nh]  <= 0.
     p_h2tank_dch[1:nh] >= 0.
-    p_elyz_E[1:nh] <= 0.
-    p_fc_E[1:nh] >= 0.
-    p_heater_E[1:nh] <= 0.
-    p_g_out[1:nh] <= 0.
-    p_g_in[1:nh] >= 0.
+    p_elyz_E[1:nh]     <= 0.
+    p_fc_E[1:nh]       >= 0.
+    p_heater_E[1:nh]   <= 0.
+    p_g_out[1:nh]      <= 0.
+    p_g_in[1:nh]       >= 0.
     # Operation state variables
     soc_liion[1:nh+1]
     soc_tes[1:nh+1]
@@ -70,52 +70,46 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     # Constraints
     @constraints(m, begin
     # Power bounds
-    [h in 1:nh], p_liion_dch[h] <= liion.α_p_dch * controller.liion
-    [h in 1:nh], p_liion_ch[h] >= -liion.α_p_ch * controller.liion
-    [h in 1:nh], p_tes_dch[h] <= tes.α_p_dch * controller.tes
-    [h in 1:nh], p_tes_ch[h] >= -tes.α_p_ch * controller.tes
+    [h in 1:nh], p_liion_dch[h]  <= liion.α_p_dch * controller.liion
+    [h in 1:nh], p_liion_ch[h]   >= -liion.α_p_ch * controller.liion
+    [h in 1:nh], p_tes_dch[h]    <= tes.α_p_dch * controller.tes
+    [h in 1:nh], p_tes_ch[h]     >= -tes.α_p_ch * controller.tes
     [h in 1:nh], p_h2tank_dch[h] <= h2tank.α_p_dch * controller.h2tank
-    [h in 1:nh], p_h2tank_ch[h] >= -h2tank.α_p_ch * controller.h2tank
-    [h in 1:nh], p_elyz_E[h] >= -controller.elyz
-    [h in 1:nh], p_fc_E[h] <= controller.fc
-    [h in 1:nh], p_heater_E[h] >= -heater.powerMax_ini
-    [h in 1:nh], p_g_in[h] <= grid.powerMax
-    [h in 1:nh], p_g_out[h] >= -grid.powerMax
+    [h in 1:nh], p_h2tank_ch[h]  >= -h2tank.α_p_ch * controller.h2tank
+    [h in 1:nh], p_elyz_E[h]     >= -controller.elyz
+    [h in 1:nh], p_fc_E[h]       <= controller.fc
+    [h in 1:nh], p_heater_E[h]   >= -heater.powerMax_ini
+    [h in 1:nh], p_g_in[h]       <= grid.powerMax
+    [h in 1:nh], p_g_out[h]      >= -grid.powerMax
     # SoC bounds
-    [h in 1:nh+1], soc_liion[h] <= liion.α_soc_max * controller.liion
-    [h in 1:nh+1], soc_liion[h] >= liion.α_soc_min * controller.liion
-    [h in 1:nh+1], soc_tes[h] <= tes.α_soc_max * controller.tes
-    [h in 1:nh+1], soc_tes[h] >= tes.α_soc_min * controller.tes
+    [h in 1:nh+1], soc_liion[h]  <= liion.α_soc_max * controller.liion
+    [h in 1:nh+1], soc_liion[h]  >= liion.α_soc_min * controller.liion
+    [h in 1:nh+1], soc_tes[h]    <= tes.α_soc_max * controller.tes
+    [h in 1:nh+1], soc_tes[h]    >= tes.α_soc_min * controller.tes
     [h in 1:nh+1], soc_h2tank[h] <= h2tank.α_soc_max * controller.h2tank
     [h in 1:nh+1], soc_h2tank[h] >= h2tank.α_soc_min * controller.h2tank
     # State dynamics
-    [h in 1:nh], soc_liion[h+1] == soc_liion[h] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * des.parameters.Δh
-    [h in 1:nh], soc_tes[h+1] == soc_tes[h] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * tes.η_ch + p_tes_dch[h] / tes.η_dch) * des.parameters.Δh
+    [h in 1:nh], soc_liion[h+1]  == soc_liion[h] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h] * liion.η_ch + p_liion_dch[h] / liion.η_dch) * des.parameters.Δh
+    [h in 1:nh], soc_tes[h+1]    == soc_tes[h] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h] * tes.η_ch + p_tes_dch[h] / tes.η_dch) * des.parameters.Δh
     [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * h2tank.η_ch + p_h2tank_dch[h] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final states
-    soc_liion[1] == liion.soc_ini * controller.liion
-    soc_liion[end] >= soc_liion[1]
-    soc_tes[1] == tes.soc_ini * controller.tes
-    soc_tes[end] >= soc_tes[1]
-    soc_h2tank[1] == h2tank.soc_ini * controller.h2tank
+    soc_liion[1]    == liion.soc_ini * controller.liion
+    soc_liion[end]  >= soc_liion[1]
+    soc_tes[1]      == tes.soc_ini * controller.tes
+    soc_tes[end]    >= soc_tes[1]
+    soc_h2tank[1]   == h2tank.soc_ini * controller.h2tank
     soc_h2tank[end] >= soc_h2tank[1]
     # Power balances
     [h in 1:nh], ld_E[h] <= controller.pv * ω.pv.power[h] + p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h] + p_g_out[h]
     [h in 1:nh], ld_H[h] <= p_tes_ch[h]  + p_tes_dch[h] - elyz.η_E_H * p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h] - heater.η_E_H * p_heater_E[h]
-    [h in 1:nh], 0. == p_h2tank_ch[h] + p_h2tank_dch[h] - elyz.η_E_H2 * p_elyz_E[h] - p_fc_E[h] / fc.η_H2_E
+    [h in 1:nh], 0.      == p_h2tank_ch[h] + p_h2tank_dch[h] - elyz.η_E_H2 * p_elyz_E[h] - p_fc_E[h] / fc.η_H2_E
     end)
-
-    # Share of renewables constraint - max(0, share)
-    @expression(m, share, sum(p_g_in[h] - (1. - des.parameters.renewable_share) * (ld_E[h] + ld_H[h] / heater.η_E_H) for h in 1:nh))
-    @variable(m, aux >= 0.)
-    @constraint(m, aux >= share)
 
     # OPEX
     @expression(m, opex, sum((p_g_in[h] * ω.grid.cost_in[h] + p_g_out[h] * ω.grid.cost_out[h]) * des.parameters.Δh  for h in 1:nh))
 
     # Objective
-    λ = 1e6
-    @objective(m, Min, opex + λ * aux)
+    @objective(m, Min, opex)
 
     return m
 end
