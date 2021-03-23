@@ -11,7 +11,7 @@ mutable struct OLFCOptions
     seasonal_targets::Union{Array{Float64,2}, Nothing}
 
     OLFCOptions(; solver = CPLEX,
-                  reducer = ManualReducer(y=2:2),
+                  reducer = FeatureBasedReducer(),
                   generator = MarkovGenerator(),
                   horizon = 24,
                   nscenarios = 1,
