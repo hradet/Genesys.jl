@@ -3,10 +3,10 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics, SDDP
 # Math
-using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP
+using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, UMAP, HDBSCAN
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
-# Components
+# Assets
 include(joinpath("assets","liion.jl"))
 include(joinpath("assets","tes.jl"))
 include(joinpath("assets","h2tank.jl"))
@@ -19,7 +19,6 @@ include(joinpath("assets","loads.jl"))
 include(joinpath("assets","des.jl"))
 export DistributedEnergySystem, Source, Liion, ThermalSto, H2Tank, Electrolyzer, FuelCell, Heater, Grid, Load
 # Scenarios
-include(joinpath("scenarios","HDBSCAN.jl","src","HDBSCAN.jl"))
 include(joinpath("scenarios","scenarios.jl"))
 include(joinpath("scenarios","reduction.jl"))
 include(joinpath("scenarios","generation.jl"))
