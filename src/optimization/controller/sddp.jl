@@ -9,13 +9,17 @@ mutable struct SDDPCOptions
     parallel::SDDP.AbstractParallelScheme
     iterations::Int64
     seasonal_targets::Union{Array{Float64,2}, Nothing}
+    cuts::Union{String, Nothing}
+    write_cuts::Bool
 
     SDDPCOptions(; solver = CPLEX,
-                  reducer = ManualReducer(y=2:2),
+                  reducer = FeatureBasedReducer(),
                   risk = SDDP.Expectation(),
                   parallel = SDDP.Serial(),
                   iterations = 100,
-                  seasonal_targets = nothing) = new(solver, reducer, risk, iterations, seasonal_targets)
+                  seasonal_targets = nothing,
+                  cuts = nothing,
+                  write_cuts = false) = new(solver, reducer, risk, parallel, iterations, seasonal_targets, cuts, write_cuts)
 end
 
 # SDDP controller definition
@@ -41,9 +45,9 @@ mutable struct SDDPC <: AbstractController
 end
 
 ### Model
-function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenarios)
+function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenarios, probabilities::Vector{Float64})
     # Parameters
-    λ = 1e6
+    λ = 1e3
     nh = size(ω.ld_E.power, 1) # Stages
     ns = size(ω.ld_E.power, 3) # Scenarios
 
@@ -116,7 +120,7 @@ function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenar
         end
         # Parameterize the subproblem.
         Ω = [(ld_E = ω.ld_E.power[h,1,s], ld_H = ω.ld_H.power[h,1,s], pv = ω.pv.power[h,1,s], cost_in = ω.grid.cost_in[h,1,s], cost_out = ω.grid.cost_out[h,1,s]) for s in 1:ns]
-        SDDP.parameterize(sp, Ω) do ω
+        SDDP.parameterize(sp, Ω, probabilities) do ω
             JuMP.fix(ld_E, ω.ld_E)
             JuMP.fix(ld_H, ω.ld_H)
             JuMP.fix(pv, ω.pv)
@@ -130,20 +134,34 @@ end
 ### Offline
 function initialize_controller!(des::DistributedEnergySystem, controller::SDDPC, ω::Scenarios)
     # Scenario reduction to train the model
-    ω_reduced = reduce(controller.options.reducer, ω)[1]
+    println("Starting scenario reduction...")
+    ω_reduced, probabilities = reduce(controller.options.reducer, ω)
 
     # Build model
-    controller.model = build_model(des, controller, ω_reduced)
+    println("Building the model...")
+    controller.model = build_model(des, controller, ω_reduced, probabilities)
 
-    # Train policy
-    SDDP.train(controller.model,
-               risk_measure = controller.options.risk,
-               parallel_scheme = controller.options.parallel,
-               iteration_limit = controller.options.iterations,
-               print_level = 0)
+    # Train the model or read cuts from file
+    if isa(controller.options.cuts, Nothing)
+        # Train policy
+        println("Starting offline training...")
+        SDDP.train(controller.model,
+                   risk_measure = controller.options.risk,
+                   parallel_scheme = controller.options.parallel,
+                   iteration_limit = controller.options.iterations,
+                   print_level = 0)
+        # Save cuts to file           
+        if controller.options.write_cuts
+            println("Writting cuts to file...")
+            SDDP.write_cuts_to_file(controller.model, "sddp_cuts.json")
+        end
+    else
+        println("Reading cuts from file...")
+        SDDP.read_cuts_from_file(controller.model, controller.options.cuts)
+    end
 
     # Store policy for each stage
-    controller.policy = [SDDP.DecisionRule(controller.model; node = h) for h in 1:des.parameters.nh]
+    controller.policy = [SDDP.DecisionRule(controller.model, node = h) for h in 1:des.parameters.nh]
 
     # Preallocation
     preallocate!(controller, des.parameters.nh, des.parameters.ny, des.parameters.ns)
