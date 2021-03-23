@@ -4,7 +4,7 @@
 
 mutable struct Grid
      # Parameters
-     powerMax
+     powerMax::Float64
      # Variables
      power_E::AbstractArray{Float64,3}
      cost_in::AbstractArray{Float64,3}
