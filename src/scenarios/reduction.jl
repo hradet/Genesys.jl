@@ -146,22 +146,22 @@ StatsBase.standardize(DT::Nothing, X; dims=nothing, kwargs...) = X
 
 # Dimension reduction
 # UMAP
-mutable struct UMAPReduction <: AbstractDimensionReducer
-    n_components::Int64
-    n_neighbors::Int64
-    distance::Distances.SemiMetric
-
-    UMAPReduction(; n_components = 2, n_neighbors = 15, distance = Distances.Euclidean()) = new(n_components, n_neighbors, distance)
-end
-
-function dimension_reduction(reducer::UMAPReduction, data::Array{Array{Float64,2}}; aggregated::Bool=false)
-    # data is a vector of d x n matrix with d dimension and n observation
-    if aggregated
-        return umap(vcat(data...), reducer.n_components)
-    else
-        return vcat([umap(d, reducer.n_components) for d in data]...)
-    end
-end
+# mutable struct UMAPReduction <: AbstractDimensionReducer
+#     n_components::Int64
+#     n_neighbors::Int64
+#     distance::Distances.SemiMetric
+#
+#     UMAPReduction(; n_components = 2, n_neighbors = 15, distance = Distances.Euclidean()) = new(n_components, n_neighbors, distance)
+# end
+#
+# function dimension_reduction(reducer::UMAPReduction, data::Array{Array{Float64,2}}; aggregated::Bool=false)
+#     # data is a vector of d x n matrix with d dimension and n observation
+#     if aggregated
+#         return umap(vcat(data...), reducer.n_components)
+#     else
+#         return vcat([umap(d, reducer.n_components) for d in data]...)
+#     end
+# end
 
 # PCA
 mutable struct PCAReduction <: AbstractDimensionReducer
