@@ -9,8 +9,8 @@ mutable struct SDDPCOptions
     parallel::SDDP.AbstractParallelScheme
     iterations::Int64
     seasonal_targets::Union{Array{Float64,2}, Nothing}
-    cuts::Union{String, Nothing}
-    write_cuts::Bool
+    read_cuts::Union{String, Nothing}
+    write_cuts::Union{String, Nothing}
 
     SDDPCOptions(; solver = CPLEX,
                   reducer = FeatureBasedReducer(),
@@ -18,8 +18,8 @@ mutable struct SDDPCOptions
                   parallel = SDDP.Serial(),
                   iterations = 100,
                   seasonal_targets = nothing,
-                  cuts = nothing,
-                  write_cuts = false) = new(solver, reducer, risk, parallel, iterations, seasonal_targets, cuts, write_cuts)
+                  read_cuts = nothing,
+                  write_cuts = nothing) = new(solver, reducer, risk, parallel, iterations, seasonal_targets, read_cuts, write_cuts)
 end
 
 # SDDP controller definition
@@ -142,7 +142,7 @@ function initialize_controller!(des::DistributedEnergySystem, controller::SDDPC,
     controller.model = build_model(des, controller, ω_reduced, probabilities)
 
     # Train the model or read cuts from file
-    if isa(controller.options.cuts, Nothing)
+    if isa(controller.options.read_cuts, Nothing)
         # Train policy
         println("Starting offline training...")
         SDDP.train(controller.model,
@@ -150,14 +150,14 @@ function initialize_controller!(des::DistributedEnergySystem, controller::SDDPC,
                    parallel_scheme = controller.options.parallel,
                    iteration_limit = controller.options.iterations,
                    print_level = 0)
-        # Save cuts to file           
-        if controller.options.write_cuts
+        # Save cuts to file
+        if !isa(controller.options.write_cuts, Nothing)
             println("Writting cuts to file...")
-            SDDP.write_cuts_to_file(controller.model, "sddp_cuts.json")
+            SDDP.write_cuts_to_file(controller.model, controller.options.write_cuts)
         end
     else
         println("Reading cuts from file...")
-        SDDP.read_cuts_from_file(controller.model, controller.options.cuts)
+        SDDP.read_cuts_from_file(controller.model, controller.options.read_cuts)
     end
 
     # Store policy for each stage
