@@ -38,6 +38,7 @@ JuMP = ">= 0.18"
 MultivariateStats = ">= 0.6"
 ProgressMeter = ">= 1.3"
 PyCall = ">= 1.92"
+SDDP = "0.3"
 Seaborn = ">= 0.4"
 julia = "1"
 
