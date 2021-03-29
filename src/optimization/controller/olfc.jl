@@ -83,7 +83,9 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_liion_ini
     soc_tes_ini
     soc_h2tank_ini
-    soc_h2tank_end
+    # Deterministic target penalty - aux variable for max linearization
+    seasonal_penalty    >= 0.
+    seasonal_target
     end)
     @constraints(m, begin
     # Power bounds
@@ -113,14 +115,15 @@ function build_model(des::DistributedEnergySystem, controller::OLFC)
     soc_liion[1]    == soc_liion_ini
     soc_tes[1]      == soc_tes_ini
     soc_h2tank[1]   == soc_h2tank_ini
-    soc_liion[end]  >= soc_liion[1]
-    soc_tes[end]    >= soc_tes[1]
-    soc_h2tank[end] >= soc_h2tank_end
     # Power balances
     [h in 1:nh, s in 1:ns], p_net_E[h,s] <= p_liion_ch[h] + p_liion_dch[h] + p_elyz_E[h] + p_fc_E[h] + p_heater_E[h] + p_g_in[h,s] + p_g_out[h,s]
     [h in 1:nh, s in 1:ns], p_net_H[h,s] <= p_tes_ch[h] + p_tes_dch[h] - elyz.η_E_H .* p_elyz_E[h] + fc.η_H2_H / fc.η_H2_E .* p_fc_E[h] - heater.η_E_H .* p_heater_E[h]
     [h in 1:nh, s in 1:ns], 0.           == p_h2tank_ch[h] + p_h2tank_dch[h] - elyz.η_E_H2 * p_elyz_E[h] - p_fc_E[h] / fc.η_H2_E
     end)
+    # Seasonal penalty
+    if !isa(controller.options.seasonal_targets, Nothing)
+        @constraint(m, seasonal_penalty >= seasonal_target - soc_h2tank[end])
+    end
 
     return m
 end
@@ -158,8 +161,9 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
     # Fix forecast and state variables
     fix_variables!(h, y, s, des, controller, forecast)
 
-    # Objective function
-    @objective(controller.model, Min, sum(proba[s] .* (controller.model[:p_g_in][h,s] .* cost_in[h] .+ controller.model[:p_g_out][h,s] .* cost_out[h]) * des.parameters.Δh for h in 1:controller.options.horizon, s in 1:controller.options.nscenarios))
+    # Objective function TODO : add CVaR !
+    k1, k2, k3 = 1e-2, 1e-2, 1e-2
+    @objective(controller.model, Min, sum(proba[s] .* (controller.model[:p_g_in][h,s] .* cost_in[h] .+ controller.model[:p_g_out][h,s] .* cost_out[h]) * des.parameters.Δh for h in 1:controller.options.horizon, s in 1:controller.options.nscenarios) + k1 * controller.model[:soc_liion][end] + k2 * controller.model[:soc_tes][end] + k3 * controller.model[:seasonal_penalty])
 
     # Optimize
     optimize!(controller.model)
@@ -185,9 +189,9 @@ function fix_variables!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySyst
     if isa(des.h2tank, H2Tank)
         fix(controller.model[:soc_h2tank_ini], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
         if isa(controller.options.seasonal_targets, Nothing)
-            fix(controller.model[:soc_h2tank_end], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
+            fix(controller.model[:seasonal_target], des.h2tank.soc[h,y,s] * des.h2tank.Erated[y,s])
         else
-            fix(controller.model[:soc_h2tank_end], controller.options.seasonal_targets[min(des.parameters.nh,h+controller.options.horizon-1)])
+            fix(controller.model[:seasonal_target], controller.options.seasonal_targets[min(des.parameters.nh,h+controller.options.horizon-1)])
         end
     end
 end
