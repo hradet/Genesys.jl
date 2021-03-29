@@ -87,7 +87,7 @@ function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenar
             ld_H
             pv
             # Deterministic target penalty - aux variable for max linearization
-            target          >= 0.
+            seasonal_penalty          >= 0.
         end)
         # Define the constraints
         @constraints(sp, begin
@@ -115,7 +115,7 @@ function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenar
         # Deterministic targets for the seasonal storage
         if !isa(controller.options.seasonal_targets, Nothing)
             @constraints(sp, begin
-            target >= controller.options.seasonal_targets[h] - soc_h2tank.out
+            seasonal_penalty >= controller.options.seasonal_targets[h] - soc_h2tank.out
             end)
         end
         # Parameterize the subproblem.
@@ -124,7 +124,7 @@ function build_model(des::DistributedEnergySystem, controller::SDDPC, ω::Scenar
             JuMP.fix(ld_E, ω.ld_E)
             JuMP.fix(ld_H, ω.ld_H)
             JuMP.fix(pv, ω.pv)
-            @stageobjective(sp, p_g_in * ω.cost_in + p_g_out * ω.cost_out + λ * target)
+            @stageobjective(sp, p_g_in * ω.cost_in + p_g_out * ω.cost_out + λ * seasonal_penalty)
         end
     end
 
