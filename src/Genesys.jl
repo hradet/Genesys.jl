@@ -43,7 +43,7 @@ include(joinpath("optimization","controller","rb.jl"))
 include(joinpath("optimization","controller","olfc.jl"))
 include(joinpath("optimization","controller","sddp.jl"))
 export Dummy, RBC, OLFC, Anticipative, SDDPC
-export OLFCOptions, AnticipativeOptions, SDDPCOptions
+export RBCOptions, OLFCOptions, AnticipativeOptions, SDDPCOptions
 export initialize_controller!
 # Investment optimization
 include(joinpath("optimization","designer","abstract.jl"))

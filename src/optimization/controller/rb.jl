@@ -2,20 +2,9 @@
     Rule based controller
 =#
 mutable struct RBCOptions
-    β_min_tes::Float64
-    β_max_tes::Float64
-    β_min_fc::Float64
-    β_max_fc::Float64
-    β_min_elyz::Float64
-    β_max_elyz::Float64
+    policy_selection::Int64
 
-    RBCOptions(; β_min_tes = 0.2,
-                 β_max_tes = 0.9,
-                 β_min_fc = 0.21,
-                 β_max_fc = 0.3,
-                 β_min_elyz = 0.22,
-                 β_max_elyz = 0.31) =
-                 new(β_min_tes, β_max_tes, β_min_fc, β_max_fc, β_min_elyz, β_max_elyz)
+    RBCOptions(; policy_selection = 3) = new(policy_selection)
 end
 
 mutable struct RBC <: AbstractController
@@ -30,6 +19,9 @@ end
 function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
     # Control parameters
     ϵ = 1e-2
+    β_min_tes, β_max_tes = 0.2, 0.9
+    β_min_fc, β_max_fc = 0.21, 0.3
+    β_min_elyz, β_max_elyz = 0.22, 0.31
 
     # Net power elec
     p_net_E = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s]
@@ -39,10 +31,10 @@ function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         # FC is off
         u_fc_E, p_fc_H = 0., 0.
         # Strategy for Elyz
-        if des.liion.soc[h,y,s] > controller.options.β_max_elyz
+        if des.liion.soc[h,y,s] > β_max_elyz
             u_elyz_E = min(max(p_net_E, -des.elyz.powerMax[y,s]), -des.elyz.α_p * des.elyz.powerMax[y,s])
             p_elyz_H = - u_elyz_E * des.elyz.η_E_H
-        elseif des.liion.soc[h,y,s] > controller.options.β_min_elyz && h !=1 && !isapprox(des.elyz.power_E[h-1,y,s], 0., atol = ϵ)
+        elseif des.liion.soc[h,y,s] > β_min_elyz && h !=1 && !isapprox(des.elyz.power_E[h-1,y,s], 0., atol = ϵ)
             u_elyz_E = min(max(p_net_E, -des.elyz.powerMax[y,s]), -des.elyz.α_p * des.elyz.powerMax[y,s])
             p_elyz_H = - u_elyz_E * des.elyz.η_E_H
         else
@@ -52,10 +44,10 @@ function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
         # Elyz is off
         u_elyz_E, p_elyz_H = 0., 0.
         # Strategy for FC
-        if des.liion.soc[h,y,s] < controller.options.β_min_fc
+        if des.liion.soc[h,y,s] < β_min_fc
             u_fc_E = min(max(p_net_E, des.fc.α_p * des.fc.powerMax[y,s]), des.fc.powerMax[y,s])
             p_fc_H = u_fc_E * des.fc.η_H2_H / des.fc.η_H2_E
-        elseif des.liion.soc[h,y,s] < controller.options.β_max_fc && h !=1 && !isapprox(des.fc.power_E[h-1,y,s], 0., atol = ϵ)
+        elseif des.liion.soc[h,y,s] < β_max_fc && h !=1 && !isapprox(des.fc.power_E[h-1,y,s], 0., atol = ϵ)
             u_fc_E = min(max(p_net_E, des.fc.α_p * des.fc.powerMax[y,s]), des.fc.powerMax[y,s])
             p_fc_H = u_fc_E * des.fc.η_H2_H / des.fc.η_H2_E
         else
@@ -71,10 +63,10 @@ function π_1(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
 
     # Heater
     if p_net_H >= 0.
-        if des.tes.soc[h,y,s] < controller.options.β_min_tes
+        if des.tes.soc[h,y,s] < β_min_tes
             p_heater_H = p_net_H
             u_heater_E = - p_heater_H / des.heater.η_E_H
-        elseif des.tes.soc[h,y,s] < controller.options.β_max_tes && h !=1 && !isapprox(des.heater.power_H[h-1,y,s], 0., atol = ϵ)
+        elseif des.tes.soc[h,y,s] < β_max_tes && h !=1 && !isapprox(des.heater.power_H[h-1,y,s], 0., atol = ϵ)
             p_heater_H = p_net_H
             u_heater_E = - p_heater_H / des.heater.η_E_H
         else
@@ -162,10 +154,14 @@ end
 
 ### Online
 function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
-    # Chose policy TODO : better way ! utiliser un parametre fournit par utilisateur : loi 1,2,3, etc.
-    if isa(des.ld_H, Load)
+    # Chose policy 
+    if controller.options.policy_selection == 1
+        return π_1(h, y, s, des, controller)
+    elseif controller.options.policy_selection == 2
+        return π_2(h, y, s, des, controller)
+    elseif controller.options.policy_selection == 3
         return π_3(h, y, s, des, controller)
     else
-        return π_2(h, y, s, des, controller)
+        println("Policy not defined !")
     end
 end
