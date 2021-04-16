@@ -1,6 +1,6 @@
 # Genesys
 
-A generic module written in Julia to asses and compare different design and control approaches for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods and multi-scenarios assessment.  
+A generic module written in Julia to asses and compare different design and control methods for distributed energy systems (DES) in a stochastic framework. The `simulate!` function includes multi-stage investment periods and multi-scenarios assessment.  
 
 # Installation
 In order to use the package, follow the [managing package guideline](https://julialang.github.io/Pkg.jl/v1/managing-packages/) for uneregistred packages.
@@ -34,13 +34,13 @@ We provide a simple example with the rule-based controller and metaheuristic des
 
 ```Julia
 # Load packages
-using Genesys, CSV, DataFrames, JLD, Dates
+using Genesys, JLD, Dates
 
 # Constant
 const nh, ny, ns = 8760, 2, 1000 # nh = operation stages, ny = investment stages, ns = scenarios
 
 # Load data
-data = load(...path\scenarios.jld"))
+data = load("...path\scenarios.jld")
 
 # Initialize scenarios
 ω_optim, ω_simu = Scenarios(data["ω_optim"], 1:nh, 1:ny, 1:ns), Scenarios(data["ω_simu"],  1:nh, 1:ny, 1:ns)
