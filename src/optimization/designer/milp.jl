@@ -9,14 +9,18 @@ mutable struct MILPOptions
   share_risk::AbstractRiskMeasure
   reopt::Bool
   operating_reserve::Float64
+  read_reduction::Union{String, Nothing}
+  write_reduction::Union{String, Nothing}
 
   MILPOptions(; solver = CPLEX,
                 reducer = FeatureBasedReducer(),
                 objective_risk = Expectation(),
                 share_risk = Expectation(),
-                reopt=false,
-                operating_reserve = 1.) =
-                new(solver, reducer, objective_risk, share_risk, reopt, operating_reserve)
+                reopt = false,
+                operating_reserve = 1.,
+                read_reduction = nothing,
+                write_reduction = nothing) =
+                new(solver, reducer, objective_risk, share_risk, reopt, operating_reserve, read_reduction, write_reduction)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -154,8 +158,18 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
     preallocate!(designer, des.parameters.ny, des.parameters.ns)
 
     # Scenario reduction from the optimization scenario pool
-    println("Starting scenario reduction...")
-    ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+    if isa(designer.options.read_reduction, Nothing)
+        println("Starting scenario reduction...")
+        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+        # Saving
+        if !isa(designer.options.write_reduction, Nothing)
+            save(designer.options.write_reduction, "scenarios", ω_reduced, "probabilities", probabilities)
+        end
+    else
+        println("Reading scenario reduction from file...")
+        ω_reduced = load(designer.options.read_reduction, "scenarios")
+        probabilities = load(designer.options.read_reduction, "probabilities")
+    end
 
     # Initialize model
     println("Building the model...")
