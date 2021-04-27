@@ -14,6 +14,8 @@ mutable struct MetaheuristicOptions
     lpsp_risk::AbstractRiskMeasure
     lpsp_tol::Float64
     reopt::Bool
+    read_reduction::Union{String, Nothing}
+    write_reduction::Union{String, Nothing}
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
                            iterations = 100,
@@ -23,10 +25,12 @@ mutable struct MetaheuristicOptions
                            reducer = FeatureBasedReducer(),
                            objective_risk = Expectation(),
                            share_risk = Expectation(),
-                           lpsp_risk = Expectation(),
+                           lpsp_risk = WorstCase(),
                            lpsp_tol = 1e-3,
-                           reopt = false) =
-                           new(method, iterations, multithreads, controller, isnpv, reducer, objective_risk, share_risk, lpsp_risk, lpsp_tol, reopt)
+                           reopt = false,
+                           read_reduction = nothing,
+                           write_reduction = nothing) =
+                           new(method, iterations, multithreads, controller, isnpv, reducer, objective_risk, share_risk, lpsp_risk, lpsp_tol, reopt, read_reduction, write_reduction)
 
 end
 
@@ -91,7 +95,18 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     if designer.options.isnpv
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     else
-        ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+        if isa(designer.options.read_reduction, Nothing)
+            println("Starting scenario reduction...")
+            ω_reduced, probabilities = reduce(designer.options.reducer, ω)
+            # Saving
+            if !isa(designer.options.write_reduction, Nothing)
+                save(designer.options.write_reduction, "scenarios", ω_reduced, "probabilities", probabilities)
+            end
+        else
+            println("Reading scenario reduction from file...")
+            ω_reduced = load(designer.options.read_reduction, "scenarios")
+            probabilities = load(designer.options.read_reduction, "probabilities")
+        end
         # Repeat to simulate 2 years
         ω_reduced = repeat(ω_reduced, 1, 2, 1)
     end
