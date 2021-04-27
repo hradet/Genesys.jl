@@ -243,6 +243,18 @@ function π_4(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, contro
     controller.u.fc[h,y,s] = u_fc_E
     controller.u.h2tank[h,y,s] = u_h2tank
 end
+function π_5(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem, controller::RBC)
+
+    # Heater
+    u_heater_E, _ = compute_operation_dynamics(des.heater, (powerMax = des.heater.powerMax[y,s],), - des.ld_H.power[h,y,s] / des.heater.η_E_H, des.parameters.Δh)
+
+    # Liion
+    u_liion = des.ld_E.power[h,y,s] - des.pv.power_E[h,y,s] - u_heater_E
+
+    # Store values
+    controller.u.liion[h,y,s] = u_liion
+    controller.u.heater[h,y,s] = u_heater_E
+end
 
 
 ### Offline
@@ -264,6 +276,8 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, des::Distrib
         return π_3(h, y, s, des, controller)
     elseif controller.options.policy_selection == 4
         return π_4(h, y, s, des, controller)
+    elseif controller.options.policy_selection == 5
+        return π_5(h, y, s, des, controller)
     else
         println("Policy not defined !")
     end
