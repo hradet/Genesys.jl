@@ -113,9 +113,9 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [s in 1:ns], soc_h2tank[1,s]   == h2tank.soc_ini * r_h2tank
     [s in 1:ns], soc_h2tank[end,s] >= soc_h2tank[1,s]
     # Power balances
-    [h in 1:nh, s in 1:ns], designer.options.operating_reserve * ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
-    [h in 1:nh, s in 1:ns], ld_H[h,1,s]                                      <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
-    [h in 1:nh, s in 1:ns], 0.                                               == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
+    ld_E_constraint[h in 1:nh, s in 1:ns], designer.options.operating_reserve * ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
+    ld_H_constraint[h in 1:nh, s in 1:ns], ld_H[h,1,s]                                      <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
+    ld_H2_constraint[h in 1:nh, s in 1:ns], 0.                                              == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
     end)
 
     # Share of renewables constraint
