@@ -177,6 +177,7 @@ function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64
 end
 
 mutable struct Metrics{T}
+    baseline::T
     npv::NPV{T}
     eac::EAC{T}
     renewable_share::T
@@ -187,6 +188,8 @@ end
 Metrics(des::DistributedEnergySystem, designer::AbstractDesigner) = Metrics(1:des.parameters.ns, des, designer)
 # Compute indicators for a given scenario s
 function Metrics(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem, designer::AbstractDesigner)
+    # Baseline cost
+    baseline = dropdims(baseline_cost(des), dims = 1)
     # NPV
     npv = NPV(s, des, designer)
     # EAC
@@ -196,5 +199,5 @@ function Metrics(s::Union{Int64, UnitRange{Int64}}, des::DistributedEnergySystem
     # LPSP
     lpsp = LPSP(s, des)
 
-    return Metrics(npv, eac, share, lpsp)
+    return Metrics(baseline, npv, eac, share, lpsp)
 end
