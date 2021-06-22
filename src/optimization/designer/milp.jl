@@ -235,4 +235,4 @@ end
 beta(risk::WorstCase) = 1. - 1e-6
 beta(risk::Expectation) = 0.
 beta(risk::CVaR) = risk.β
-annualised_factor(τ::Float64, lifetime::Float64) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)
+annualised_factor(τ::Float64, lifetime::Union{Float64, Int64}) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)
