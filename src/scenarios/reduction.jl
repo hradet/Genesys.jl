@@ -39,34 +39,34 @@ end
 
 # Sample Average Approximation scenario reduction
 mutable struct SAAReducer <: AbstractScenariosReducer
-    nmontecarlo::Int64
+    nsample::Int64
 
-    SAAReducer(; nmontecarlo = 100) = new(nmontecarlo)
+    SAAReducer(; nsample = 100) = new(nmontecarlo)
 end
 
 function reduce(reducer::SAAReducer, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}}; y::Int64 = 1, s::Int64 = 1)
     # Parameters
     _, ny, ns = size(ω.ld_E.power)
     # Monte carlo indices
-    idx = zip(rand(y:ny, reducer.nmontecarlo), rand(s:ns, reducer.nmontecarlo))
+    idx = zip(rand(y:ny, reducer.nsample), rand(s:ns, reducer.nsample))
     # Monte carlo sampling
     # Demand
-    ld_E = (t = reshape(hcat([ω.ld_E.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.ld_E.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
-    ld_H = (t = reshape(hcat([ω.ld_H.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.ld_H.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
+    ld_E = (t = reshape(hcat([ω.ld_E.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([ω.ld_E.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample))
+    ld_H = (t = reshape(hcat([ω.ld_H.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([ω.ld_H.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample))
     # Production
-    pv = (t = reshape(hcat([ω.pv.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), power = reshape(hcat([ω.pv.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), cost = repeat(ω.pv.cost[y:y, s:s],1,reducer.nmontecarlo))
+    pv = (t = reshape(hcat([ω.pv.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([ω.pv.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost = repeat(ω.pv.cost[y:y, s:s],1,reducer.nsample))
     # Electricity tariff
-    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo), cost_out = reshape(hcat([ω.grid.cost_out[:, y, s] for (y,s) in idx]...),:,1,reducer.nmontecarlo))
+    grid = (cost_in = reshape(hcat([ω.grid.cost_in[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost_out = reshape(hcat([ω.grid.cost_out[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample))
     # Investment costs
-    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.nmontecarlo),)
-    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.nmontecarlo),)
-    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.nmontecarlo),)
-    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.nmontecarlo),)
-    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.nmontecarlo),)
-    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.nmontecarlo),)
+    liion = (cost =  repeat(ω.liion.cost[y:y, s:s],1,reducer.nsample),)
+    tes = (cost =  repeat(ω.tes.cost[y:y, s:s],1,reducer.nsample),)
+    h2tank = (cost =  repeat(ω.h2tank.cost[y:y, s:s],1,reducer.nsample),)
+    elyz = (cost =  repeat(ω.elyz.cost[y:y, s:s],1,reducer.nsample),)
+    fc = (cost =  repeat(ω.fc.cost[y:y, s:s],1,reducer.nsample),)
+    heater = (cost =  repeat(ω.heater.cost[y:y, s:s],1,reducer.nsample),)
     # Outputs
     ω_reduced = Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid)
-    probabilities = ones(reducer.nmontecarlo) / reducer.nmontecarlo
+    probabilities = ones(reducer.nsample) / reducer.nsample
 
     return ω_reduced, probabilities
 end
@@ -121,7 +121,7 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, A
     # Dimension reduction
     embedding = replace!(dimension_reduction(reducer.reduction, norm), NaN => 0.)
     # Clustering
-    medoids, probabilities, assignments = clustering(reducer.clustering, embedding)
+    medoids, counts, assignments = clustering(reducer.clustering, embedding)
     # Building reduced scenario
     # Demand
     ld_E = (t = reshape(t[1][:,medoids], nh, 1, :), power = reshape(data[1][:,medoids], nh, 1, :))
@@ -138,7 +138,7 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios{Array{DateTime,3}, A
     fc = (cost =  repeat(ω.fc.cost[y:y, s:s], 1, length(medoids)),)
     heater = (cost =  repeat(ω.heater.cost[y:y, s:s], 1, length(medoids)),)
 
-    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), probabilities, assignments
+    return Scenarios(ld_E, ld_H, pv, liion, tes, h2tank, elyz, fc, heater, grid), counts / sum(counts), assignments
 end
 
 # Transformation
@@ -233,7 +233,7 @@ function clustering(method::KmedoidsClustering, embedding::AbstractArray{Float64
     # Clustering
     results = kmedoids(D, method.n_clusters, display = method.log ? :iter : :none)
 
-    return results.medoids, results.counts / sum(results.counts), results.assignments
+    return results.medoids, results.counts, results.assignments
 end
 
 # HDBSCAN
@@ -259,5 +259,5 @@ function clustering(method::HDBSCANClustering, embedding::AbstractArray{Float64,
     # Count the numbers of point in each cluster
     counts = [count(results.assignments .== c) for c in 1:maximum(results.assignments)]
 
-    return medoids, counts / sum(counts), results.assignments
+    return medoids, counts, results.assignments
 end
