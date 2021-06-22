@@ -3,9 +3,10 @@
  =#
 
 mutable struct Source
-     lifetime::Float64
+     lifetime::Int64
      # Initial conditions
      powerMax_ini::Float64
+     soh_ini::Float64
      # Variables
      power_E::AbstractArray{Float64,3}
      powerMax::AbstractArray{Float64,2}
@@ -13,7 +14,7 @@ mutable struct Source
      # Eco
      cost::AbstractArray{Float64,2}
      # Inner constructor
-     Source(;lifetime=25, powerMax_ini = 0.) = new(lifetime, powerMax_ini)
+     Source(;lifetime=25, powerMax_ini = 0., soh_ini = 1.) = new(lifetime, powerMax_ini, soh_ini)
 end
 
 ### Preallocation

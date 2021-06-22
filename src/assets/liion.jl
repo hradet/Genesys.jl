@@ -11,7 +11,7 @@
      η_self::Float64
      α_soc_min::Float64
      α_soc_max::Float64
-     lifetime::Float64
+     lifetime::Int64
      nCycle::Float64
      # Initial conditions
      Erated_ini::Float64

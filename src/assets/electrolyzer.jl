@@ -7,7 +7,7 @@ mutable struct Electrolyzer
      α_p::Float64
      η_E_H2::Float64
      η_E_H::Float64
-     lifetime::Float64
+     lifetime::Int64
      nHoursMax::Float64
      # Initial conditions
      powerMax_ini::Float64

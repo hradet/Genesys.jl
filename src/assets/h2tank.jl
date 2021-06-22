@@ -11,10 +11,11 @@ mutable struct H2Tank
      η_self::Float64
      α_soc_min::Float64
      α_soc_max::Float64
-     lifetime::Float64
+     lifetime::Int64
      # Initial conditions
      Erated_ini::Float64
      soc_ini::Float64
+     soh_ini::Float64
      # Variable
      Erated::AbstractArray{Float64,2}
      power_H2::AbstractArray{Float64,3}
@@ -31,8 +32,9 @@ mutable struct H2Tank
         α_soc_max = 1.,
         lifetime = 25,
         Erated_ini = 1e-6,
-        soc_ini = 0.5) =
-        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini)
+        soc_ini = 0.5,
+        soh_ini = 1.) =
+        new(α_p_ch, α_p_dch, η_ch, η_dch, η_self, α_soc_min, α_soc_max, lifetime, Erated_ini, soc_ini, soh_ini)
 end
 
 ### Preallocation
