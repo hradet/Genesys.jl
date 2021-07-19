@@ -1,5 +1,5 @@
 # Load packages
-using Genesys, CSV, DataFrames, JLD, Dates, Seaborn
+using Genesys, JLD, Dates, Seaborn
 pygui(true)
 
 # Parameters
@@ -16,7 +16,7 @@ des = DistributedEnergySystem(ld_E = Load(),
                               pv = Source(),
                               liion = Liion(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh, ny, ns, τ_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, renewable_share = 0.8))
 
 # Offline computations
 controller, designer = offline_optimization!(des,

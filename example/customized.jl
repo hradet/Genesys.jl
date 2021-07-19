@@ -3,7 +3,7 @@ using Genesys
 # Optimization
 using JuMP
 # Lecture CSV
-using CSV, DataFrames, JLD, Dates
+using JLD, Dates
 # Plot
 using Seaborn
 pygui(true)
