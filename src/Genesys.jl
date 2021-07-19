@@ -3,7 +3,7 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics, SDDP
 # Math
-using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra, HDBSCAN
+using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra #, HDBSCAN
 # using UMAP
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD

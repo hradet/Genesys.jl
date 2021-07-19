@@ -237,27 +237,27 @@ function clustering(method::KmedoidsClustering, embedding::AbstractArray{Float64
 end
 
 # HDBSCAN
-mutable struct HDBSCANClustering <: AbstractClusteringMethod
-    n_clusters::Int64
-    min_cluster_size::Int64
-
-    HDBSCANClustering(; n_clusters = 10, min_cluster_size = 5) = new(n_clusters, min_cluster_size)
-end
-
-function clustering(method::HDBSCANClustering, embedding::AbstractArray{Float64,2})
-    # data is a d x n matrix with d dimension and n observation
-    results = HDBSCAN.hdbscan(embedding, min_cluster_size = method.min_cluster_size)
-    # Retrieve vectors and of each cluster
-    points = HDBSCAN.exemplars(results)
-    # Find the medoids of each cluster
-    dist = [pairwise(Distances.Euclidean(), permutedims(p), dims = 2 ) for p in points]
-    medoids_points = [kmedoids(d, 1).medoids[1] for d in dist]
-    # Get the corresponding value in the points array
-    val = [p[medoids_points[i],:] for (i,p) in enumerate(points)]
-    # Get the medoids from the original dataset
-    medoids = [findall(v .== embedding)[1][2] for v in val]
-    # Count the numbers of point in each cluster
-    counts = [count(results.assignments .== c) for c in 1:maximum(results.assignments)]
-
-    return medoids, counts, results.assignments
-end
+# mutable struct HDBSCANClustering <: AbstractClusteringMethod
+#     n_clusters::Int64
+#     min_cluster_size::Int64
+#
+#     HDBSCANClustering(; n_clusters = 10, min_cluster_size = 5) = new(n_clusters, min_cluster_size)
+# end
+#
+# function clustering(method::HDBSCANClustering, embedding::AbstractArray{Float64,2})
+#     # data is a d x n matrix with d dimension and n observation
+#     results = HDBSCAN.hdbscan(embedding, min_cluster_size = method.min_cluster_size)
+#     # Retrieve vectors and of each cluster
+#     points = HDBSCAN.exemplars(results)
+#     # Find the medoids of each cluster
+#     dist = [pairwise(Distances.Euclidean(), permutedims(p), dims = 2 ) for p in points]
+#     medoids_points = [kmedoids(d, 1).medoids[1] for d in dist]
+#     # Get the corresponding value in the points array
+#     val = [p[medoids_points[i],:] for (i,p) in enumerate(points)]
+#     # Get the medoids from the original dataset
+#     medoids = [findall(v .== embedding)[1][2] for v in val]
+#     # Count the numbers of point in each cluster
+#     counts = [count(results.assignments .== c) for c in 1:maximum(results.assignments)]
+#
+#     return medoids, counts, results.assignments
+# end
