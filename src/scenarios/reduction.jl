@@ -10,7 +10,7 @@ mutable struct ManualReducer <: AbstractScenariosReducer
     h::Union{UnitRange{Int64}, Int64}
     y::Union{UnitRange{Int64}, Int64}
     s::Union{UnitRange{Int64}, Int64}
-    ManualReducer(; h = 1:8760, y = 1:1, s = 1:1) = new(h, y, s)
+    ManualReducer(; h = 1:8760, y = 2:2, s = 1:1) = new(h, y, s)
 end
 
 function reduce(reducer::ManualReducer, ω::Scenarios)
