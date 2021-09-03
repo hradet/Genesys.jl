@@ -5,11 +5,7 @@
 abstract type AbstractController end
 
 # Preallocate abstract controller
-function preallocate!(controller::AbstractController, nh::Int64, ny::Int64, ns::Int64)
-    controller.u = (liion = zeros(nh,ny,ns),
-                    tes = zeros(nh,ny,ns),
-                    h2tank = zeros(nh,ny,ns),
-                    elyz = zeros(nh,ny,ns),
-                    fc = zeros(nh,ny,ns),                    
-                    heater = zeros(nh,ny,ns))
+function preallocate!(mg::Microgrid, controller::AbstractController)
+    controller.decisions = (converters = [zeros(mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in mg.converters],
+                            storages = [zeros(mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in mg.storages])
 end

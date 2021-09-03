@@ -5,11 +5,8 @@
 abstract type AbstractDesigner end
 
 # Preallocate abstract designer
-function preallocate!(designer::AbstractDesigner, ny::Int64, ns::Int64)
-    designer.u = (pv = zeros(ny,ns),
-                  liion = zeros(ny,ns),
-                  tes = zeros(ny,ns),
-                  h2tank = zeros(ny,ns),
-                  elyz = zeros(ny,ns),
-                  fc = zeros(ny,ns))
+function preallocate!(mg::Microgrid, designer::AbstractDesigner)
+    designer.decisions = (generations = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.generations],
+                          storages = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.storages],
+                          converters = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.converters])
 end
