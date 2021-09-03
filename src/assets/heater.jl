@@ -2,7 +2,7 @@
     Heater modelling
  =#
 
-mutable struct Heater
+mutable struct Heater <: AbstractConverter
      # Parameters
      η_E_H::Float64
      lifetime::Int64

@@ -2,7 +2,7 @@
     Li-ion battery modelling
  =#
 
- mutable struct Liion
+ mutable struct Liion <: AbstractStorage
      # Parameters
      α_p_ch::Float64
      α_p_dch::Float64
@@ -19,7 +19,7 @@
      soh_ini::Float64
      # Variables
      Erated::AbstractArray{Float64,2}
-     power_E::AbstractArray{Float64,3}
+     carrier::Electricity
      soc::AbstractArray{Float64,3}
      soh::AbstractArray{Float64,3}
      # Eco
@@ -43,10 +43,13 @@
 ### Preallocation
  function preallocate!(liion::Liion, nh::Int64, ny::Int64, ns::Int64)
      liion.Erated = convert(SharedArray,zeros(ny+1, ns)) ; liion.Erated[1,:] .= liion.Erated_ini
-     liion.power_E = convert(SharedArray,zeros(nh, ny, ns))
+     liion.carrier = Electricity()
+     liion.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
+     liion.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
      liion.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soc[1,1,:] .= liion.soc_ini
      liion.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soh[1,1,:] .= liion.soh_ini
      liion.cost = convert(SharedArray,zeros(ny, ns))
+     return liion
  end
 
  ### Operation dynamic
