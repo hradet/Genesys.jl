@@ -13,10 +13,16 @@ data = load(joinpath("data","ausgrid_5_twostage.jld"))
 
 # Initialize DES
 des = DistributedEnergySystem(ld_E = Load(),
+                              ld_H = Load(),
                               pv = Source(),
                               liion = Liion(),
+                              tes = ThermalSto(),
+                              h2tank = H2Tank(),
+                              elyz = Electrolyzer(),
+                              fc = FuelCell(),
+                              heater = Heater(),
                               grid = Grid(),
-                              parameters = Genesys.GlobalParameters(nh, ny, ns, renewable_share = 0.8))
+                              parameters = Genesys.GlobalParameters(nh, ny, ns, renewable_share = 0.9999))
 
 # Initialize controller
 controller = initialize_controller!(des,
