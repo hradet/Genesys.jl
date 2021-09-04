@@ -10,7 +10,7 @@ function update_operation_informations!(h::Int64, y::Int64, s::Int64, mg::Microg
         if a.carrier isa Electricity
             a.timestamp[h,y,s] = ω.ld_E.t[h,y,s]
             a.carrier.out[h,y,s] = ω.ld_E.power[h,y,s]
-        elseif d.carrier isa Heat
+        elseif a.carrier isa Heat
             a.timestamp[h,y,s] = ω.ld_H.t[h,y,s]
             a.carrier.out[h,y,s] = ω.ld_H.power[h,y,s]
         elseif d.carrier isa Hydrogen

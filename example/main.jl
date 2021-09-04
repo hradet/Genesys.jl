@@ -15,16 +15,22 @@ data = load(joinpath("data","ausgrid_5_twostage.jld"))
 microgrid = Microgrid(parameters = GlobalParameters(nh, ny, ns, renewable_share = 0.9999))
 
 # Build the microgrid
-add!(microgrid, Liion(), Solar(), Demand(carrier = Electricity()), Grid(carrier = Electricity()))
+add!(microgrid, Demand(carrier = Electricity()), Demand(carrier = Heat()),
+                Solar(),
+                Liion(), ThermalStorage(), H2Tank(),
+                Heater(), Electrolyzer(), FuelCell(),
+                Grid(carrier = Electricity()))
 
 # Initialize controller
-controller = initialize_controller!(microgrid, RBC(options = RBCOptions(policy_selection = 3)), ω_optim)
+controller = initialize_controller!(microgrid, RBC(options = RBCOptions(policy_selection = 1)), ω_optim)
 
 # Initialize designer
-designer = initialize_designer!(microgrid, Manual(generations = [50.], storages = [100.]), ω_optim)
+designer = initialize_designer!(microgrid, Manual(generations = [112.], storages = [149., 585., 1597.], converters = [30., 1.5, 3.3]), ω_optim)
 
 # Simulate
 @elapsed simulate!(microgrid, controller, designer, ω_simu, options = Genesys.Options(mode="serial"))
 
 # Compute the metrics
 metrics = Metrics(microgrid, designer)
+
+a = Genesys.baseline_cost(1:2, 1:1, microgrid)

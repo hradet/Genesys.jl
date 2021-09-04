@@ -11,8 +11,7 @@ mutable struct Heater <: AbstractConverter
      soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
-     power_E::AbstractArray{Float64,3}
-     power_H::AbstractArray{Float64,3}
+     carrier::Vector{Any}
      # Eco
      cost::AbstractArray{Float64,2}
      # Inner constructor
@@ -25,30 +24,29 @@ end
 
 ### Preallocation
 function preallocate!(heater::Heater, nh::Int64, ny::Int64, ns::Int64)
-     heater.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; heater.powerMax .= heater.powerMax_ini
-     heater.power_E = convert(SharedArray,zeros(nh, ny, ns))
-     heater.power_H = convert(SharedArray,zeros(nh, ny, ns))
+     heater.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; heater.powerMax[1,:] .= heater.powerMax_ini
+     heater.carrier = [Electricity(), Heat()]
+     heater.carrier[1].in = convert(SharedArray,zeros(nh, ny, ns))
+     heater.carrier[1].out = convert(SharedArray,zeros(nh, ny, ns))
+     heater.carrier[2].in = convert(SharedArray,zeros(nh, ny, ns))
+     heater.carrier[2].out = convert(SharedArray,zeros(nh, ny, ns))
      heater.cost = convert(SharedArray,zeros(ny, ns))
+     return heater
 end
 
  ### Operation dynamic
- function compute_operation_dynamics(heater::Heater, x_heater::NamedTuple{(:powerMax,), Tuple{Float64}}, u_heater::Float64, Δh::Int64)
-     #=
-     INPUT :
-             x_heater = (powerMax[y]) tuple
-             u_heater[h,y] = control electric power in kW
-     OUTPUT :
-             power_E
-             power_H
-     =#
-
+ function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, heater::Heater, decision::Float64, Δh::Int64)
      # Power constraint and correction
-     power_E = min(max(u_heater, -x_heater.powerMax), 0.)
-
+     heater.carrier[1].out[h,y,s] = min(max(decision, -heater.powerMax[y,s]), 0.)
      # Power computation
-     power_H = - heater.η_E_H * power_E
-
-     return power_E, power_H
+     heater.carrier[2].in[h,y,s] = - heater.η_E_H * heater.carrier[1].out[h,y,s]
  end
 
  ### Investment dynamic
+ function compute_investment_dynamics!(y::Int64, s::Int64, heater::Heater, decision::Union{Float64, Int64})
+     if decision > 1e-2
+         heater.powerMax[y+1,s] = decision
+     else
+         heater.powerMax[y+1,s] = heater.powerMax[y,s]
+     end
+ end

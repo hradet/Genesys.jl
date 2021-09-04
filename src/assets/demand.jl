@@ -13,7 +13,8 @@ end
 
 ### Preallocation
 function preallocate!(ld::Demand, nh::Int64, ny::Int64, ns::Int64)
-     ld.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
-     ld.timestamp = Array{DateTime}(undef,(nh, ny, ns))
-     return ld
+    ld.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
+    ld.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
+    ld.timestamp = Array{DateTime}(undef,(nh, ny, ns))
+    return ld
 end

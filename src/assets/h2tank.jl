@@ -2,7 +2,7 @@
     H2 tank storage modelling
  =#
 
-mutable struct H2Tank
+mutable struct H2Tank  <: AbstractStorage
      # Paramètres
      α_p_ch::Float64
      α_p_dch::Float64
@@ -18,7 +18,7 @@ mutable struct H2Tank
      soh_ini::Float64
      # Variable
      Erated::AbstractArray{Float64,2}
-     power_H2::AbstractArray{Float64,3}
+     carrier::Hydrogen
      soc::AbstractArray{Float64,3}
      # Eco
      cost::AbstractArray{Float64,2}
@@ -39,53 +39,31 @@ end
 
 ### Preallocation
 function preallocate!(h2tank::H2Tank, nh::Int64, ny::Int64, ns::Int64)
-   h2tank.Erated = convert(SharedArray,zeros(ny+1, ns)) ; h2tank.Erated[1,:] .= h2tank.Erated_ini
-   h2tank.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
-   h2tank.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; h2tank.soc[1,1,:] .= h2tank.soc_ini
-   h2tank.cost = convert(SharedArray,zeros(ny, ns))
+    h2tank.Erated = convert(SharedArray,zeros(ny+1, ns)) ; h2tank.Erated[1,:] .= h2tank.Erated_ini
+    h2tank.carrier = Hydrogen()
+    h2tank.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
+    h2tank.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
+    h2tank.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; h2tank.soc[1,1,:] .= h2tank.soc_ini
+    h2tank.cost = convert(SharedArray,zeros(ny, ns))
+    return h2tank
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(h2tank::H2Tank, x_h2tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_h2tank::Float64, Δh::Int64)
-     #=
-     INPUT :
-             x_h2 = (Erated[y], soc[h,y]) tuple
-             u_h2[h,y] = control power in kW
-     OUTPUT :
-             soc_next
-             power = the real battery power in kW
-     =#
-
-     # Power constraint and correction
+function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, h2tank::H2Tank, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-      power_dch = max(min(u_h2tank, h2tank.α_p_dch * x_h2tank.Erated, h2tank.η_dch * (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * x_h2tank.Erated / Δh), 0.)
-      power_ch = min(max(u_h2tank, -h2tank.α_p_ch * x_h2tank.Erated, (x_h2tank.soc * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * x_h2tank.Erated / Δh / h2tank.η_ch), 0.)
-
-      # SoC dynamic
-      soc_next = x_h2tank.soc * (1. - h2tank.η_self * Δh) - (power_ch * h2tank.η_ch + power_dch / h2tank.η_dch) * Δh / x_h2tank.Erated
-
-     return soc_next, power_ch + power_dch
+     power_in = max(min(decision, h2tank.α_p_dch * h2tank.Erated[y,s], h2tank.η_dch * (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * h2tank.Erated[y,s] / Δh), 0.)
+     power_out = min(max(decision, -h2tank.α_p_ch * h2tank.Erated[y,s], (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * h2tank.Erated[y,s] / Δh / h2tank.η_ch), 0.)
+     # SoC dynamic
+     h2tank.soc[h+1,y,s] = h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - (power_out * h2tank.η_ch + power_in / h2tank.η_dch) * Δh / h2tank.Erated[y,s]
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(h2tank::H2Tank, x_tank::NamedTuple{(:Erated, :soc), Tuple{Float64, Float64}}, u_tank::Union{Float64, Int64})
-     #=
-         INPUT :
-                 x_tank = [Erated[y], soc[end,y]]
-                 u_tank[y] = h2tank control inv in kWh
-         OUTPUT :
-                 E_next
-                 soc_next
-     =#
-
-     # Model
-     if u_tank > 1e-2
-         E_next = u_tank
-         soc_next = h2tank.soc[1,1,1]
-     else
-         E_next = x_tank.Erated
-         soc_next = x_tank.soc
-     end
-
-     return E_next, soc_next
+function compute_investment_dynamics!(y::Int64, s::Int64, h2tank::H2Tank, decision::Union{Float64, Int64})
+    if decision > 1e-2
+        h2tank.Erated[y+1,s] = decision
+        h2tank.soc[1,y+1,s] = h2tank.soc[1,1,1]
+    else
+        h2tank.Erated[y+1,s] = h2tank.Erated[y,s]
+        h2tank.soc[1,y+1,s] = h2tank.soc[end,y,s]
+    end
 end

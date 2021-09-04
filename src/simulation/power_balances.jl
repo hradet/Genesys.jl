@@ -6,79 +6,70 @@
 #TODO rajouter fonction add_to_powerbalance!(power_balance, power)
 
 function compute_power_balances!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
-
-    # # Hydrogen
-    # check_hydrogen!(h, y, s, des)
-    #
-    # # Heat
-    # check_heat!(h, y, s, des)
-
+    # Hydrogen
+    checking!(h, y, s, mg, typeof(Hydrogen()))
+    # Heat
+    checking!(h, y, s, mg, typeof(Heat()))
     # Electricity
-    check_electricity!(h, y, s, mg)
+    checking!(h, y, s, mg, typeof(Electricity()))
 end
-# function check_hydrogen!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
-#
-#     ϵ = 0.01 # 0.01 kW tolerance
-#
-#     isa(des.h2tank, H2Tank) ? h2tank = des.h2tank.power_H2[h,y,s] : h2tank = 0.
-#     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H2[h,y,s] : elyz = 0.
-#     isa(des.fc, FuelCell) ? fc = des.fc.power_H2[h,y,s] : fc = 0.
-#
-#     if !isapprox(h2tank + elyz +  fc, 0., atol = ϵ)
-#
-#         if isa(des.h2tank, H2Tank)
-#             des.h2tank.power_H2[h,y,s] = 0.
-#             des.h2tank.soc[h+1,y,s] = max(0., des.h2tank.soc[h,y,s] * (1. - des.h2tank.η_self))
-#         end
-#
-#         if isa(des.elyz, Electrolyzer)
-#             des.elyz.power_E[h,y,s], des.elyz.power_H[h,y,s], des.elyz.power_H2[h,y,s]  = 0., 0., 0.
-#             des.elyz.soh[h+1,y,s] = des.elyz.soh[h,y,s]
-#         end
-#
-#         if isa(des.fc, FuelCell)
-#             des.fc.power_E[h,y,s], des.fc.power_H[h,y,s], des.fc.power_H2[h,y,s] = 0., 0., 0.
-#             des.fc.soh[h+1,y,s] = des.fc.soh[h,y,s]
-#         end
-#
-#     end
-# end
-# function check_heat!(h::Int64, y::Int64, s::Int64, des::DistributedEnergySystem)
-#
-#     ϵ = 0.01 # 0.01 kW tolerance
-#
-#     isa(des.ld_H, Load) ? ld_H = des.ld_H.power[h,y,s] : ld_H = 0.
-#     isa(des.heater, Heater) ? heater = des.heater.power_H[h,y,s] : heater = 0.
-#     isa(des.tes, ThermalSto) ? tes = des.tes.power_H[h,y,s] : tes = 0.
-#     isa(des.elyz, Electrolyzer) ? elyz = des.elyz.power_H[h,y,s] : elyz = 0.
-#     isa(des.fc, FuelCell) ? fc = des.fc.power_H[h,y,s] : fc = 0.
-#
-#     if !isapprox(heater + tes + elyz +  fc, ld_H, atol = ϵ)
-#         if !isapprox(heater + tes + elyz +  fc, 0., atol = ϵ)
-#             if isa(des.tes, ThermalSto)
-#                 des.tes.power_H[h,y,s] = 0.
-#                 des.tes.soc[h+1,y,s] = max(0., des.tes.soc[h,y,s] * (1. - des.tes.η_self))
-#             end
-#
-#             if isa(des.heater, Heater)
-#                 des.heater.power_E[h,y,s], des.heater.power_H[h,y,s] = 0., 0.
-#             end
-#         end
-#     else
-#         # print("Warning! Thermal load not fully supplied")
-#     end
-# end
-function check_electricity!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
+function power_balance(h::Union{Int64, UnitRange{Int64}}, y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid, type::DataType)
+    # Parameters
+    ϵ = 0.01 # 0.01 kW tolerance
+    # Energy balance
+    balance = 0.
+    # Demands
+    for a in mg.demands
+        !isempty(mg.demands) && a.carrier isa type ? balance = balance .+ a.carrier.out[h,y,s] : nothing
+    end
+    # Generations
+    for a in mg.generations
+        !isempty(mg.generations) && a.carrier isa type ? balance = balance .- a.carrier.in[h,y,s] : nothing
+    end
+    # Storages
+    for a in mg.storages
+        !isempty(mg.storages) && a.carrier isa type ? balance = balance .- a.carrier.in[h,y,s] .- a.carrier.out[h,y,s] : nothing
+    end
+    # Converters
+    for a in mg.converters
+        if !isempty(mg.converters)
+            for c in a.carrier
+                c isa type ? balance = balance .- c.in[h,y,s] .- c.out[h,y,s] : nothing
+            end
+        end
+    end
+    return balance
+end
+function checking!(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
+    # Parameters
+    ϵ = 0.01 # 0.01 kW tolerance
+    # Energy balance
+    balance = power_balance(h, y, s, mg, type)
+    # Grids
     for a in mg.grids
-        if a.carrier isa Electricity
-            # Energy balance
-            balance = sum(aa.carrier.out[h,y,s] for aa in mg.demands if aa.carrier isa Electricity) -
-                      sum(aa.carrier.in[h,y,s] for aa in mg.generations if aa.carrier isa Electricity) -
-                      sum(aa.carrier.in[h,y,s] + aa.carrier.out[h,y,s] for aa in mg.storages if aa.carrier isa Electricity) #-
-                      #sum(aa.carrier.in[h,y,s] + aa.carrier.out[h,y,s] for aa in mg.converters if aa.carrier isa Electricity)
-            # Positive and negative parts
-            a.carrier.in[h,y,s] = min(a.powerMax, max(0, balance))
-            a.carrier.out[h,y,s] = max(-a.powerMax, min(0, balance))
+        if !isempty(mg.grids)
+            if a.carrier isa type
+                a.carrier.in[h,y,s] = min(a.powerMax, max(0, balance))
+                a.carrier.out[h,y,s] = max(-a.powerMax, min(0, balance))
+            end
+        else # If the balance equation is not fulfilled, systems are turned to zerp
+            if balance > sum(a.carrier.out[h,y,s] for a in mg.demands if a.carrier isa type) + ϵ
+                # Storage set to zero
+                for a in mg.storages
+                    if a.carrier isa type
+                        a.carrier.in[h,y,s], a.carrier.out[h,y,s]= 0.
+                        a.soc[h+1,y,s] = max(0., a.soc[h,y,s] * (1. - a.η_self))
+                    end
+                end
+                # Converters set to zero
+                for a in mg.converters
+                    for c in a.carrier
+                        c.in[h,y,s], c.out[h,y,s]= 0., 0.
+                    end
+                end
+            else
+                println("Shedding energy demand!")
+            end
         end
     end
 end

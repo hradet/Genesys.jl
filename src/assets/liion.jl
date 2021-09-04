@@ -53,53 +53,25 @@
  end
 
  ### Operation dynamic
-function compute_operation_dynamics(liion::Liion, x_liion::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, decision::Float64, Δh::Int64)
-     #=
-     INPUT :
-             x_liion = (Erated[y], soc[h,y], soh[h,y]) tuple
-             decision[h,y] = control power in kW
-     OUTPUT :
-             soc_next
-             soh_next
-             carrier.in = the real discharging power in kW
-             carrier.out = the real charging power in kW
-     =#
-
+function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, liion::Liion, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-     power_in = max(min(decision, liion.α_p_dch * x_liion.Erated, x_liion.soh * x_liion.Erated / Δh, liion.η_dch * (x_liion.soc * (1. - liion.η_self * Δh) - liion.α_soc_min) * x_liion.Erated / Δh), 0.)
-     power_out = min(max(decision, -liion.α_p_ch * x_liion.Erated, -x_liion.soh * x_liion.Erated / Δh, (x_liion.soc * (1. - liion.η_self * Δh) - liion.α_soc_max) * x_liion.Erated / Δh / liion.η_ch), 0.)
-
+     power_in = max(min(decision, liion.α_p_dch * liion.Erated[y,s], liion.soh[h,y,s] * liion.Erated[y,s] / Δh, liion.η_dch * (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_min) * liion.Erated[y,s] / Δh), 0.)
+     power_out = min(max(decision, -liion.α_p_ch * liion.Erated[y,s], -liion.soh[h,y,s] * liion.Erated[y,s] / Δh, (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_max) * liion.Erated[y,s] / Δh / liion.η_ch), 0.)
      # SoC dynamic
-     soc_next = x_liion.soc * (1. - liion.η_self * Δh) - (power_out * liion.η_ch + power_in / liion.η_dch) * Δh / x_liion.Erated
-
+     liion.soc[h+1,y,s] = liion.soc[h,y,s] * (1. - liion.η_self * Δh) - (power_out * liion.η_ch + power_in / liion.η_dch) * Δh / liion.Erated[y,s]
      # SoH dynamic
-     soh_next = x_liion.soh - (power_in - power_out) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * x_liion.Erated)
-
-     return soc_next, soh_next, power_in, power_out
+     liion.soh[h+1,y,s] = liion.soh[h,y,s] - (power_in - power_out) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * liion.Erated[y,s])
 end
 
  ### Investment dynamic
- function compute_investment_dynamics(liion::Liion, x_liion::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, decision::Union{Float64, Int64})
-     #=
-         INPUT :
-                 x_liion = [Erated[y], soc[end,y], soh[end,y]]
-                 decision[y] = liion control inv in kWh
-         OUTPUT :
-                 E_next
-                 soc_next
-                 soh_next
-     =#
-
-     # Model
+ function compute_investment_dynamics!(y::Int64, s::Int64, liion::Liion, decision::Union{Float64, Int64})
      if decision > 1e-2
-         E_next = decision
-         soc_next = liion.soc[1,1,1]
-         soh_next =  1.
+         liion.Erated[y+1,s] = decision
+         liion.soc[1,y+1,s] = liion.soc[1,1,1]
+         liion.soh[1,y+1,s] =  1.
      else
-         E_next = x_liion.Erated
-         soc_next = x_liion.soc
-         soh_next =  x_liion.soh
+         liion.Erated[y+1,s] = liion.Erated[y,s]
+         liion.soc[1,y+1,s] = liion.soc[end,y,s]
+         liion.soh[1,y+1,s] = liion.soh[end,y,s]
      end
-
-     return E_next, soc_next, soh_next
  end

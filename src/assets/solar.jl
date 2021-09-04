@@ -20,6 +20,7 @@ end
 function preallocate!(pv::Solar, nh::Int64, ny::Int64, ns::Int64)
     pv.carrier = Electricity()
     pv.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
+    pv.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
     pv.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; pv.powerMax[1,:] .= pv.powerMax_ini
     pv.timestamp = Array{DateTime}(undef,(nh, ny, ns))
     pv.cost = convert(SharedArray,zeros(ny, ns))
@@ -27,24 +28,11 @@ function preallocate!(pv::Solar, nh::Int64, ny::Int64, ns::Int64)
     return pv
  end
 
- ### Operation dynamic
-
  ### Investment dynamic
- function compute_investment_dynamics(pv::Solar, x_pv::NamedTuple{(:powerMax,), Tuple{Float64}}, u_pv::Union{Float64, Int64})
-     #=
-         INPUT :
-                 x_pv = [powerMax[y]]
-                 u_pv[y] = pv control inv in kW
-         OUTPUT :
-                 pMax_next
-     =#
-
-     # Model
-     if u_pv > 1e-2
-         powerMax_next = u_pv
+ function compute_investment_dynamics!(y::Int64, s::Int64, pv::Solar, decision::Union{Float64, Int64})
+     if decision > 1e-2
+         pv.powerMax[y+1,s] = decision
      else
-         powerMax_next = x_pv.powerMax
+         pv.powerMax[y+1,s] = pv.powerMax[y,s]
      end
-
-     return powerMax_next
  end

@@ -2,7 +2,7 @@
     Electrolyzer modelling
  =#
 
-mutable struct Electrolyzer
+mutable struct Electrolyzer <: AbstractConverter
      # Paramètres
      α_p::Float64
      η_E_H2::Float64
@@ -14,9 +14,7 @@ mutable struct Electrolyzer
      soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
-     power_E::AbstractArray{Float64,3}
-     power_H::AbstractArray{Float64,3}
-     power_H2::AbstractArray{Float64,3}
+     carrier::Vector{Any}
      soh::AbstractArray{Float64,3}
      # Eco
      cost::AbstractArray{Float64,2}
@@ -34,57 +32,36 @@ end
 ### Preallocation
 function preallocate!(elyz::Electrolyzer, nh::Int64, ny::Int64, ns::Int64)
      elyz.powerMax = convert(SharedArray,zeros(ny+1, ns)) ; elyz.powerMax[1,:] .= elyz.powerMax_ini
-     elyz.power_E = convert(SharedArray,zeros(nh, ny, ns))
-     elyz.power_H = convert(SharedArray,zeros(nh, ny, ns))
-     elyz.power_H2 = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier = [Electricity(), Heat(), Hydrogen()]
+     elyz.carrier[1].in = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier[1].out = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier[2].in = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier[2].out = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier[3].in = convert(SharedArray,zeros(nh, ny, ns))
+     elyz.carrier[3].out = convert(SharedArray,zeros(nh, ny, ns))
      elyz.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; elyz.soh[1,1,:] .= elyz.soh_ini
      elyz.cost = convert(SharedArray,zeros(ny, ns))
+     return elyz
 end
 
 ### Operation dynamic
-function compute_operation_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Float64, Δh::Int64)
-    #=
-    INPUT :
-            x_elyz = (powerMax[y], soh[h,y]) tuple
-            u_elyz[h,y] = control electric power in kW
-    OUTPUT :
-            power_E
-            power_H
-            power_H2
-    =#
-
+function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, elyz::Electrolyzer, decision::Float64, Δh::Int64)
     # Power constraint and correction
-    elyz.α_p * x_elyz.powerMax >= u_elyz && x_elyz.soh * elyz.nHoursMax / Δh > 1. ? power_E = max(u_elyz, -x_elyz.powerMax) : power_E = 0
-
-    # Power computations
-    power_H2 = - power_E * elyz.η_E_H2
-    power_H = - power_E * elyz.η_E_H
-
+    elyz.α_p * elyz.powerMax[y,s] >= decision && elyz.soh[h,y,s] * elyz.nHoursMax / Δh > 1. ? elyz.carrier[1].out[h,y,s] = max(decision, -elyz.powerMax[y,s]) : elyz.carrier[1].out[h,y,s] = 0.
+    # Power conversion
+    elyz.carrier[3].in[h,y,s] = - elyz.carrier[1].out[h,y,s] * elyz.η_E_H2
+    elyz.carrier[2].in[h,y,s] = - elyz.carrier[1].out[h,y,s] * elyz.η_E_H
     # SoH computation
-    soh_next = x_elyz.soh - (power_E < 0.) * Δh / elyz.nHoursMax
-
-    return power_E, power_H, power_H2, soh_next
+    elyz.soh[h+1,y,s] = elyz.soh[h,y,s] - (elyz.carrier[1].out[h,y,s] > 0.) * Δh / elyz.nHoursMax
 end
 
 ### Investment dynamic
-function compute_investment_dynamics(elyz::Electrolyzer, x_elyz::NamedTuple{(:powerMax, :soh), Tuple{Float64, Float64}}, u_elyz::Union{Float64, Int64})
-    #=
-        INPUT :
-                x_elyz = [powerMax[y], soh[end,y]]
-                u_elyz[y] = elyz control inv in kW
-        OUTPUT :
-                pMax_next
-                soh_next
-    =#
-
-    # Model
-    if u_elyz > 1e-2
-        powerMax_next = u_elyz
-        soh_next = 1.
+function compute_investment_dynamics!(y::Int64, s::Int64, elyz::Electrolyzer, decision::Union{Float64, Int64})
+    if decision > 1e-2
+        elyz.powerMax[y+1,s] = decision
+        elyz.soh[1,y+1,s] = 1.
     else
-        powerMax_next = x_elyz.powerMax
-        soh_next = x_elyz.soh
+        elyz.powerMax[y+1,s] = elyz.powerMax[y,s]
+        elyz.soh[1,y+1,s] = elyz.soh[end,y,s]
     end
-
-    return powerMax_next, soh_next
 end
