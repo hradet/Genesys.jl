@@ -55,12 +55,12 @@
  ### Operation dynamic
 function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, liion::Liion, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-     power_in = max(min(decision, liion.α_p_dch * liion.Erated[y,s], liion.soh[h,y,s] * liion.Erated[y,s] / Δh, liion.η_dch * (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_min) * liion.Erated[y,s] / Δh), 0.)
-     power_out = min(max(decision, -liion.α_p_ch * liion.Erated[y,s], -liion.soh[h,y,s] * liion.Erated[y,s] / Δh, (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_max) * liion.Erated[y,s] / Δh / liion.η_ch), 0.)
+     liion.carrier.in[h,y,s] = max(min(decision, liion.α_p_dch * liion.Erated[y,s], liion.soh[h,y,s] * liion.Erated[y,s] / Δh, liion.η_dch * (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_min) * liion.Erated[y,s] / Δh), 0.)
+     liion.carrier.out[h,y,s] = min(max(decision, -liion.α_p_ch * liion.Erated[y,s], -liion.soh[h,y,s] * liion.Erated[y,s] / Δh, (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_max) * liion.Erated[y,s] / Δh / liion.η_ch), 0.)
      # SoC dynamic
-     liion.soc[h+1,y,s] = liion.soc[h,y,s] * (1. - liion.η_self * Δh) - (power_out * liion.η_ch + power_in / liion.η_dch) * Δh / liion.Erated[y,s]
+     liion.soc[h+1,y,s] = liion.soc[h,y,s] * (1. - liion.η_self * Δh) - (liion.carrier.out[h,y,s] * liion.η_ch + liion.carrier.in[h,y,s] / liion.η_dch) * Δh / liion.Erated[y,s]
      # SoH dynamic
-     liion.soh[h+1,y,s] = liion.soh[h,y,s] - (power_in - power_out) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * liion.Erated[y,s])
+     liion.soh[h+1,y,s] = liion.soh[h,y,s] - (liion.carrier.in[h,y,s] - liion.carrier.out[h,y,s]) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * liion.Erated[y,s])
 end
 
  ### Investment dynamic

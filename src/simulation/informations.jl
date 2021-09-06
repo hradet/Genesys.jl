@@ -6,48 +6,34 @@
 
 function update_operation_informations!(h::Int64, y::Int64, s::Int64, mg::Microgrid, ω::Scenarios)
     # Demands
-    for a in mg.demands
-        if a.carrier isa Electricity
-            a.timestamp[h,y,s] = ω.ld_E.t[h,y,s]
-            a.carrier.out[h,y,s] = ω.ld_E.power[h,y,s]
-        elseif a.carrier isa Heat
-            a.timestamp[h,y,s] = ω.ld_H.t[h,y,s]
-            a.carrier.out[h,y,s] = ω.ld_H.power[h,y,s]
-        elseif d.carrier isa Hydrogen
-            a.timestamp[h,y,s] = ω.ld_H2.t[h,y,s]
-            a.carrier.out[h,y,s] = ω.ld_H2.power[h,y,s]
-        end
+    for (k, a) in enumerate(mg.demands)
+        a.timestamp[h,y,s] = ω.demands[k].t[h,y,s]
+        a.carrier.out[h,y,s] = ω.demands[k].power[h,y,s]
     end
     # Generations
-    for a in mg.generations
-        if a.carrier isa Electricity
-            a.timestamp[h,y,s] = ω.pv.t[h,y,s]
-            a.carrier.in[h,y,s] = a.powerMax[y,s] * ω.pv.power[h,y,s]
-        elseif a.carrier isa Heat
-            println("Not yet implemented")
-        elseif a.carrier isa Hydrogen
-            println("Not yet implemented")
-        end
+    for (k, a) in enumerate(mg.generations)
+        a.timestamp[h,y,s] = ω.generations[k].t[h,y,s]
+        a.carrier.in[h,y,s] = a.powerMax[y,s] * ω.generations[k].power[h,y,s]
     end
     # Grids - We assume the price of electricity is known over the year
-    for a in mg.grids
-        if a.carrier isa Electricity && h == 1
-            a.cost_in[1:end,y,s] = ω.grid.cost_in[1:end,y,s]
-            a.cost_out[1:end,y,s] = ω.grid.cost_out[1:end,y,s]
-        elseif a.carrier isa Heat && h == 1
-            println("Not yet implemented")
-        elseif a.carrier isa Hydrogen && h == 1
-            println("Not yet implemented")
+    for (k, a) in enumerate(mg.grids)
+        if h == 1
+            a.cost_in[1:end,y,s] = ω.grids[k].cost_in[1:end,y,s]
+            a.cost_out[1:end,y,s] = ω.grids[k].cost_out[1:end,y,s]
         end
     end
 end
 function update_investment_informations!(y::Int64, s::Int64, mg::Microgrid, ω::Scenarios)
-    # Generation
-    for a in mg.generations
-        a.cost[y,s] = ω.pv.cost[y,s]
+    # Generations
+    for (k, a) in enumerate(mg.generations)
+        a.cost[y,s] = ω.generations[k].cost[y,s]
     end
-    # Liion
-    for a in mg.storages
-        a.cost[y,s] = ω.liion.cost[y,s]
+    # Storages
+    for (k, a) in enumerate(mg.storages)
+        a.cost[y,s] = ω.storages[k].cost[y,s]
+    end
+    # Converters
+    for (k, a) in enumerate(mg.converters)
+        a.cost[y,s] = ω.converters[k].cost[y,s]
     end
 end

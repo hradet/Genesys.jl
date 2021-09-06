@@ -51,10 +51,10 @@ end
 ### Operation dynamic
 function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, tes::ThermalStorage, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-     power_in = max(min(decision, tes.α_p_dch * tes.Erated[y,s], tes.η_dch * (tes.soc[h,y,s] * (1. - tes.η_self * Δh) - tes.α_soc_min) * tes.Erated[y,s] / Δh), 0.)
-     power_out = min(max(decision, -tes.α_p_ch * tes.Erated[y,s], (tes.soc[h,y,s] * (1. - tes.η_self * Δh) - tes.α_soc_max) * tes.Erated[y,s] / Δh / tes.η_ch), 0.)
+     tes.carrier.in[h,y,s] = max(min(decision, tes.α_p_dch * tes.Erated[y,s], tes.η_dch * (tes.soc[h,y,s] * (1. - tes.η_self * Δh) - tes.α_soc_min) * tes.Erated[y,s] / Δh), 0.)
+     tes.carrier.out[h,y,s] = min(max(decision, -tes.α_p_ch * tes.Erated[y,s], (tes.soc[h,y,s] * (1. - tes.η_self * Δh) - tes.α_soc_max) * tes.Erated[y,s] / Δh / tes.η_ch), 0.)
      # SoC dynamic
-     tes.soc[h+1,y,s] = tes.soc[h,y,s] * (1. - tes.η_self * Δh) - (power_out * tes.η_ch + power_in / tes.η_dch) * Δh / tes.Erated[y,s]
+     tes.soc[h+1,y,s] = tes.soc[h,y,s] * (1. - tes.η_self * Δh) - (tes.carrier.out[h,y,s] * tes.η_ch + tes.carrier.in[h,y,s] / tes.η_dch) * Δh / tes.Erated[y,s]
 end
 
 ### Investment dynamic

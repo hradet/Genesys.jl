@@ -51,10 +51,10 @@ end
 ### Operation dynamic
 function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, h2tank::H2Tank, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-     power_in = max(min(decision, h2tank.α_p_dch * h2tank.Erated[y,s], h2tank.η_dch * (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * h2tank.Erated[y,s] / Δh), 0.)
-     power_out = min(max(decision, -h2tank.α_p_ch * h2tank.Erated[y,s], (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * h2tank.Erated[y,s] / Δh / h2tank.η_ch), 0.)
+     h2tank.carrier.in[h,y,s] = max(min(decision, h2tank.α_p_dch * h2tank.Erated[y,s], h2tank.η_dch * (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_min) * h2tank.Erated[y,s] / Δh), 0.)
+     h2tank.carrier.out[h,y,s] = min(max(decision, -h2tank.α_p_ch * h2tank.Erated[y,s], (h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - h2tank.α_soc_max) * h2tank.Erated[y,s] / Δh / h2tank.η_ch), 0.)
      # SoC dynamic
-     h2tank.soc[h+1,y,s] = h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - (power_out * h2tank.η_ch + power_in / h2tank.η_dch) * Δh / h2tank.Erated[y,s]
+     h2tank.soc[h+1,y,s] = h2tank.soc[h,y,s] * (1. - h2tank.η_self * Δh) - (h2tank.carrier.out[h,y,s] * h2tank.η_ch + h2tank.carrier.in[h,y,s] / h2tank.η_dch) * Δh / h2tank.Erated[y,s]
 end
 
 ### Investment dynamic

@@ -70,9 +70,9 @@ include(joinpath("simulation","simulations.jl"))
 export simulate!
 # # Utils
 include(joinpath("utils","metrics.jl"))
-# include(joinpath("utils","plots.jl"))
+include(joinpath("utils","plots.jl"))
 # include(joinpath("utils","saves.jl"))
 export Metrics
-# export plot_operation, plot_investment, plot_soh, plot_costs, plot_statistics
+export plot_operation, plot_statistics
 
 end
