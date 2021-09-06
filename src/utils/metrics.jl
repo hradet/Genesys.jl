@@ -151,6 +151,7 @@ renewable_share(mg::Microgrid) = renewable_share(1:mg.parameters.ns, mg)
 renewable_share(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = renewable_share(1:mg.parameters.ny, s, mg)
 # Share of renewables for a given year y of a givn scenario s
 function renewable_share(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
+    # TODO to be changed if there is not grid...
     elec, heat = 0., 0.
     grid = sum(mg.grids[1].carrier.in[:,y,s], dims = 1)
     if !isempty(mg.demands)
@@ -166,25 +167,54 @@ function renewable_share(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, Unit
 end
 
 # LPSP
-# mutable struct LPSP{T}
-#     elec::Union{Nothing, T}
-#     heat::Union{Nothing, T}
-# end
-#
-# LPSP(mg::Microgrid) = LPSP(1:mg.parameters.ns, mg)
-# # LPSP for a given scenario s
-# LPSP(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = LPSP(1:mg.parameters.ny, s, mg)
-# # LPSP for a given scenario s and year y
-# function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
-#     return LPSP(nothing, nothing)
-# end
+mutable struct LPSP{T}
+    elec::Union{Nothing, T}
+    heat::Union{Nothing, T}
+    hydrogen::Union{Nothing, T}
+end
+
+LPSP(mg::Microgrid) = LPSP(1:mg.parameters.ns, mg)
+# LPSP for a given scenario s
+LPSP(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = LPSP(1:mg.parameters.ny, s, mg)
+# LPSP for a given scenario s and year y
+function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
+    # Initialization
+    elec, heat, hydrogen = nothing, nothing, nothing
+    # Computation
+    for a in mg.demands
+        if a.carrier isa Electricity
+            elec = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Electricity()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            for aa in mg.grids
+                if aa.carrier isa Electricity
+                    elec = elec .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                end
+            end
+        elseif a.carrier isa Heat
+            heat = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Heat()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            for aa in mg.grids
+                if aa.carrier isa Heat
+                    heat = heat .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                end
+            end
+        elseif a.carrier  isa Hydrogen
+            hydrogen = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Hydrogen()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            for aa in mg.grids
+                if aa.carrier isa Hydrogen
+                    hydrogen = hydrogen .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                end
+            end
+        end
+    end
+
+    return LPSP(elec, heat, hydrogen)
+end
 
 mutable struct Metrics{T}
     baseline::T
     npv::NPV{T}
     eac::EAC{T}
     renewable_share::T
-    #lpsp::LPSP{T}
+    lpsp::LPSP{T}
 end
 
 # Compute indicators
@@ -200,7 +230,7 @@ function Metrics(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid, designer::Abs
     # Share of renewables
     share = renewable_share(s, mg)
     # LPSP
-    # lpsp = LPSP(s, mg)
+    lpsp = LPSP(s, mg)
 
-    return Metrics(baseline, npv, eac, share)#, lpsp)
+    return Metrics(baseline, npv, eac, share, lpsp)
 end

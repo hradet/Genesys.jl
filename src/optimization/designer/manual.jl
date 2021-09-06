@@ -32,12 +32,6 @@ end
 
 ### Online
 function compute_investment_decisions!(y::Int64, s::Int64, mg::Microgrid, designer::Manual)
-    # ϵ = 0.2
-    #
-    # if y != 1
-    #     isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = designer.u.liion[1,s] : nothing
-    #     isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = designer.u.elyz[1,s]  : nothing
-    #     isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s]  : nothing
-    # end
+    # TODO
     return nothing
 end

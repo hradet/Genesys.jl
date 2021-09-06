@@ -36,8 +36,8 @@ export KmedoidsClustering
 export MarkovGenerator, AnticipativeGenerator
 export reduce, generate
 # # Risk measures
-# include(joinpath("optimization","risk_measures.jl"))
-# export Expectation, CVaR, WorstCase
+include(joinpath("optimization","risk_measures.jl"))
+export Expectation, CVaR, WorstCase
 # # Operation optimization
 include(joinpath("optimization","controller","abstract.jl"))
 include(joinpath("optimization","controller","dummy.jl"))
@@ -52,9 +52,9 @@ export initialize_controller!
 include(joinpath("optimization","designer","abstract.jl"))
 include(joinpath("optimization","designer","manual.jl"))
 # include(joinpath("optimization","designer","milp.jl"))
-# include(joinpath("optimization","designer","metaheuristic.jl"))
-export Manual#, MILP, Metaheuristic
-# export MILPOptions, MetaheuristicOptions
+include(joinpath("optimization","designer","metaheuristic.jl"))
+export Manual, Metaheuristic#, MILP
+export MetaheuristicOptions#, MILPOptions
 export initialize_designer!
 # # Anticipative optimization
 # include(joinpath("optimization","anticipative","multistages.jl"))
