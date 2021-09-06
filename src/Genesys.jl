@@ -3,7 +3,7 @@ module Genesys
 # Optimisation
 using JuMP, CPLEX, Metaheuristics, SDDP
 # Math
-using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra #, HDBSCAN
+using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra
 # using UMAP
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
@@ -25,17 +25,16 @@ export Electricity, Heat, Hydrogen
 export add!
 # # Scenarios
 include(joinpath("scenarios","scenarios.jl"))
-# include(joinpath("scenarios","reduction.jl"))
-# include(joinpath("scenarios","generation.jl"))
-# include(joinpath("scenarios","utils.jl"))
+include(joinpath("scenarios","reduction.jl"))
+include(joinpath("scenarios","generation.jl"))
+include(joinpath("scenarios","utils.jl"))
 export Scenarios
-# export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
-# export UnitRangeTransform, ZScoreTransform
-# export PCAReduction, StatsReduction
-# # export UMAPReduction
-# export KmedoidsClustering #, HDBSCANClustering
-# export MarkovGenerator, AnticipativeGenerator
-# export reduce, generate
+export ManualReducer, SAAReducer, MeanValueReducer, FeatureBasedReducer
+export UnitRangeTransform, ZScoreTransform
+export PCAReduction, StatsReduction
+export KmedoidsClustering
+export MarkovGenerator, AnticipativeGenerator
+export reduce, generate
 # # Risk measures
 # include(joinpath("optimization","risk_measures.jl"))
 # export Expectation, CVaR, WorstCase

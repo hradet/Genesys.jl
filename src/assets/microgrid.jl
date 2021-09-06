@@ -39,18 +39,13 @@ end
 
 
 #
-# function Base.copy(des::DistributedEnergySystem, nh::Int64, ny::Int64, ns::Int64)
-#     des_copy = DistributedEnergySystem(ld_E = isa(des.ld_E, Load) ? Load() : nothing,
-#                                   ld_H = isa(des.ld_H, Load) ? Load() : nothing,
-#                                   pv = isa(des.pv, Source) ? Source() : nothing,
-#                                   liion = isa(des.liion, Liion) ? Liion() : nothing,
-#                                   tes = isa(des.tes, ThermalSto) ? ThermalSto() : nothing,
-#                                   h2tank = isa(des.h2tank, H2Tank) ? H2Tank() : nothing,
-#                                   elyz = isa(des.elyz, Electrolyzer) ? Electrolyzer() : nothing,
-#                                   fc = isa(des.fc, FuelCell) ? FuelCell() : nothing,
-#                                   heater = isa(des.heater, Heater) ? Heater() : nothing,
-#                                   grid = isa(des.grid, Grid) ? Grid() : nothing,
-#                                   parameters = Genesys.GlobalParameters(nh, ny, ns, renewable_share = des.parameters.renewable_share))
-#
-#     return des_copy
-# end
+function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
+    # Initialize mg
+    microgrid = Microgrid(parameters = GlobalParameters(nh, ny, ns, renewable_share = mg.parameters.renewable_share))
+    # Get the assets
+    demands, generations, storages, converters, grids = [a for a in mg.demands], [a for a in mg.generations], [a for a in mg.storages], [a for a in mg.converters], [a for a in mg.grids]
+    # Build the microgrid
+    add!(microgrid, demands..., generations..., storages..., converters..., grids...)
+
+    return microgrid
+end
