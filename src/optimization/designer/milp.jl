@@ -25,7 +25,7 @@ end
 
 mutable struct MILP <: AbstractDesigner
     options::MILPOptions
-    u::NamedTuple
+    decisions::NamedTuple
     model::JuMP.Model
     history::AbstractScenarios
 
@@ -180,6 +180,15 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
     optimize!(designer.model)
 
     # Assign values
+    for k in 1:length(mg.generations)
+        designer.decisions.generations[k][1,:] .= designer.results.minimizer[k]
+    end
+    for k in 1:length(mg.storages)
+        designer.decisions.storages[k][1,:] .= designer.results.minimizer[length(mg.generations)+k]
+    end
+    for k in 1:length(mg.converters)
+        designer.decisions.converters[k][1,:] .= designer.results.minimizer[end-length(mg.converters)+k]
+    end
     designer.u.pv[1,:] .= value(designer.model[:r_pv])
     designer.u.liion[1,:] .= value(designer.model[:r_liion])
     designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank])

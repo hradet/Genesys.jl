@@ -38,5 +38,3 @@ metrics = Metrics(microgrid, designer)
 # Plots
 plot_operation(microgrid)
 plot_statistics(metrics)
-
-heat = sum(Genesys.power_balance(1:nh, 1:ny, 1:ns, microgrid, typeof(Heat())), dims=1)

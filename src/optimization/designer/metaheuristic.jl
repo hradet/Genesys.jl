@@ -48,6 +48,7 @@ function fobj(decisions::Array{Float64,1}, mg::Microgrid, designer::Metaheuristi
     # Paramters
     nh, ny, ns = size(ω.demands[1].power)
     λ1 = λ2 = λ3 = 1e6
+
     # Initialize mg
     mg_m = copy(mg, nh, ny, ns)
 
@@ -70,17 +71,22 @@ function fobj(decisions::Array{Float64,1}, mg::Microgrid, designer::Metaheuristi
     metrics.lpsp.heat isa Nothing ? lpsp = 0. : lpsp = max(0., conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...], probabilities,  designer.options.lpsp_risk) - designer.options.lpsp_tol)
 
     # SoC constraint for the seasonal storage
-    soc_h2tank = sum(max(0., a.soc[1,y,s] - a.soc[end,y,s]) for y in 2:ny, s in 1:ns, a in mg_m.storages if a isa H2Tank)
+    soc_seasonal = 0.
+    for a in mg_m.storages
+        if a isa H2Tank
+            soc_seasonal += sum(max(0., a.soc[1,y,s] - a.soc[end,y,s]) for y in 2:ny, s in 1:ns)
+        end
+    end
 
     # Objective - Algortihm find the maximum
     if designer.options.isnpv
         # NPV
         npv = conditional_value_at_risk([metrics.npv.total...], probabilities, designer.options.objective_risk)
-        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank
+        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_seasonal
     else
         # Equivalent annual cost
         eac = conditional_value_at_risk([metrics.eac.total...], probabilities, designer.options.objective_risk)
-        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank
+        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_seasonal
     end
 end
 
@@ -90,8 +96,8 @@ function initialize_designer!(mg::Microgrid, designer::Metaheuristic, ω::Scenar
     preallocate!(mg, designer)
 
     # Scenario reduction from the optimization scenario pool
-    println("Starting scenario reduction...")
     if designer.options.isnpv
+        println("Starting scenario reduction...")
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     else
         if isa(designer.options.read_reduction, Nothing)
