@@ -179,28 +179,28 @@ LPSP(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = LPSP(1:mg.parameters.ny
 # LPSP for a given scenario s and year y
 function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
     # Initialization
-    elec, heat, hydrogen = nothing, nothing, nothing
+    elec, heat, hydrogen = zeros(length(y), length(s)), zeros(length(y), length(s)), zeros(length(y), length(s))
     # Computation
-    for a in mg.demands
+    for a in mg.demands, ss in s, yy in y
         if a.carrier isa Electricity
-            elec = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Electricity()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            elec[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Electricity()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
             for aa in mg.grids
                 if aa.carrier isa Electricity
-                    elec = elec .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                    elec[yy,ss] = elec[yy,ss] - sum(aa.carrier.in[hh, yy, ss] for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
                 end
             end
         elseif a.carrier isa Heat
-            heat = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Heat()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            heat[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Heat()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
             for aa in mg.grids
                 if aa.carrier isa Heat
-                    heat = heat .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                    heat[yy,ss] = heat[yy,ss] - sum(aa.carrier.in[hh, yy, ss] for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
                 end
             end
         elseif a.carrier  isa Hydrogen
-            hydrogen = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, typeof(Hydrogen()))), dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+            hydrogen[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Hydrogen()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
             for aa in mg.grids
                 if aa.carrier isa Hydrogen
-                    hydrogen = hydrogen .- sum(aa.carrier.in[1:mg.parameters.nh, y, s], dims=1)[1,:,:] ./ sum(a.carrier.out[1:mg.parameters.nh, y, s], dims = 1)[1,:,:]
+                    hydrogen[yy,ss] = hydrogen[yy,ss] - sum(aa.carrier.in[hh, yy, ss] for hh in 1:mg.parameters.nh) / sum(a.carrier.out[hh, yy, ss] for hh in 1:mg.parameters.nh)
                 end
             end
         end

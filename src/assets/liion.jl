@@ -33,7 +33,7 @@
         α_soc_min = 0.2,
         α_soc_max = 0.8,
         lifetime = 12,
-        nCycle = 2500,
+        nCycle = 2500.,
         Erated_ini = 1e-6,
         soc_ini = 0.5,
         soh_ini = 1.) =

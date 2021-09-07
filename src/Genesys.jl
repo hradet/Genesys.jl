@@ -51,10 +51,10 @@ export initialize_controller!
 # # Investment optimization
 include(joinpath("optimization","designer","abstract.jl"))
 include(joinpath("optimization","designer","manual.jl"))
-# include(joinpath("optimization","designer","milp.jl"))
+include(joinpath("optimization","designer","milp.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))
-export Manual, Metaheuristic#, MILP
-export MetaheuristicOptions#, MILPOptions
+export Manual, Metaheuristic, MILP
+export MetaheuristicOptions, MILPOptions
 export initialize_designer!
 # # Anticipative optimization
 # include(joinpath("optimization","anticipative","multistages.jl"))

@@ -14,7 +14,7 @@ mutable struct Electrolyzer <: AbstractConverter
      soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
-     carrier::Vector{Any}
+     carrier::Vector{EnergyCarrier}
      soh::AbstractArray{Float64,3}
      # Eco
      cost::AbstractArray{Float64,2}
@@ -22,7 +22,7 @@ mutable struct Electrolyzer <: AbstractConverter
      Electrolyzer(; α_p = 5/100,
                  η_E_H2 = 0.5,
                  η_E_H = 0.3,
-                 lifetime = 15.,
+                 lifetime = 15,
                  nHoursMax = 26000.,
                  powerMax_ini = 0.,
                  soh_ini = 1.) =

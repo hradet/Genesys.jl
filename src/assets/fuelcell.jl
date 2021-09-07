@@ -14,7 +14,7 @@ mutable struct FuelCell <: AbstractConverter
      soh_ini::Float64
      # Variables
      powerMax::AbstractArray{Float64,2}
-     carrier::Vector{Any}
+     carrier::Vector{EnergyCarrier}
      soh::AbstractArray{Float64,3}
      # Eco
      cost::AbstractArray{Float64,2}
@@ -22,7 +22,7 @@ mutable struct FuelCell <: AbstractConverter
      FuelCell(; α_p = 8/100,
              η_H2_E = 0.4,
              η_H2_H = 0.4,
-             lifetime = 14.,
+             lifetime = 14,
              nHoursMax = 10000.,
              powerMax_ini = 0.,
              soh_ini = 1.) =

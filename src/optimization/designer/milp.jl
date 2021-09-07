@@ -33,25 +33,22 @@ mutable struct MILP <: AbstractDesigner
 end
 
 ### Models
-function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios, probabilities::Vector{Float64})
+function build_model(mg::Microgrid, designer::MILP, ω::Scenarios, probabilities::Vector{Float64})
     # Sets
-    nh = size(ω.ld_E.power,1) # Number of hours
-    ns = size(ω.ld_E.power,3) # Number of scenarios
+    nh = size(ω.demands[1].power,1) # Number of hours
+    ns = size(ω.demands[1].power,3) # Number of scenarios
 
     # Initialize
-    isa(des.ld_E, Load) ? ld_E = ω.ld_E.power : ld_E = zeros(nh, 1, ns)
-    isa(des.ld_H, Load) ? ld_H = ω.ld_H.power : ld_H = zeros(nh, 1, ns)
-    isa(des.liion, Liion) ? liion = des.liion : liion = Liion()
-    isa(des.tes, ThermalSto) ? tes = des.tes : tes = ThermalSto()
-    isa(des.h2tank, H2Tank) ? h2tank = des.h2tank : h2tank = H2Tank()
-    isa(des.elyz, Electrolyzer) ? elyz = des.elyz : elyz = Electrolyzer()
-    isa(des.fc, FuelCell) ? fc = des.fc : fc = FuelCell()
-    isa(des.heater, Heater) ? heater = des.heater : heater = Heater()
-    isa(des.pv, Source) ? pv = des.pv : pv = Source()
-    isa(des.grid, Grid) ? grid = des.grid : grid = Grid()
-
-    # Model definition
     m = Model(designer.options.solver.Optimizer)
+
+    # Generations
+    # for a in mg.generations
+    #     @variables(m, begin
+    #     0 <= r_pv     <= 1000
+    #     end)
+    #     @constraints(m begin
+    #     end)
+    # end
 
     # Build model
     # Variables
@@ -69,12 +66,12 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     p_g_out[1:nh, 1:ns]      <= 0.
     p_g_in[1:nh, 1:ns]       >= 0.
     # Investment decisions variables
-    0 <= r_liion  <= (isa(des.liion, Liion) ? 1000 : 0)
-    0 <= r_tes    <= (isa(des.tes, ThermalSto) ? 1000 : 0)
-    0 <= r_h2tank <= (isa(des.h2tank, H2Tank) ? 50000 : 0)
-    0 <= r_elyz   <= (isa(des.elyz, Electrolyzer) ? 50 : 0)
-    0 <= r_fc     <= (isa(des.fc, FuelCell) ? 50 : 0)
-    0 <= r_pv     <= (isa(des.pv, Source) ? 1000 : 0)
+    0 <= r_pv     <= (isin(mg.generations, Solar)[1] ? 1000 : 0)
+    0 <= r_liion  <= (isin(mg.storages, Liion)[1] ? 1000 : 0)
+    0 <= r_tes    <= (isin(mg.storages, ThermalStorage)[1] ? 1000 : 0)
+    0 <= r_h2tank <= (isin(mg.storages, H2Tank)[1] ? 50000 : 0)
+    0 <= r_elyz   <= (isin(mg.converters, Electrolyzer)[1] ? 50 : 0)
+    0 <= r_fc     <= (isin(mg.converters, FuelCell)[1] ? 50 : 0)
     # Operation state variables
     soc_liion[1:nh+1, 1:ns]
     soc_tes[1:nh+1, 1:ns]
@@ -102,9 +99,9 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] <= h2tank.α_soc_max * r_h2tank
     [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] >= h2tank.α_soc_min * r_h2tank
     # State dynamics
-    [h in 1:nh, s in 1:ns], soc_liion[h+1,s]  == soc_liion[h,s] * (1. - liion.η_self * des.parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * des.parameters.Δh
-    [h in 1:nh, s in 1:ns], soc_tes[h+1,s]    == soc_tes[h,s] * (1. - tes.η_self * des.parameters.Δh) - (p_tes_ch[h,s] * tes.η_ch + p_tes_dch[h,s] / tes.η_dch) * des.parameters.Δh
-    [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h,s] * h2tank.η_ch + p_h2tank_dch[h,s] / h2tank.η_dch) * des.parameters.Δh
+    [h in 1:nh, s in 1:ns], soc_liion[h+1,s]  == soc_liion[h,s] * (1. - liion.η_self * mg.parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * mg.parameters.Δh
+    [h in 1:nh, s in 1:ns], soc_tes[h+1,s]    == soc_tes[h,s] * (1. - tes.η_self * mg.parameters.Δh) - (p_tes_ch[h,s] * tes.η_ch + p_tes_dch[h,s] / tes.η_dch) * mg.parameters.Δh
+    [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - h2tank.η_self * mg.parameters.Δh) - (p_h2tank_ch[h,s] * h2tank.η_ch + p_h2tank_dch[h,s] / h2tank.η_dch) * mg.parameters.Δh
     # Initial and final states
     [s in 1:ns], soc_liion[1,s]    == liion.soc_ini * r_liion
     [s in 1:ns], soc_liion[end,s]  >= soc_liion[1,s]
@@ -113,13 +110,13 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
     [s in 1:ns], soc_h2tank[1,s]   == h2tank.soc_ini * r_h2tank
     [s in 1:ns], soc_h2tank[end,s] >= soc_h2tank[1,s]
     # Power balances
-    ld_E_constraint[h in 1:nh, s in 1:ns], designer.options.operating_reserve * ld_E[h,1,s] <= r_pv * ω.pv.power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
+    ld_E_constraint[h in 1:nh, s in 1:ns], designer.options.operating_reserve * ld_E[h,1,s] <= r_pv * ω.generations[1].power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
     ld_H_constraint[h in 1:nh, s in 1:ns], ld_H[h,1,s]                                      <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
     ld_H2_constraint[h in 1:nh, s in 1:ns], 0.                                              == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
     end)
 
     # Share of renewables constraint
-    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - des.parameters.renewable_share) * (designer.options.operating_reserve * ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
+    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - mg.parameters.renewable_share) * (designer.options.operating_reserve * ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
     @variables(m, begin
     ζ_s
     α_s[1:ns] >= 0.
@@ -131,15 +128,15 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
 
     # CAPEX
     # Annualized factor
-    @expression(m, capex, annualised_factor(des.parameters.τ, liion.lifetime) * ω.liion.cost[1] * r_liion +
-                          annualised_factor(des.parameters.τ, tes.lifetime) * ω.tes.cost[1] * r_tes +
-                          annualised_factor(des.parameters.τ, h2tank.lifetime) * ω.h2tank.cost[1] * r_h2tank +
-                          annualised_factor(des.parameters.τ, elyz.lifetime) * ω.elyz.cost[1] * r_elyz +
-                          annualised_factor(des.parameters.τ, fc.lifetime) * ω.fc.cost[1] * r_fc +
-                          annualised_factor(des.parameters.τ, pv.lifetime) * ω.pv.cost[1] * r_pv)
+    @expression(m, capex, annualised_factor(mg.parameters.τ, liion.lifetime) * ω.liion.cost[1] * r_liion +
+                          annualised_factor(mg.parameters.τ, tes.lifetime) * ω.tes.cost[1] * r_tes +
+                          annualised_factor(mg.parameters.τ, h2tank.lifetime) * ω.h2tank.cost[1] * r_h2tank +
+                          annualised_factor(mg.parameters.τ, elyz.lifetime) * ω.elyz.cost[1] * r_elyz +
+                          annualised_factor(mg.parameters.τ, fc.lifetime) * ω.fc.cost[1] * r_fc +
+                          annualised_factor(mg.parameters.τ, pv.lifetime) * ω.pv.cost[1] * r_pv)
 
     # OPEX
-    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * des.parameters.Δh  for h in 1:nh))
+    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * mg.parameters.Δh  for h in 1:nh))
 
     # Objective
     @variables(m, begin
@@ -153,9 +150,9 @@ function build_model(des::DistributedEnergySystem, designer::MILP, ω::Scenarios
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}})
+function initialize_designer!(mg::Microgrid, designer::MILP, ω::Scenarios)
     # Preallocate
-    preallocate!(designer, des.parameters.ny, des.parameters.ns)
+    preallocate!(mg, designer)
 
     # Scenario reduction from the optimization scenario pool
     if isa(designer.options.read_reduction, Nothing)
@@ -173,28 +170,19 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
 
     # Initialize model
     println("Building the model...")
-    designer.model = build_model(des, designer, ω_reduced, probabilities)
+    designer.model = build_model(mg, designer, ω_reduced, probabilities)
 
     # Compute investment decisions for the first year
     println("Starting optimization...")
     optimize!(designer.model)
 
     # Assign values
-    for k in 1:length(mg.generations)
-        designer.decisions.generations[k][1,:] .= designer.results.minimizer[k]
-    end
-    for k in 1:length(mg.storages)
-        designer.decisions.storages[k][1,:] .= designer.results.minimizer[length(mg.generations)+k]
-    end
-    for k in 1:length(mg.converters)
-        designer.decisions.converters[k][1,:] .= designer.results.minimizer[end-length(mg.converters)+k]
-    end
-    designer.u.pv[1,:] .= value(designer.model[:r_pv])
-    designer.u.liion[1,:] .= value(designer.model[:r_liion])
-    designer.u.h2tank[1,:] .= value(designer.model[:r_h2tank])
-    designer.u.elyz[1,:] .= value(designer.model[:r_elyz])
-    designer.u.fc[1,:] .= value(designer.model[:r_fc])
-    designer.u.tes[1,:] .= value(designer.model[:r_tes])
+    bool, i = isin(mg.generations, Solar); bool ? designer.decisions.generations[i][1,:] = value(designer.model[:r_pv]) : nothing
+    bool, i = isin(mg.generations, Liion); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_liion]) : nothing
+    bool, i = isin(mg.generations, ThermalStorage); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_tes]) : nothing
+    bool, i = isin(mg.generations, H2Tank); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_h2tank]) : nothing
+    bool, i = isin(mg.generations, Electrolyzer); bool ? designer.decisions.converters[i][1,:] = value(designer.model[:r_elyz]) : nothing
+    bool, i = isin(mg.generations, FuelCell); bool ? designer.decisions.converters[i][1,:] = value(designer.model[:r_fc]) : nothing
 
     # Save history
     designer.history = ω_reduced
@@ -203,41 +191,8 @@ function initialize_designer!(des::DistributedEnergySystem, designer::MILP, ω::
 end
 
 ### Online
-function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::MILP)
-    ϵ = 0.2
-
-    # TODO : fix reoptimize function !!
-    if designer.options.reopt && y != 1
-        # Do we need to reoptimize ?
-        (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
-
-        # Scenario reduction from the optimization scenario pool
-        ω = scenarios_reduction(designer.history, 1:des.parameters.nh, y:des.parameters.ny, 1)
-
-        # Build model
-        designer.model = build_model(des, designer, ω)
-
-        # Fix variables
-        isa(des.pv, Source) ? fix(designer.model[:r_pv], des.pv.powerMax[y,s], force=true) : nothing
-        isa(des.h2tank, H2Tank) ? fix(designer.model[:r_h2tank], des.h2tank.Erated[y,s], force=true) : nothing
-        isa(des.tes, ThermalSto) ? fix(designer.model[:r_tes], des.tes.Erated[y,s], force=true) : nothing
-        isa(des.liion, Liion) && des.liion.soh[end,y,s] >= ϵ ? fix(designer.model[:r_liion], des.liion.Erated[y,s], force=true) : nothing
-        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] >= ϵ ? fix(designer.model[:r_elyz], des.elyz.powerMax[y,s], force=true) : nothing
-        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] >= ϵ ? fix(designer.model[:r_fc], des.fc.powerMax[y,s], force=true) : nothing
-
-        # Compute investment decisions
-        optimize!(designer.model)
-
-        # Preallocate and assigned values
-        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = value(designer.model[:r_liion]) : nothing
-        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = value(designer.model[:r_elyz]) : nothing
-        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = value(designer.model[:r_fc]) : nothing
-
-    else
-        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = designer.u.liion[1,s] : nothing
-        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = designer.u.elyz[1,s] : nothing
-        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
-    end
+function compute_investment_decisions!(y::Int64, s::Int64, mg::Microgrid, designer::MILP)
+    # TODO
 end
 
 ### Utils

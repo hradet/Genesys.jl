@@ -17,26 +17,26 @@ function reduce(reducer::ManualReducer, ω::Scenarios)
     # Parameters
     h, y, s = reducer.h, reducer.y, reducer.s
     # Initialize
-    demands, generations, storages, converters, grids = [], [], [], [], []
+    demands, generations, storages, converters, grids = similar(ω.demands), similar(ω.generations), similar(ω.storages), similar(ω.converters), similar(ω.grids)
     # Demands
-    for a in ω.demands
-        push!(demands, (t = a.t[h, y, s], power = a.power[h, y, s]))
+    for (k, a) in enumerate(ω.demands)
+        demands[k] = (t = a.t[h, y, s], power = a.power[h, y, s])
     end
     # Generations
-    for a in ω.generations
-        push!(generations, (t = a.t[h, y, s], power = a.power[h, y, s], cost = a.cost[y, s]))
+    for (k, a) in enumerate(ω.generations)
+        generations[k] = (t = a.t[h, y, s], power = a.power[h, y, s], cost = a.cost[y, s])
     end
     # Storages
-    for a in ω.storages
-        push!(storages, (cost = a.cost[y, s],))
+    for (k, a) in enumerate(ω.storages)
+        storages[k] = (cost = a.cost[y, s],)
     end
     # Converters
-    for a in ω.converters
-        push!(converters, (cost = a.cost[y, s],))
+    for (k, a) in enumerate(ω.converters)
+        converters[k] = (cost = a.cost[y, s],)
     end
     # Grids
-    for a in ω.grids
-        push!(grids, (cost_in =  a.cost_in[h, y, s], cost_out =  a.cost_out[h, y, s]))
+    for (k, a) in enumerate(ω.grids)
+        grids[k] = (cost_in =  a.cost_in[h, y, s], cost_out =  a.cost_out[h, y, s])
     end
 
     return Scenarios(demands, generations, storages, converters, grids), ones(length(s)) / length(s)
@@ -55,26 +55,26 @@ function reduce(reducer::SAAReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     # Monte carlo indices
     idx = zip(rand(y:ny, reducer.nsample), rand(s:ns, reducer.nsample))
     # Initialize
-    demands, generations, storages, converters, grids = [], [], [], [], []
+    demands, generations, storages, converters, grids = similar(ω.demands), similar(ω.generations), similar(ω.storages), similar(ω.converters), similar(ω.grids)
     # Demands
-    for a in ω.demands
-        push!(demands, (t = reshape(hcat([a.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([a.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample)))
+    for (k, a) in enumerate(ω.demands)
+        demands[k] = (t = reshape(hcat([a.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([a.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample))
     end
     # Generations
-    for a in ω.generations
-        push!(generations, (t = reshape(hcat([a.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([a.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost = repeat(a.cost[y:y, s:s],1,reducer.nsample)))
+    for (k, a) in enumerate(ω.generations)
+        generations[k] = (t = reshape(hcat([a.t[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), power = reshape(hcat([a.power[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost = repeat(a.cost[y:y, s:s],1,reducer.nsample))
     end
     # Storages
-    for a in ω.storages
-        push!(storages, (cost =  repeat(a.cost[y:y, s:s],1,reducer.nsample),))
+    for (k, a) in enumerate(ω.storages)
+        storages[k] = (cost =  repeat(a.cost[y:y, s:s],1,reducer.nsample),)
     end
     # Converters
-    for a in ω.converters
-        push!(converters, (cost =  repeat(a.cost[y:y, s:s],1,reducer.nsample),))
+    for (k, a) in enumerate(ω.converters)
+        converters[k] = (cost =  repeat(a.cost[y:y, s:s],1,reducer.nsample),)
     end
     # Grids
-    for a in ω.grids
-        push!(grids, (cost_in = reshape(hcat([a.cost_in[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost_out = reshape(hcat([a.cost_out[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample)))
+    for (k, a) in enumerate(ω.grids)
+        grids[k] = (cost_in = reshape(hcat([a.cost_in[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample), cost_out = reshape(hcat([a.cost_out[:, y, s] for (y,s) in idx]...),:,1,reducer.nsample))
     end
 
     return Scenarios(demands, generations, storages, converters, grids), ones(reducer.nsample) / reducer.nsample
@@ -88,26 +88,26 @@ end
 function reduce(reducer::MeanValueReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)
     # Mean value
     # Initialize
-    demands, generations, storages, converters, grids = [], [], [], [], []
+    demands, generations, storages, converters, grids = similar(ω.demands), similar(ω.generations), similar(ω.storages), similar(ω.converters), similar(ω.grids)
     # Demands
-    for a in ω.demands
-        push!(demands, (t =a.t[:, y:y, s:s], power = mean(a.power, dims=[2,3])))
+    for (k, a) in enumerate(ω.demands)
+        demands[k] = (t =a.t[:, y:y, s:s], power = mean(a.power, dims=[2,3]))
     end
     # Generations
-    for a in ω.generations
-        push!(generations, (t = a.t[:, y:y, s:s], power =  mean(a.power, dims=[2,3]), cost = a.cost[y:y, s:s]))
+    for (k, a) in enumerate(ω.generations)
+        generations[k] = (t = a.t[:, y:y, s:s], power =  mean(a.power, dims=[2,3]), cost = a.cost[y:y, s:s])
     end
     # Storages
-    for a in ω.storages
-        push!(storages, (cost =  a.cost[y:y, s:s],))
+    for (k, a) in enumerate(ω.storages)
+        storages[k] = (cost =  a.cost[y:y, s:s],)
     end
     # Converters
-    for a in ω.converters
-        push!(converters, (cost =  a.cost[y:y, s:s],))
+    for (k, a) in enumerate(ω.converters)
+        converters[k] = (cost =  a.cost[y:y, s:s],)
     end
     # Grids
-    for a in ω.grids
-        push!(grids, (cost_in = mean(a.cost_in, dims=[2,3]), cost_out =  mean(a.cost_out, dims=[2,3])))
+    for (k, a) in enumerate(ω.grids)
+        grids[k] = (cost_in = mean(a.cost_in, dims=[2,3]), cost_out =  mean(a.cost_out, dims=[2,3]))
     end
 
     return Scenarios(demands, generations, storages, converters, grids), [1.]
@@ -128,7 +128,7 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios; y::Int64 = 1, s::In
     # Parameters
     nh, ny, ns = size(ω.demands[1].power)
     # Initialize
-    demands, generations, storages, converters, grids = [], [], [], [], []
+    demands, generations, storages, converters, grids = similar(ω.demands), similar(ω.generations), similar(ω.storages), similar(ω.converters), similar(ω.grids)
     # Formatting
     t_d, t_g = [reshape(a.t[:,2:end,:], nh, :) for a in ω.demands], [reshape(a.t[:,2:end,:], nh, :) for a in ω.generations]
     data_d, data_g, data_gd = [reshape(a.power[:,2:end,:], nh, :) for a in ω.demands], [reshape(a.power[:,2:end,:], nh, :) for a in ω.generations], [reshape(a.cost_in[:,2:end,:], nh, :) for a in ω.grids]
@@ -140,23 +140,23 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios; y::Int64 = 1, s::In
     medoids, counts, assignments = clustering(reducer.clustering, embedding)
     # Building reduced scenario
     for (k, a) in enumerate(ω.demands)
-        push!(demands, (t = reshape(t_d[k][:,medoids], nh, 1, :), power = reshape(data_d[k][:,medoids], nh, 1, :)))
+        demands[k] = (t = reshape(t_d[k][:,medoids], nh, 1, :), power = reshape(data_d[k][:,medoids], nh, 1, :))
     end
     # Generations
     for (k, a) in enumerate(ω.generations)
-        push!(generations, (t = reshape(t_g[k][:,medoids], nh, 1, :), power = reshape(data_g[k][:,medoids], nh, 1, :), cost =  repeat(a.cost[y:y, s:s], 1, length(medoids))))
+        generations[k] = (t = reshape(t_g[k][:,medoids], nh, 1, :), power = reshape(data_g[k][:,medoids], nh, 1, :), cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)))
     end
     # Storages
     for a in ω.storages
-        push!(storages, (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),))
+        storages[k] = (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),)
     end
     # Converters
     for a in ω.converters
-        push!(converters, (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),))
+        converters[k] = (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),)
     end
     # Grids
     for (k, a) in enumerate(ω.grids)
-        push!(grids, (cost_in = reshape(data_gd[k][:,medoids], nh, 1, :), cost_out = reshape(reshape(a.cost_out[:,2:end,:], nh, :)[:,medoids], nh, 1, :)))
+        grids[k] = (cost_in = reshape(data_gd[k][:,medoids], nh, 1, :), cost_out = reshape(reshape(a.cost_out[:,2:end,:], nh, :)[:,medoids], nh, 1, :))
     end
 
     return Scenarios(demands, generations, storages, converters, grids), counts / sum(counts), assignments

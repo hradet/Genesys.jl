@@ -16,7 +16,7 @@ mutable struct Heater <: AbstractConverter
      cost::AbstractArray{Float64,2}
      # Inner constructor
      Heater(; η_E_H = 1.,
-             lifetime = 25.,
+             lifetime = 25,
              powerMax_ini = 30.,
              soh_ini = 1.) =
              new(η_E_H, lifetime, powerMax_ini)

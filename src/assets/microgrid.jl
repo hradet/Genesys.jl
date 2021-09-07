@@ -18,11 +18,11 @@ end
 
 mutable struct Microgrid
     parameters::GlobalParameters
-    demands::Vector{Any}
-    generations::Vector{Any}
-    storages::Vector{Any}
-    converters::Vector{Any}
-    grids::Vector{Any}
+    demands::Vector{AbstractDemand}
+    generations::Vector{AbstractGeneration}
+    storages::Vector{AbstractStorage}
+    converters::Vector{AbstractConverter}
+    grids::Vector{AbstractGrid}
 
     Microgrid(; parameters = GlobalParameters(8760, 20, 1)) = new(parameters)
 end
@@ -38,7 +38,7 @@ function add!(mg::Microgrid, assets...)
 end
 
 
-#
+# Copy function
 function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
     # TODO : copy not working without default parameters !
     # Initialize mg
@@ -95,4 +95,15 @@ function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
     add!(microgrid, demands..., generations..., storages..., converters..., grids...)
 
     return microgrid
+end
+# Find if the datatype is in a mg field
+function isin(field::Vector{Any}, type::DataType)
+    # Return true if the datatype is in the field and its index
+    bool, idx = false, NaN
+    for (k, a) in enumerate(field)
+        if a isa type
+            bool, idx = true, k
+        end
+    end
+    return bool, idx
 end
