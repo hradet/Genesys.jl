@@ -1,9 +1,9 @@
 # Load packages
-using Genesys, JLD, Dates, Seaborn
+using Genesys, JLD, Dates, Seaborn, BenchmarkTools
 pygui(true)
 
 # Parameters
-const nh, ny, ns = 8760, 2, 10
+const nh, ny, ns = 8760, 2, 1
 
 # Load input data
 data = load(joinpath("data","ausgrid_5_twostage.jld"))
@@ -27,12 +27,12 @@ controller = initialize_controller!(microgrid, RBC(options = RBCOptions(policy_s
 # Initialize designer
 designer = initialize_designer!(microgrid, Manual(generations = [112.], storages = [149., 585., 1597.], converters = [30., 1.5, 3.3]), ω_optim)
 
-designer = initialize_designer!(microgrid, Metaheuristic(options = MetaheuristicOptions(reducer = ManualReducer(s=1:10), iterations = 1)), ω_optim)
+designer = initialize_designer!(microgrid, Metaheuristic(options = MetaheuristicOptions(reducer = ManualReducer(), iterations = 1)), ω_optim)
 
 designer = initialize_designer!(microgrid, MILP(options = MILPOptions(reducer = ManualReducer())), ω_optim)
 
 # Simulate
-@elapsed simulate!(microgrid, controller, designer, ω_simu, options = Genesys.Options(mode="serial"))
+@profile simulate!(microgrid, controller, designer, ω_simu, options = Genesys.Options(mode="serial"))
 
 # Compute the metrics
 metrics = Metrics(microgrid, designer)

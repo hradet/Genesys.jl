@@ -16,32 +16,32 @@ function plot_operation(mg::Microgrid ; y=2, s=1)
         # Demands
         for (k, a) in enumerate(mg.demands)
             if a.carrier isa type
-                plot(hours, a.carrier.out[:,y,s], label = string("Demand ", k))
+                plot(hours, a.carrier.power[:,y,s], label = string("Demand ", k))
             end
         end
         # Generations
         for (k, a) in enumerate(mg.generations)
             if a.carrier isa type
-                plot(hours, a.carrier.in[:,y,s], label = string("Generation ", k))
+                plot(hours, a.carrier.power[:,y,s], label = string("Generation ", k))
             end
         end
         # Storages
         for (k, a) in enumerate(mg.storages)
             if a.carrier isa type
-                plot(hours, a.carrier.in[:,y,s] .+ a.carrier.out[:,y,s], label = string("Storage ", k))
+                plot(hours, a.carrier.power[:,y,s], label = string("Storage ", k))
             end
         end
         # Converters
         for (k, a) in enumerate(mg.converters)
             for c in a.carrier
                 if c isa type
-                    plot(hours, c.in[:,y,s] .+ c.out[:,y,s], label = string("Converter ", k))
+                    plot(hours, c.power[:,y,s], label = string("Converter ", k))
                 end
             end
         end
         for (k, a) in enumerate(mg.grids)
             if a.carrier isa type
-                plot(hours, a.carrier.in[:,y,s] .+ a.carrier.out[:,y,s], label = string("Grids ", k))
+                plot(hours, a.carrier.power[:,y,s], label = string("Grids ", k))
             end
         end
         legend()

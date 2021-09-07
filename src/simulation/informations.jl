@@ -8,12 +8,12 @@ function update_operation_informations!(h::Int64, y::Int64, s::Int64, mg::Microg
     # Demands
     for (k, a) in enumerate(mg.demands)
         a.timestamp[h,y,s] = ω.demands[k].t[h,y,s]
-        a.carrier.out[h,y,s] = ω.demands[k].power[h,y,s]
+        a.carrier.power[h,y,s] = ω.demands[k].power[h,y,s]
     end
     # Generations
     for (k, a) in enumerate(mg.generations)
         a.timestamp[h,y,s] = ω.generations[k].t[h,y,s]
-        a.carrier.in[h,y,s] = a.powerMax[y,s] * ω.generations[k].power[h,y,s]
+        a.carrier.power[h,y,s] = a.powerMax[y,s] * ω.generations[k].power[h,y,s]
     end
     # Grids - We assume the price of electricity is known over the year
     for (k, a) in enumerate(mg.grids)

@@ -44,8 +44,7 @@
  function preallocate!(liion::Liion, nh::Int64, ny::Int64, ns::Int64)
      liion.Erated = convert(SharedArray,zeros(ny+1, ns)) ; liion.Erated[1,:] .= liion.Erated_ini
      liion.carrier = Electricity()
-     liion.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
-     liion.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
+     liion.carrier.power = convert(SharedArray,zeros(nh, ny, ns))
      liion.soc = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soc[1,1,:] .= liion.soc_ini
      liion.soh = convert(SharedArray,zeros(nh+1, ny+1, ns)) ; liion.soh[1,1,:] .= liion.soh_ini
      liion.cost = convert(SharedArray,zeros(ny, ns))
@@ -54,24 +53,34 @@
 
  ### Operation dynamic
 function compute_operation_dynamics!(h::Int64, y::Int64, s::Int64, liion::Liion, decision::Float64, Δh::Int64)
+     liion.soc[h+1,y,s], liion.soh[h+1,y,s], liion.carrier.power[h,y,s] = compute_operation_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[h,y,s], soh = liion.soh[h,y,s]), decision, Δh)
+end
+
+function compute_operation_dynamics(liion::Liion, state::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, decision::Float64, Δh::Int64)
      # Control power constraint and correction
-     liion.carrier.in[h,y,s] = max(min(decision, liion.α_p_dch * liion.Erated[y,s], liion.soh[h,y,s] * liion.Erated[y,s] / Δh, liion.η_dch * (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_min) * liion.Erated[y,s] / Δh), 0.)
-     liion.carrier.out[h,y,s] = min(max(decision, -liion.α_p_ch * liion.Erated[y,s], -liion.soh[h,y,s] * liion.Erated[y,s] / Δh, (liion.soc[h,y,s] * (1. - liion.η_self * Δh) - liion.α_soc_max) * liion.Erated[y,s] / Δh / liion.η_ch), 0.)
+     power_dch = max(min(decision, liion.α_p_dch * state.Erated, state.soh * state.Erated / Δh, liion.η_dch * (state.soc * (1. - liion.η_self * Δh) - liion.α_soc_min) * state.Erated / Δh), 0.)
+     power_ch = min(max(decision, -liion.α_p_ch * state.Erated, -state.soh * state.Erated / Δh, (state.soc * (1. - liion.η_self * Δh) - liion.α_soc_max) * state.Erated / Δh / liion.η_ch), 0.)
      # SoC dynamic
-     liion.soc[h+1,y,s] = liion.soc[h,y,s] * (1. - liion.η_self * Δh) - (liion.carrier.out[h,y,s] * liion.η_ch + liion.carrier.in[h,y,s] / liion.η_dch) * Δh / liion.Erated[y,s]
+     soc_next = state.soc * (1. - liion.η_self * Δh) - (power_ch * liion.η_ch + power_dch / liion.η_dch) * Δh / state.Erated
      # SoH dynamic
-     liion.soh[h+1,y,s] = liion.soh[h,y,s] - (liion.carrier.in[h,y,s] - liion.carrier.out[h,y,s]) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * liion.Erated[y,s])
+     soh_next = state.soh - (power_dch - power_ch) * Δh / (2. * liion.nCycle * (liion.α_soc_max - liion.α_soc_min) * state.Erated)
+     return soc_next, soh_next, power_dch + power_ch
 end
 
  ### Investment dynamic
  function compute_investment_dynamics!(y::Int64, s::Int64, liion::Liion, decision::Union{Float64, Int64})
+     liion.Erated[y+1,s], liion.soc[1,y+1,s], liion.soh[1,y+1,s] = compute_investment_dynamics(liion, (Erated = liion.Erated[y,s], soc = liion.soc[end,y,s], soh = liion.soh[end,y,s]), decision)
+ end
+
+ function compute_investment_dynamics(liion::Liion, state::NamedTuple{(:Erated, :soc, :soh), Tuple{Float64, Float64, Float64}}, decision::Union{Float64, Int64})
      if decision > 1e-2
-         liion.Erated[y+1,s] = decision
-         liion.soc[1,y+1,s] = liion.soc[1,1,1]
-         liion.soh[1,y+1,s] =  1.
+         Erated_next = decision
+         soc_next = liion.soc_ini
+         soh_next =  1.
      else
-         liion.Erated[y+1,s] = liion.Erated[y,s]
-         liion.soc[1,y+1,s] = liion.soc[end,y,s]
-         liion.soh[1,y+1,s] = liion.soh[end,y,s]
+         Erated_next = state.Erated
+         soc_next = state.soc
+         soh_next = state.soh
      end
+     return Erated_next, soc_next, soh_next
  end

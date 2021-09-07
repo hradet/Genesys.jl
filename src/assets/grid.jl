@@ -15,8 +15,7 @@ end
 
 ### Preallocation
 function preallocate!(grid::Grid, nh::Int64, ny::Int64, ns::Int64)
-     grid.carrier.in = convert(SharedArray,zeros(nh, ny, ns))
-     grid.carrier.out = convert(SharedArray,zeros(nh, ny, ns))
+     grid.carrier.power = convert(SharedArray,zeros(nh, ny, ns))
      grid.cost_in = convert(SharedArray,zeros(nh, ny, ns))
      grid.cost_out = convert(SharedArray,zeros(nh, ny, ns))
      return grid

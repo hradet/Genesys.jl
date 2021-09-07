@@ -21,26 +21,26 @@ function power_balance(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataTy
     # Demands
     if !isempty(mg.demands)
         for a in mg.demands
-            a.carrier isa type ? balance += a.carrier.out[h,y,s] : nothing
+            a.carrier isa type ? balance += a.carrier.power[h,y,s] : nothing
         end
     end
     # Generations
     if !isempty(mg.generations)
         for a in mg.generations
-            a.carrier isa type ? balance -= a.carrier.in[h,y,s] : nothing
+            a.carrier isa type ? balance -= a.carrier.power[h,y,s] : nothing
         end
     end
     # Storages
     if !isempty(mg.storages)
         for a in mg.storages
-            a.carrier isa type ? balance -= a.carrier.in[h,y,s] + a.carrier.out[h,y,s] : nothing
+            a.carrier isa type ? balance -= a.carrier.power[h,y,s] : nothing
         end
     end
     # Converters
     if !isempty(mg.converters)
         for a in mg.converters
             for c in a.carrier
-                c isa type ? balance -= c.in[h,y,s] + c.out[h,y,s] : nothing
+                c isa type ? balance -= c.power[h,y,s] : nothing
             end
         end
     end
@@ -55,23 +55,22 @@ function checking!(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
     if !isempty(mg.grids)
         for a in mg.grids
             if a.carrier isa type
-                a.carrier.in[h,y,s] = min(a.powerMax, max(0, balance))
-                a.carrier.out[h,y,s] = max(-a.powerMax, min(0, balance))
+                a.carrier.power[h,y,s] = min(a.powerMax, max(-a.powerMax, balance))
             end
         end
     else # If the balance equation is not fulfilled, systems are turned to zerp
-        if balance > sum(a.carrier.out[h,y,s] for a in mg.demands if a.carrier isa type) + ϵ
+        if balance > sum(a.carrier.power[h,y,s] for a in mg.demands if a.carrier isa type) + ϵ
             # Storage set to zero
             for a in mg.storages
                 if a.carrier isa type
-                    a.carrier.in[h,y,s], a.carrier.out[h,y,s]= 0.
+                    a.carrier.power[h,y,s]= 0.
                     a.soc[h+1,y,s] = max(0., a.soc[h,y,s] * (1. - a.η_self))
                 end
             end
             # Converters set to zero
             for a in mg.converters
                 for c in a.carrier
-                    c.in[h,y,s], c.out[h,y,s]= 0., 0.
+                    c.power[h,y,s] = 0.
                 end
             end
         else
