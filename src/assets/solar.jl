@@ -3,7 +3,7 @@
  =#
 mutable struct Solar <: AbstractGeneration
      lifetime::Int64
-     bounds::NamedTuple{(:ul, :ub), Tuple{Float64, Float64}}
+     bounds::NamedTuple{(:lb, :ub), Tuple{Float64, Float64}}
      # Initial conditions
      powerMax_ini::Float64
      soh_ini::Float64
@@ -14,7 +14,7 @@ mutable struct Solar <: AbstractGeneration
      # Eco
      cost::AbstractArray{Float64,2}
      # Inner constructor
-     Solar(;lifetime=25, bounds = (ul = 0., ub = 1000.), powerMax_ini = 0., soh_ini = 1.) = new(lifetime, bounds, powerMax_ini, soh_ini)
+     Solar(;lifetime=25, bounds = (lb = 0., ub = 1000.), powerMax_ini = 0., soh_ini = 1.) = new(lifetime, bounds, powerMax_ini, soh_ini)
 end
 
 ### Preallocation

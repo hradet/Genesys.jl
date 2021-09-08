@@ -3,13 +3,13 @@ using Genesys, JLD, Dates, Seaborn, BenchmarkTools
 pygui(true)
 
 # Parameters
-const nh, ny, ns = 8760, 2, 1000
+const nh, ny, ns = 8760, 2, 10
 
 # Load input data
 data = load(joinpath("data","ausgrid_5_twostage.jld"))
 
 # Create microgrid
-microgrid = Microgrid(parameters = GlobalParameters(nh, ny, ns, renewable_share = 0.9999))
+microgrid = Microgrid(parameters = GlobalParameters(nh, ny, ns, renewable_share = 0.6))
 # Build the microgrid
 add!(microgrid, Demand(carrier = Electricity()), Demand(carrier = Heat()),
                 Solar(),
@@ -26,7 +26,7 @@ controller = initialize_controller!(microgrid, RBC(options = RBCOptions(policy_s
 # Initialize designer
 designer = initialize_designer!(microgrid, Manual(generations = [112.], storages = [149., 585., 1597.], converters = [30., 1.5, 3.3]), ω_optim)
 
-designer = initialize_designer!(microgrid, Metaheuristic(options = MetaheuristicOptions(reducer = ManualReducer(), iterations = 1)), ω_optim)
+designer = initialize_designer!(microgrid, Metaheuristic(options = MetaheuristicOptions(controller = RBC(options = RBCOptions(policy_selection = 3)), reducer = ManualReducer(y = 2:2, s = 179:179), iterations = 20, multithreads = false)), ω_optim)
 
 designer = initialize_designer!(microgrid, MILP(options = MILPOptions(reducer = ManualReducer(y = 2:2, s = 179:179))), ω_optim)
 

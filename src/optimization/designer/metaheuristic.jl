@@ -153,39 +153,20 @@ end
 function set_bounds(mg::Microgrid)
     # Initialization
     lb, ub = [], []
-    # Bounds
     # Generations
     for a in mg.generations
-        if a isa Solar
-            push!(lb, 0.)
-            push!(ub, 1000.)
-        end
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
     end
     # Storages
     for a in mg.storages
-        if a isa Liion
-            push!(lb, 0.)
-            push!(ub, 1000.)
-        elseif a isa ThermalStorage
-            push!(lb, 0.)
-            push!(ub, 1000.)
-        elseif a isa H2Tank
-            push!(lb, 0.)
-            push!(ub, 50000.)
-        end
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
     end
     # Converters
     for a in mg.converters
-        if a isa FuelCell
-            push!(lb, 0.)
-            push!(ub, 50.)
-        elseif a isa Electrolyzer
-            push!(lb, 0.)
-            push!(ub, 50.)
-        elseif a isa Heater
-            push!(lb, 30.)
-            push!(ub, 30.)
-        end
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
     end
     return lb, ub
 end

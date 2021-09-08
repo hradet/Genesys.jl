@@ -12,7 +12,7 @@ mutable struct ThermalStorage <: AbstractStorage
      α_soc_min::Float64
      α_soc_max::Float64
      lifetime::Int64
-     bounds::NamedTuple{(:ul, :ub), Tuple{Float64, Float64}}
+     bounds::NamedTuple{(:lb, :ub), Tuple{Float64, Float64}}
      # Initial conditions
      Erated_ini::Float64
      soc_ini::Float64
@@ -32,7 +32,7 @@ mutable struct ThermalStorage <: AbstractStorage
           α_soc_min = 0.,
           α_soc_max = 1.,
           lifetime = 25,
-          bounds = (ul = 0., ub = 1000.),
+          bounds = (lb = 0., ub = 1000.),
           Erated_ini = 1e-6,
           soc_ini = 0.5,
           soh_ini = 1.) =

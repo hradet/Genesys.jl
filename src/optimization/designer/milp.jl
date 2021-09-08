@@ -94,7 +94,7 @@ function add_technical_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
         # Constraint
         @constraints(m, begin
         # Investment bounds
-        [a in 1:na], m[:r_g][a] >= mg.generations[a].bounds.ul
+        [a in 1:na], m[:r_g][a] >= mg.generations[a].bounds.lb
         [a in 1:na], m[:r_g][a] <= mg.generations[a].bounds.ub
         end)
     end
@@ -104,7 +104,7 @@ function add_technical_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
         # Constraint
         @constraints(m, begin
         # Investment bounds
-        [a in 1:na], m[:r_sto][a] >= mg.storages[a].bounds.ul
+        [a in 1:na], m[:r_sto][a] >= mg.storages[a].bounds.lb
         [a in 1:na], m[:r_sto][a] <= mg.storages[a].bounds.ub
         # Power bounds
         [h in 1:nh, s in 1:ns, a in 1:na], m[:p_dch][h,s,a]  <= mg.storages[a].α_p_dch * m[:r_sto][a]
@@ -125,7 +125,7 @@ function add_technical_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
         # Constraint
         @constraints(m, begin
         # Investment bounds
-        [a in 1:na], m[:r_c][a] >= mg.converters[a].bounds.ul
+        [a in 1:na], m[:r_c][a] >= mg.converters[a].bounds.lb
         [a in 1:na], m[:r_c][a] <= mg.converters[a].bounds.ub
         # Power bounds
         [h in 1:nh, s in 1:ns, a in 1:na], m[:p_c][h,s,a]  <= m[:r_c][a]
