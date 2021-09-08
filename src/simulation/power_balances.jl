@@ -3,7 +3,7 @@
     constraints
 =#
 
-#TODO rajouter fonction add_to_powerbalance!(power_balance, power)
+#TODO improve code speed
 
 function compute_power_balances!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
     # Hydrogen
@@ -13,9 +13,8 @@ function compute_power_balances!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
     # Electricity
     checking!(h, y, s, mg, typeof(Electricity()))
 end
+
 function power_balance(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
-    # Parameters
-    ϵ = 0.01 # 0.01 kW tolerance
     # Energy balance
     balance = 0.
     # Demands
@@ -46,9 +45,8 @@ function power_balance(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataTy
     end
     return balance
 end
+
 function checking!(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
-    # Parameters
-    ϵ = 0.01 # 0.01 kW tolerance
     # Energy balance
     balance = power_balance(h, y, s, mg, type)
     # Grids
@@ -59,7 +57,7 @@ function checking!(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
             end
         end
     else # If the balance equation is not fulfilled, systems are turned to zerp
-        if balance > sum(a.carrier.power[h,y,s] for a in mg.demands if a.carrier isa type) + ϵ
+        if balance > sum(a.carrier.power[h,y,s] for a in mg.demands if a.carrier isa type) + 1e-2 # 0.01 kW tolerance
             # Storage set to zero
             for a in mg.storages
                 if a.carrier isa type

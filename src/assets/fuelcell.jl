@@ -9,6 +9,7 @@ mutable struct FuelCell <: AbstractConverter
      η_H2_H::Float64
      lifetime::Int64
      nHoursMax::Float64
+     bounds::NamedTuple{(:ul, :ub), Tuple{Float64, Float64}}
      # Initial conditions
      powerMax_ini::Float64
      soh_ini::Float64
@@ -24,9 +25,10 @@ mutable struct FuelCell <: AbstractConverter
              η_H2_H = 0.4,
              lifetime = 14,
              nHoursMax = 10000.,
+             bounds = (ul = 0., ub = 50.),
              powerMax_ini = 0.,
              soh_ini = 1.) =
-             new(α_p, η_H2_E, η_H2_H, lifetime, nHoursMax, powerMax_ini, soh_ini)
+             new(α_p, η_H2_E, η_H2_H, lifetime, nHoursMax, bounds, powerMax_ini, soh_ini)
 end
 
 ### Preallocation

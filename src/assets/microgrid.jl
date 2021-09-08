@@ -97,7 +97,7 @@ function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
     return microgrid
 end
 # Find if the datatype is in a mg field
-function isin(field::Vector{Any}, type::DataType)
+function isin(field::Vector, type::DataType)
     # Return true if the datatype is in the field and its index
     bool, idx = false, NaN
     for (k, a) in enumerate(field)

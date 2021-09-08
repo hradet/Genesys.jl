@@ -6,6 +6,7 @@ mutable struct Heater <: AbstractConverter
      # Parameters
      η_E_H::Float64
      lifetime::Int64
+     bounds::NamedTuple{(:ul, :ub), Tuple{Float64, Float64}}
      # Initial conditions
      powerMax_ini::Float64
      soh_ini::Float64
@@ -17,9 +18,10 @@ mutable struct Heater <: AbstractConverter
      # Inner constructor
      Heater(; η_E_H = 1.,
              lifetime = 25,
+             bounds = (ul = 30., ub = 30.),
              powerMax_ini = 30.,
              soh_ini = 1.) =
-             new(η_E_H, lifetime, powerMax_ini)
+             new(η_E_H, lifetime, bounds, powerMax_ini)
 end
 
 ### Preallocation

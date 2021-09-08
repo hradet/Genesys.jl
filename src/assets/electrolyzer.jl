@@ -9,6 +9,7 @@ mutable struct Electrolyzer <: AbstractConverter
      η_E_H::Float64
      lifetime::Int64
      nHoursMax::Float64
+     bounds::NamedTuple{(:ul, :ub), Tuple{Float64, Float64}}
      # Initial conditions
      powerMax_ini::Float64
      soh_ini::Float64
@@ -24,9 +25,10 @@ mutable struct Electrolyzer <: AbstractConverter
                  η_E_H = 0.3,
                  lifetime = 15,
                  nHoursMax = 26000.,
+                 bounds = (ul = 0., ub = 50.),
                  powerMax_ini = 0.,
                  soh_ini = 1.) =
-                 new(α_p, η_E_H2, η_E_H, lifetime, nHoursMax, powerMax_ini, soh_ini)
+                 new(α_p, η_E_H2, η_E_H, lifetime, nHoursMax, bounds, powerMax_ini, soh_ini)
 end
 
 ### Preallocation

@@ -8,7 +8,6 @@ mutable struct MILPOptions
   objective_risk::AbstractRiskMeasure
   share_risk::AbstractRiskMeasure
   reopt::Bool
-  operating_reserve::Float64
   read_reduction::Union{String, Nothing}
   write_reduction::Union{String, Nothing}
 
@@ -17,10 +16,9 @@ mutable struct MILPOptions
                 objective_risk = Expectation(),
                 share_risk = Expectation(),
                 reopt = false,
-                operating_reserve = 1.,
                 read_reduction = nothing,
                 write_reduction = nothing) =
-                new(solver, reducer, objective_risk, share_risk, reopt, operating_reserve, read_reduction, write_reduction)
+                new(solver, reducer, objective_risk, share_risk, reopt, read_reduction, write_reduction)
 end
 
 mutable struct MILP <: AbstractDesigner
@@ -34,120 +32,251 @@ end
 
 ### Models
 function build_model(mg::Microgrid, designer::MILP, ω::Scenarios, probabilities::Vector{Float64})
-    # Sets
-    nh = size(ω.demands[1].power,1) # Number of hours
-    ns = size(ω.demands[1].power,3) # Number of scenarios
-
     # Initialize
     m = Model(designer.options.solver.Optimizer)
+    # Add decision variables
+    add_decisions!(m, mg, ω)
+    # Add technical constraints
+    add_technical_constraints!(m, mg, ω)
+    # Add power balance constraints
+    add_power_balances!(m, mg, ω)
+    # Renewable share constraint
+    add_renewable_share!(m, mg, ω, probabilities, designer.options.share_risk)
+    # Objective
+    add_objective!(m, mg, ω, probabilities, designer.options.objective_risk)
+    return m
+end
 
+# Decisions
+function add_decisions!(m::Model, mg::Microgrid, ω::Scenarios)
+    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+    # Generation
+    if !isempty(mg.generations)
+        na = length(mg.generations)
+        # Investment variables
+        @variable(m, r_g[1:na])
+    end
+    # Storages
+    if !isempty(mg.storages)
+        na = length(mg.storages)
+        # Investment variables
+        @variable(m, r_sto[1:na])
+        # Operation variables
+        @variables(m, begin
+        p_ch[1:nh, 1:ns, 1:na]   >= 0.
+        p_dch[1:nh, 1:ns, 1:na]  >= 0.
+        soc[1:nh+1, 1:ns, 1:na]
+        end)
+    end
+    # Converters
+    if !isempty(mg.converters)
+        na = length(mg.converters)
+        # Investment variables
+        @variable(m, r_c[1:na])
+        @variable(m, p_c[1:nh, 1:ns, 1:na] >= 0.)
+    end
+    # Grids
+    if !isempty(mg.grids)
+        na = length(mg.grids)
+        # Operation variables
+        @variables(m, begin
+        p_in[1:nh, 1:ns, 1:na]   >= 0.
+        p_out[1:nh, 1:ns, 1:na]  >= 0.
+        end)
+    end
+end
+# Technical constraints
+function add_technical_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
+    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
     # Generations
-    # for a in mg.generations
-    #     @variables(m, begin
-    #     0 <= r_pv     <= 1000
-    #     end)
-    #     @constraints(m begin
-    #     end)
-    # end
-
-    # Build model
-    # Variables
-    @variables(m, begin
-    # Operation decisions variables
-    p_liion_ch[1:nh, 1:ns]   <= 0.
-    p_liion_dch[1:nh, 1:ns]  >= 0.
-    p_tes_ch[1:nh, 1:ns]     <= 0.
-    p_tes_dch[1:nh, 1:ns]    >= 0.
-    p_h2tank_ch[1:nh, 1:ns]  <= 0.
-    p_h2tank_dch[1:nh, 1:ns] >= 0.
-    p_elyz_E[1:nh, 1:ns]     <= 0.
-    p_fc_E[1:nh, 1:ns]       >= 0.
-    p_heater_E[1:nh, 1:ns]   <= 0.
-    p_g_out[1:nh, 1:ns]      <= 0.
-    p_g_in[1:nh, 1:ns]       >= 0.
-    # Investment decisions variables
-    0 <= r_pv     <= (isin(mg.generations, Solar)[1] ? 1000 : 0)
-    0 <= r_liion  <= (isin(mg.storages, Liion)[1] ? 1000 : 0)
-    0 <= r_tes    <= (isin(mg.storages, ThermalStorage)[1] ? 1000 : 0)
-    0 <= r_h2tank <= (isin(mg.storages, H2Tank)[1] ? 50000 : 0)
-    0 <= r_elyz   <= (isin(mg.converters, Electrolyzer)[1] ? 50 : 0)
-    0 <= r_fc     <= (isin(mg.converters, FuelCell)[1] ? 50 : 0)
-    # Operation state variables
-    soc_liion[1:nh+1, 1:ns]
-    soc_tes[1:nh+1, 1:ns]
-    soc_h2tank[1:nh+1, 1:ns]
-    end)
-    # Constraints
+    if !isempty(mg.generations)
+        na = length(mg.generations)
+        # Constraint
+        @constraints(m, begin
+        # Investment bounds
+        [a in 1:na], m[:r_g][a] >= mg.generations[a].bounds.ul
+        [a in 1:na], m[:r_g][a] <= mg.generations[a].bounds.ub
+        end)
+    end
+    # Storages
+    if !isempty(mg.storages)
+        na = length(mg.storages)
+        # Constraint
+        @constraints(m, begin
+        # Investment bounds
+        [a in 1:na], m[:r_sto][a] >= mg.storages[a].bounds.ul
+        [a in 1:na], m[:r_sto][a] <= mg.storages[a].bounds.ub
+        # Power bounds
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_dch][h,s,a]  <= mg.storages[a].α_p_dch * m[:r_sto][a]
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_ch][h,s,a] <= mg.storages[a].α_p_ch * m[:r_sto][a]
+        # SoC bounds
+        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a]  <= mg.storages[a].α_soc_max * m[:r_sto][a]
+        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a]  >= mg.storages[a].α_soc_min * m[:r_sto][a]
+        # State dynamics
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:soc][h+1,s,a]  == m[:soc][h,s,a] * (1. - mg.storages[a].η_self * mg.parameters.Δh) - (m[:p_dch][h,s,a] / mg.storages[a].η_dch - m[:p_ch][h,s,a] * mg.storages[a].η_ch) * mg.parameters.Δh
+        # Initial and final states
+        [s in 1:ns, a in 1:na], m[:soc][1,s,a]    == mg.storages[a].soc_ini * m[:r_sto][a]
+        [s in 1:ns, a in 1:na], m[:soc][end,s,a]  >= m[:soc][1,s,a]
+        end)
+    end
+    # Converters
+    if !isempty(mg.converters)
+        na = length(mg.converters)
+        # Constraint
+        @constraints(m, begin
+        # Investment bounds
+        [a in 1:na], m[:r_c][a] >= mg.converters[a].bounds.ul
+        [a in 1:na], m[:r_c][a] <= mg.converters[a].bounds.ub
+        # Power bounds
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_c][h,s,a]  <= m[:r_c][a]
+        end)
+    end
+    # Grids
+    if !isempty(mg.grids)
+        na = length(mg.grids)
+        # Constraint
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_in][h,s,a]  <= mg.grids[a].powerMax
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_out][h,s,a] <= mg.grids[a].powerMax
+        end)
+    end
+end
+# Power balance
+function add_power_balances!(m::Model, mg::Microgrid, ω::Scenarios)
+    # !!! All the decision variables are defined positive !!!
+    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+    balance = (electricity = AffExpr.(zeros(nh,ns)), heat = AffExpr.(zeros(nh,ns)), hydrogen = AffExpr.(zeros(nh,ns)))
+    # Demands
+    for (k,a) in enumerate(mg.demands)
+        if a.carrier isa Electricity
+            add_to_expression!.(balance.electricity, ω.demands[k].power[:,1,:])
+        elseif a.carrier isa Heat
+            add_to_expression!.(balance.heat, ω.demands[k].power[:,1,:])
+        elseif a.carrier isa Hydrogen
+            add_to_expression!.(balance.hydrogen, ω.demands[k].power[:,1,:])
+        end
+    end
+    # Generation
+    for (k,a) in enumerate(mg.generations)
+        if a.carrier isa Electricity
+            add_to_expression!.(balance.electricity, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
+        elseif a.carrier isa Heat
+            add_to_expression!.(balance.heat, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
+        elseif a.carrier isa Hydrogen
+            add_to_expression!.(balance.hydrogen, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
+        end
+    end
+    # Storages
+    for (k,a) in enumerate(mg.storages)
+        if a.carrier isa Electricity
+            add_to_expression!.(balance.electricity, m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
+        elseif a.carrier isa Heat
+            add_to_expression!.(balance.heat,  m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
+        elseif a.carrier isa Hydrogen
+            add_to_expression!.(balance.hydrogen,  m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
+        end
+    end
+    # Converters
+    for (k,a) in enumerate(mg.converters)
+        if a isa Heater
+            add_to_expression!.(balance.electricity, m[:p_c][:,:,k])
+            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_E_H)
+        elseif a isa Electrolyzer
+            add_to_expression!.(balance.electricity, m[:p_c][:,:,k])
+            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_E_H)
+            add_to_expression!.(balance.hydrogen, .- m[:p_c][:,:,k] * a.η_E_H2)
+        elseif a isa FuelCell
+            add_to_expression!.(balance.electricity, .- m[:p_c][:,:,k])
+            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_H2_H / a.η_H2_E)
+            add_to_expression!.(balance.hydrogen, m[:p_c][:,:,k] / a.η_H2_E)
+        end
+    end
+    # Grids
+    for (k,a) in enumerate(mg.grids)
+        if a.carrier isa Electricity
+            add_to_expression!.(balance.electricity, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
+        elseif a.carrier isa Heat
+            add_to_expression!.(balance.heat, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
+        elseif a.carrier isa Hydrogen
+            add_to_expression!.(balance.hydrogen, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
+        end
+    end
+    # Energy balance constraint
     @constraints(m, begin
-    # Power bounds
-    [h in 1:nh, s in 1:ns], p_liion_dch[h,s]  <= liion.α_p_dch * r_liion
-    [h in 1:nh, s in 1:ns], p_liion_ch[h,s]   >= -liion.α_p_ch * r_liion
-    [h in 1:nh, s in 1:ns], p_tes_dch[h,s]    <= tes.α_p_dch * r_tes
-    [h in 1:nh, s in 1:ns], p_tes_ch[h,s]     >= -tes.α_p_ch * r_tes
-    [h in 1:nh, s in 1:ns], p_h2tank_dch[h,s] <= h2tank.α_p_dch * r_h2tank
-    [h in 1:nh, s in 1:ns], p_h2tank_ch[h,s]  >= -h2tank.α_p_ch * r_h2tank
-    [h in 1:nh, s in 1:ns], p_elyz_E[h,s]     >= -r_elyz
-    [h in 1:nh, s in 1:ns], p_fc_E[h,s]       <= r_fc
-    [h in 1:nh, s in 1:ns], p_heater_E[h,s]   >= -heater.powerMax_ini
-    [h in 1:nh, s in 1:ns], p_g_in[h,s]       <= grid.powerMax
-    [h in 1:nh, s in 1:ns], p_g_out[h,s]      >= -grid.powerMax
-    # SoC bounds
-    [h in 1:nh+1, s in 1:ns], soc_liion[h,s]  <= liion.α_soc_max * r_liion
-    [h in 1:nh+1, s in 1:ns], soc_liion[h,s]  >= liion.α_soc_min * r_liion
-    [h in 1:nh+1, s in 1:ns], soc_tes[h,s]    <= tes.α_soc_max * r_tes
-    [h in 1:nh+1, s in 1:ns], soc_tes[h,s]    >= tes.α_soc_min * r_tes
-    [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] <= h2tank.α_soc_max * r_h2tank
-    [h in 1:nh+1, s in 1:ns], soc_h2tank[h,s] >= h2tank.α_soc_min * r_h2tank
-    # State dynamics
-    [h in 1:nh, s in 1:ns], soc_liion[h+1,s]  == soc_liion[h,s] * (1. - liion.η_self * mg.parameters.Δh) - (p_liion_ch[h,s] * liion.η_ch + p_liion_dch[h,s] / liion.η_dch) * mg.parameters.Δh
-    [h in 1:nh, s in 1:ns], soc_tes[h+1,s]    == soc_tes[h,s] * (1. - tes.η_self * mg.parameters.Δh) - (p_tes_ch[h,s] * tes.η_ch + p_tes_dch[h,s] / tes.η_dch) * mg.parameters.Δh
-    [h in 1:nh, s in 1:ns], soc_h2tank[h+1,s] == soc_h2tank[h,s] * (1. - h2tank.η_self * mg.parameters.Δh) - (p_h2tank_ch[h,s] * h2tank.η_ch + p_h2tank_dch[h,s] / h2tank.η_dch) * mg.parameters.Δh
-    # Initial and final states
-    [s in 1:ns], soc_liion[1,s]    == liion.soc_ini * r_liion
-    [s in 1:ns], soc_liion[end,s]  >= soc_liion[1,s]
-    [s in 1:ns], soc_tes[1,s]      == tes.soc_ini * r_tes
-    [s in 1:ns], soc_tes[end,s]    >= soc_tes[1,s]
-    [s in 1:ns], soc_h2tank[1,s]   == h2tank.soc_ini * r_h2tank
-    [s in 1:ns], soc_h2tank[end,s] >= soc_h2tank[1,s]
-    # Power balances
-    ld_E_constraint[h in 1:nh, s in 1:ns], designer.options.operating_reserve * ld_E[h,1,s] <= r_pv * ω.generations[1].power[h,1,s] + p_liion_ch[h,s] + p_liion_dch[h,s] + p_elyz_E[h,s] + p_fc_E[h,s] + p_heater_E[h,s] + p_g_in[h,s] + p_g_out[h,s]
-    ld_H_constraint[h in 1:nh, s in 1:ns], ld_H[h,1,s]                                      <= p_tes_ch[h,s]  + p_tes_dch[h,s] - elyz.η_E_H * p_elyz_E[h,s] + fc.η_H2_H / fc.η_H2_E * p_fc_E[h,s] - heater.η_E_H * p_heater_E[h,s]
-    ld_H2_constraint[h in 1:nh, s in 1:ns], 0.                                              == p_h2tank_ch[h,s] + p_h2tank_dch[h,s] - elyz.η_E_H2 * p_elyz_E[h,s] - p_fc_E[h,s] / fc.η_H2_E
+        [h in 1:nh, s in 1:ns], balance.electricity[h,s] <= 0.
+        [h in 1:nh, s in 1:ns], balance.heat[h,s] <= 0.
+        [h in 1:nh, s in 1:ns], balance.hydrogen[h,s] == 0.
     end)
-
-    # Share of renewables constraint
-    @expression(m, share[s in 1:ns], sum(p_g_in[h,s] - (1. - mg.parameters.renewable_share) * (designer.options.operating_reserve * ld_E[h,1,s] + ld_H[h,1,s] / heater.η_E_H) for h in 1:nh))
+end
+# Renewable share
+function add_renewable_share!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure)
+    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+    total = zeros(ns)
+    for (k,a) in enumerate(mg.demands)
+        if a.carrier isa Electricity
+            total .= total .+ sum(ω.demands[k].power[h,1,:] for h in 1:nh)
+        elseif a.carrier isa Heat
+            total .= total .+ sum(ω.demands[k].power[h,1,:] for h in 1:nh) ./ mg.converters[isin(mg.converters, Heater)[2]].η_E_H
+        end
+    end
+    for (k,a) in enumerate(mg.grids)
+        if a.carrier isa Electricity
+            @expression(m, share[s in 1:ns], sum(m[:p_in][h,s,k] for h in 1:nh) - (1. - mg.parameters.renewable_share) * total[s])
+        end
+    end
+    # Constraint according to CVaR
     @variables(m, begin
     ζ_s
     α_s[1:ns] >= 0.
     end)
     @constraints(m, begin
-    [s in 1:ns], α_s[s] >= share[s] - ζ_s
-    ζ_s + 1 / (1 - beta(designer.options.share_risk)) * sum(probabilities[s] * α_s[s] for s in 1:ns) <= 0.
+    [s in 1:ns], α_s[s] >= m[:share][s] - ζ_s
+    ζ_s + 1 / (1 - beta(risk)) * sum(probabilities[s] * α_s[s] for s in 1:ns) <= 0.
     end)
-
+end
+# Objective
+function add_objective!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure)
+    ns = size(ω.demands[1].power,3)
     # CAPEX
-    # Annualized factor
-    @expression(m, capex, annualised_factor(mg.parameters.τ, liion.lifetime) * ω.liion.cost[1] * r_liion +
-                          annualised_factor(mg.parameters.τ, tes.lifetime) * ω.tes.cost[1] * r_tes +
-                          annualised_factor(mg.parameters.τ, h2tank.lifetime) * ω.h2tank.cost[1] * r_h2tank +
-                          annualised_factor(mg.parameters.τ, elyz.lifetime) * ω.elyz.cost[1] * r_elyz +
-                          annualised_factor(mg.parameters.τ, fc.lifetime) * ω.fc.cost[1] * r_fc +
-                          annualised_factor(mg.parameters.τ, pv.lifetime) * ω.pv.cost[1] * r_pv)
-
+    capex = compute_capex(m, mg, ω)
     # OPEX
-    @expression(m, opex[s in 1:ns], sum((p_g_in[h,s] * ω.grid.cost_in[h,1,s] + p_g_out[h,s] * ω.grid.cost_out[h,1,s]) * mg.parameters.Δh  for h in 1:nh))
-
-    # Objective
+    opex = compute_opex(m, mg, ω)
+    # Objective according to the CVaR
     @variables(m, begin
     ζ_o
     α_o[1:ns] >= 0.
     end)
     @constraint(m, [s in 1:ns], α_o[s] >= capex + opex[s] - ζ_o)
-    @objective(m, Min, ζ_o + 1 / (1 - beta(designer.options.objective_risk)) * sum(probabilities[s] * α_o[s] for s in 1:ns))
-
-    return m
+    @objective(m, Min, ζ_o + 1 / (1 - beta(risk)) * sum(probabilities[s] * α_o[s] for s in 1:ns))
 end
+# Capex
+function compute_capex(m::Model, mg::Microgrid, ω::Scenarios)
+    cost = AffExpr(0.)
+    # Generations
+    for (k,a) in enumerate(mg.generations)
+        add_to_expression!(cost, Γ(mg.parameters.τ, a.lifetime) * ω.generations[k].cost[1] * m[:r_g][k])
+    end
+    # Storages
+    for (k,a) in enumerate(mg.storages)
+        add_to_expression!(cost, Γ(mg.parameters.τ, a.lifetime) * ω.storages[k].cost[1] * m[:r_sto][k])
+    end
+    # Converters
+    for (k,a) in enumerate(mg.converters)
+        add_to_expression!(cost, Γ(mg.parameters.τ, a.lifetime) * ω.converters[k].cost[1] * m[:r_c][k])
+    end
+    return cost
+end
+# Grids
+function compute_opex(m::Model, mg::Microgrid, ω::Scenarios)
+    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+    cost = AffExpr.(zeros(ns))
+    for (k,a) in enumerate(mg.grids)
+        add_to_expression!.(cost, sum((m[:p_in][h,:,k] .* ω.grids[k].cost_in[h,1,:] .- m[:p_out][h,:] .* ω.grids[k].cost_out[h,1,:]) .* mg.parameters.Δh  for h in 1:nh))
+    end
+    return cost
+end
+
 
 ### Offline
 function initialize_designer!(mg::Microgrid, designer::MILP, ω::Scenarios)
@@ -177,12 +306,15 @@ function initialize_designer!(mg::Microgrid, designer::MILP, ω::Scenarios)
     optimize!(designer.model)
 
     # Assign values
-    bool, i = isin(mg.generations, Solar); bool ? designer.decisions.generations[i][1,:] = value(designer.model[:r_pv]) : nothing
-    bool, i = isin(mg.generations, Liion); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_liion]) : nothing
-    bool, i = isin(mg.generations, ThermalStorage); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_tes]) : nothing
-    bool, i = isin(mg.generations, H2Tank); bool ? designer.decisions.storages[i][1,:] = value(designer.model[:r_h2tank]) : nothing
-    bool, i = isin(mg.generations, Electrolyzer); bool ? designer.decisions.converters[i][1,:] = value(designer.model[:r_elyz]) : nothing
-    bool, i = isin(mg.generations, FuelCell); bool ? designer.decisions.converters[i][1,:] = value(designer.model[:r_fc]) : nothing
+    for k in 1:length(mg.generations)
+        designer.decisions.generations[k][1,:] .= value(designer.model[:r_g][k])
+    end
+    for k in 1:length(mg.storages)
+        designer.decisions.storages[k][1,:] .= value(designer.model[:r_sto][k])
+    end
+    for k in 1:length(mg.converters)
+        designer.decisions.converters[k][1,:] .= value(designer.model[:r_c][k])
+    end
 
     # Save history
     designer.history = ω_reduced
@@ -199,4 +331,4 @@ end
 beta(risk::WorstCase) = 1. - 1e-6
 beta(risk::Expectation) = 0.
 beta(risk::CVaR) = risk.β
-annualised_factor(τ::Float64, lifetime::Union{Float64, Int64}) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)
+Γ(τ::Float64, lifetime::Union{Float64, Int64}) = τ * (τ + 1.) ^ lifetime / ((τ + 1.) ^ lifetime - 1.)
