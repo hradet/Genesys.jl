@@ -7,39 +7,39 @@
 
 function compute_power_balances!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
     # Hydrogen
-    checking!(h, y, s, mg, typeof(Hydrogen()))
+    checking!(h, y, s, mg, Hydrogen)
     # Heat
-    checking!(h, y, s, mg, typeof(Heat()))
+    checking!(h, y, s, mg, Heat)
     # Electricity
-    checking!(h, y, s, mg, typeof(Electricity()))
+    checking!(h, y, s, mg, Electricity)
 end
 
-function power_balance(h::Int64, y::Int64, s::Int64, mg::Microgrid, type::DataType)
+function power_balance(h::Union{Int64, UnitRange{Int64}}, y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid, type::DataType)
     # Energy balance
     balance = 0.
     # Demands
     if !isempty(mg.demands)
         for a in mg.demands
-            a.carrier isa type ? balance += a.carrier.power[h,y,s] : nothing
+            a.carrier isa type ? balance = balance .+ a.carrier.power[h,y,s] : nothing
         end
     end
     # Generations
     if !isempty(mg.generations)
         for a in mg.generations
-            a.carrier isa type ? balance -= a.carrier.power[h,y,s] : nothing
+            a.carrier isa type ? balance = balance .- a.carrier.power[h,y,s] : nothing
         end
     end
     # Storages
     if !isempty(mg.storages)
         for a in mg.storages
-            a.carrier isa type ? balance -= a.carrier.power[h,y,s] : nothing
+            a.carrier isa type ? balance = balance .- a.carrier.power[h,y,s] : nothing
         end
     end
     # Converters
     if !isempty(mg.converters)
         for a in mg.converters
             for c in a.carrier
-                c isa type ? balance -= c.power[h,y,s] : nothing
+                c isa type ? balance = balance .- c.power[h,y,s] : nothing
             end
         end
     end

@@ -54,6 +54,54 @@ function plot_operation(mg::Microgrid ; y=2, s=1)
         legend()
     end
 end
+function plot_operation(mg::Microgrid, controller::AbstractController; y=2, s=1)
+    # Seaborn configuration
+    Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale=1.5)
+
+    # Parameters
+    nh = mg.parameters.nh
+    Δh = mg.parameters.Δh
+    hours = range(1, length = nh, step = Δh) / Δh
+
+    # Plots
+    # Powers
+    f = figure("Powers")
+    for (i, type) in enumerate([typeof(Electricity()), typeof(Heat()), typeof(Hydrogen())])
+        i == 1 ? subplot(3, 1, i) : subplot(3, 1, i, sharex = f.axes[1])
+        # Demands
+        for (k, a) in enumerate(mg.demands)
+            if a.carrier isa type
+                plot(hours, a.carrier.power[:,y,s], label = string("Demand ", k))
+            end
+        end
+        # Generations
+        for (k, a) in enumerate(mg.generations)
+            if a.carrier isa type
+                plot(hours, a.carrier.power[:,y,s], label = string("Generation ", k))
+            end
+        end
+        # Storages
+        for (k, a) in enumerate(mg.storages)
+            if a.carrier isa type
+                plot(hours, controller.decisions.storages[k][:,y,s], label = string("Storage ", k))
+            end
+        end
+        # Converters
+        for (k, a) in enumerate(mg.converters)
+            for c in a.carrier
+                if c isa type
+                    plot(hours, controller.decisions.converters[k][:,y,s], label = string("Converter ", k))
+                end
+            end
+        end
+        for (k, a) in enumerate(mg.grids)
+            if a.carrier isa type
+                plot(hours, a.carrier.power[:,y,s], label = string("Grids ", k))
+            end
+        end
+        legend()
+    end
+end
 # Statistics
 function plot_statistics(metrics::Metrics; type = "hist")
     # Seaborn configuration
@@ -61,19 +109,31 @@ function plot_statistics(metrics::Metrics; type = "hist")
 
     if type == "whisker"
         figure("Renewable share (%)")
-        boxplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown", whis = [5,95], showfliers = false)
-        yticks(weight = "black", size = "medium")
-        xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
-    elseif type == "hist"
-        figure("Renewable share")
-        hist(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
-        ylabel("Counts", size = "large"), yticks(size = "medium")
-        xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
-    elseif type == "violin"
-        figure("Renewable share")
-        violinplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="sandybrown")
+        boxplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue", whis = [5,95], showfliers = false)
         yticks(size = "medium")
         xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
+        figure("Cost")
+        boxplot(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue", whis = [5,95], showfliers = false)
+        yticks(size = "medium")
+        xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
+    elseif type == "hist"
+        figure("Renewable share")
+        hist(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue")
+        ylabel("Counts", size = "large"), yticks(size = "medium")
+        xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
+        figure("Cost")
+        hist(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue")
+        ylabel("Counts", size = "large"), yticks(size = "medium")
+        xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
+    elseif type == "violin"
+        figure("Renewable share")
+        violinplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue")
+        yticks(size = "medium")
+        xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
+        figure("Cost")
+        violinplot(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue")
+        yticks(size = "medium")
+        xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
     end
 end
 

@@ -8,7 +8,7 @@ using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Dista
 # Others
 using Seaborn, ProgressMeter, Dates, Distributed, SharedArrays, CSV, DataFrames, JLD
 # Assets
-include(joinpath("assets","abstract.jl"))
+include(joinpath("assets","microgrid.jl"))
 include(joinpath("assets","carriers.jl"))
 include(joinpath("assets","liion.jl"))
 include(joinpath("assets","tes.jl"))
@@ -19,7 +19,6 @@ include(joinpath("assets","heater.jl"))
 include(joinpath("assets","grid.jl"))
 include(joinpath("assets","solar.jl"))
 include(joinpath("assets","demand.jl"))
-include(joinpath("assets","microgrid.jl"))
 export Microgrid, Demand, Solar, Liion, ThermalStorage, H2Tank, FuelCell, Electrolyzer, Heater, Grid, GlobalParameters
 export Electricity, Heat, Hydrogen
 export add!
@@ -35,21 +34,19 @@ export PCAReduction, StatsReduction
 export KmedoidsClustering
 export MarkovGenerator, AnticipativeGenerator
 export reduce, generate
-# # Risk measures
-include(joinpath("optimization","risk_measures.jl"))
+# # Optimization utils
+include(joinpath("optimization","utils.jl"))
 export Expectation, CVaR, WorstCase
 # # Operation optimization
-include(joinpath("optimization","controller","abstract.jl"))
 include(joinpath("optimization","controller","dummy.jl"))
-# include(joinpath("optimization","controller","anticipative.jl"))
+include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
 # include(joinpath("optimization","controller","olfc.jl"))
 # include(joinpath("optimization","controller","sddp.jl"))
-export Dummy, RBC#, OLFC, Anticipative, SDDPC
-export RBCOptions#, OLFCOptions, AnticipativeOptions, SDDPCOptions
+export Dummy, RBC, Anticipative#, OLFC, SDDPC
+export RBCOptions, AnticipativeOptions#, OLFCOptions, SDDPCOptions
 export initialize_controller!
 # # Investment optimization
-include(joinpath("optimization","designer","abstract.jl"))
 include(joinpath("optimization","designer","manual.jl"))
 include(joinpath("optimization","designer","milp.jl"))
 include(joinpath("optimization","designer","metaheuristic.jl"))

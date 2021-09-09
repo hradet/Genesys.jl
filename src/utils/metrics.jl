@@ -46,24 +46,23 @@ end
 baseline_cost(mg::Microgrid) = baseline_cost(1:mg.parameters.ns, mg)
 baseline_cost(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = baseline_cost(1:mg.parameters.ny, s, mg)
 function baseline_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
-    elec, heat = 0., 0.
+    # TODO : compute baseline cost whatever the microgrid...
+    total = 0.
     if !isempty(mg.demands)
-        for a in mg.demands
+        for (k,a) in enumerate(mg.demands)
             if a.carrier isa Electricity
-                elec = elec .+ sum(a.carrier.power[:,y,s] .* mg.grids[1].cost_in[:,y,s] * mg.parameters.Δh, dims = 1)
+                total = total .+ sum(a.carrier.power[:,y,s] .* mg.grids[1].cost_in[:,y,s] * mg.parameters.Δh, dims = 1)
             elseif a.carrier isa Heat
-                heat = heat .+ sum(a.carrier.power[:,y,s] / mg.converters[1].η_E_H .* mg.grids[1].cost_in[:,y,s] * mg.parameters.Δh, dims = 1)
+                total = total .+ sum(a.carrier.power[:,y,s] / mg.converters[isin(mg.converters, Heater)[2]].η_E_H .* mg.grids[1].cost_in[:,y,s] * mg.parameters.Δh, dims = 1)
             end
         end
-    else
-        println("Baseline cost does not exist!")
     end
-    return elec .+ heat
+    return total
 end
 # Grid cost
 grid_cost(mg::Microgrid) = grid_cost(1:mg.parameters.ns, mg)
 grid_cost(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = grid_cost(1:mg.parameters.ny, s, mg)
-grid_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = sum(max.(0., mg.grids[1].carrier.power[:,y,s]) .* mg.grids[1].cost_in[:,y,s] .- min.(0., mg.grids[1].carrier.power[:,y,s]) .* mg.grids[1].cost_out[:,y,s], dims = 1) * mg.parameters.Δh
+grid_cost(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = sum(sum(max.(0., a.carrier.power[:,y,s]) .* a.cost_in[:,y,s] .- min.(0., a.carrier.power[:,y,s]) .* a.cost_out[:,y,s], dims = 1) * mg.parameters.Δh for a in mg.grids)
 
 # CAPEX
 capex(mg::Microgrid, designer::AbstractDesigner) = capex(1:mg.parameters.ns, mg, designer)
@@ -152,18 +151,22 @@ renewable_share(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = renewable_sh
 # Share of renewables for a given year y of a givn scenario s
 function renewable_share(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
     # TODO to be changed if there is not grid...
-    elec, heat = 0., 0.
-    grid = sum(max.(0., mg.grids[1].carrier.power[:,y,s]), dims = 1)
-    if !isempty(mg.demands)
-        for a in mg.demands
-            if a.carrier isa Electricity
-                elec = elec .+ sum(a.carrier.power[:,y,s], dims = 1)
-            elseif a.carrier isa Heat
-                heat = heat .+ sum(a.carrier.power[:,y,s] / mg.converters[1].η_E_H , dims = 1)
-            end
+    total = 0.
+    for (k,a) in enumerate(mg.demands)
+        if a.carrier isa Electricity
+            total = total .+ sum(a.carrier.power[:,y,s], dims = 1)
+        elseif a.carrier isa Heat
+            total = total .+ sum(a.carrier.power[:,y,s], dims = 1) ./ mg.converters[isin(mg.converters, Heater)[2]].η_E_H
         end
     end
-    return dropdims(1. .- grid ./ (elec .+ heat), dims=1)
+    for (k,a) in enumerate(mg.grids)
+        if a.carrier isa Electricity
+            return share = dropdims(1. .- sum(max.(0., a.carrier.power[:,y,s]), dims = 1) ./ total, dims=1)
+        else
+            println("Renewable share not yet defined!")
+            return nothing
+        end
+    end
 end
 
 # LPSP
@@ -179,33 +182,35 @@ LPSP(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = LPSP(1:mg.parameters.ny
 # LPSP for a given scenario s and year y
 function LPSP(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
     # Initialization
-    elec, heat, hydrogen = zeros(length(y), length(s)), zeros(length(y), length(s)), zeros(length(y), length(s))
+    elec, heat, hydrogen = nothing, nothing, nothing
     # Computation
-    for a in mg.demands, ss in s, yy in y
+    for a in mg.demands
         if a.carrier isa Electricity
-            elec[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Electricity()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+            elec = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, Electricity)), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
             for aa in mg.grids
                 if aa.carrier isa Electricity
-                    elec[yy,ss] = elec[yy,ss] - sum(max(0., aa.carrier.power[hh, yy, ss]) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+                    elec = elec .- sum(max.(0., aa.carrier.power[:, y, s]), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
                 end
             end
+            elec = dropdims(elec,dims=1)
         elseif a.carrier isa Heat
-            heat[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Heat()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+            heat = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, Heat)), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
             for aa in mg.grids
                 if aa.carrier isa Heat
-                    heat[yy,ss] = heat[yy,ss] - sum(max(0., aa.carrier.power[hh, yy, ss]) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+                    heat = heat .- sum(max.(0., aa.carrier.power[:, y, s]), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
                 end
             end
+            heat = dropdims(heat,dims=1)
         elseif a.carrier  isa Hydrogen
-            hydrogen[yy,ss] = sum(max(0., power_balance(hh, yy, ss, mg, typeof(Hydrogen()))) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+            hydrogen = sum(max.(0., power_balance(1:mg.parameters.nh, y, s, mg, Hydrogen)), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
             for aa in mg.grids
-                if aa.carrier isa Hydrogen
-                    hydrogen[yy,ss] = hydrogen[yy,ss] - sum(max(0., aa.carrier.power[hh, yy, ss]) for hh in 1:mg.parameters.nh) / sum(a.carrier.power[hh, yy, ss] for hh in 1:mg.parameters.nh)
+                if aa.carrier isa Electricity
+                    hydrogen = hydrogen .- sum(max.(0., aa.carrier.power[:, y, s]), dims=1) ./ sum(a.carrier.power[:, y, s], dims = 1)
                 end
             end
+            hydrogen = dropdims(hydrogen,dims=1)
         end
     end
-
     return LPSP(elec, heat, hydrogen)
 end
 

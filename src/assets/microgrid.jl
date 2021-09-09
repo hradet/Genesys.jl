@@ -1,3 +1,10 @@
+abstract type AbstractDemand end
+abstract type AbstractGeneration end
+abstract type AbstractStorage end
+abstract type AbstractConverter end
+abstract type AbstractGrid end
+abstract type AbstractDesigner end
+abstract type AbstractController end
 
 mutable struct GlobalParameters
     ns::Int64 # number of [nh, ny] scenarios
@@ -28,6 +35,7 @@ mutable struct Microgrid
 end
 
 # Add node to microgrid
+# TODO : add asset by asset without initializing everything...
 function add!(mg::Microgrid, assets...)
     # Build and preallocate
     mg.demands = [preallocate!(a, mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in assets if a isa AbstractDemand]
@@ -37,6 +45,17 @@ function add!(mg::Microgrid, assets...)
     mg.grids = [preallocate!(a, mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in assets if a isa AbstractGrid]
 end
 
+# Preallocate abstract designer
+function preallocate!(mg::Microgrid, designer::AbstractDesigner)
+    designer.decisions = (generations = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.generations],
+                          storages = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.storages],
+                          converters = [zeros(mg.parameters.ny, mg.parameters.ns) for a in mg.converters])
+end
+# Preallocate abstract controller
+function preallocate!(mg::Microgrid, controller::AbstractController)
+    controller.decisions = (converters = [zeros(mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in mg.converters],
+                            storages = [zeros(mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in mg.storages])
+end
 
 # Copy function
 function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
@@ -96,6 +115,7 @@ function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
 
     return microgrid
 end
+
 # Find if the datatype is in a mg field
 function isin(field::Vector, type::DataType)
     # Return true if the datatype is in the field and its index
