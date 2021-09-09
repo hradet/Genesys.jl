@@ -103,20 +103,11 @@ function plot_operation(mg::Microgrid, controller::AbstractController; y=2, s=1)
     end
 end
 # Statistics
-function plot_statistics(metrics::Metrics; type = "hist")
+function plot_metrics(metrics::Metrics; type = "hist")
     # Seaborn configuration
     Seaborn.set(context="notebook", style="ticks", palette="muted", font="serif", font_scale = 1.5)
 
-    if type == "whisker"
-        figure("Renewable share (%)")
-        boxplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue", whis = [5,95], showfliers = false)
-        yticks(size = "medium")
-        xlabel("Renewable share (%)", size = "large"), xticks(size = "medium")
-        figure("Cost")
-        boxplot(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue", whis = [5,95], showfliers = false)
-        yticks(size = "medium")
-        xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
-    elseif type == "hist"
+    if type == "hist"
         figure("Renewable share")
         hist(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue")
         ylabel("Counts", size = "large"), yticks(size = "medium")
@@ -125,6 +116,24 @@ function plot_statistics(metrics::Metrics; type = "hist")
         hist(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue")
         ylabel("Counts", size = "large"), yticks(size = "medium")
         xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
+        if !isa(metrics.lpsp.elec, Nothing)
+            figure("LPSP elec")
+            hist(reshape(metrics.lpsp.elec[2:end, :], :) * 100, color="steelblue")
+            ylabel("Counts", size = "large"), yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
+        if !isa(metrics.lpsp.heat, Nothing)
+            figure("LPSP heat")
+            hist(reshape(metrics.lpsp.heat[2:end, :], :) * 100, color="steelblue")
+            ylabel("Counts", size = "large"), yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
+        if !isa(metrics.lpsp.hydrogen, Nothing)
+            figure("LPSP hydrogen")
+            hist(reshape(metrics.lpsp.hydrogen[2:end, :], :) * 100, color="steelblue")
+            ylabel("Counts", size = "large"), yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
     elseif type == "violin"
         figure("Renewable share")
         violinplot(reshape(metrics.renewable_share[2:end, :], :) * 100, color="steelblue")
@@ -134,6 +143,26 @@ function plot_statistics(metrics::Metrics; type = "hist")
         violinplot(reshape(metrics.eac.total[:, :], :) / 1000, color="steelblue")
         yticks(size = "medium")
         xlabel("Annual cost (k€/y)", size = "large"), xticks(size = "medium")
+        if !isa(metrics.lpsp.elec, Nothing)
+            figure("LPSP elec")
+            violinplot(reshape(metrics.lpsp.elec[2:end, :], :) * 100, color="steelblue")
+            yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
+        if !isa(metrics.lpsp.heat, Nothing)
+            figure("LPSP heat")
+            violinplot(reshape(metrics.lpsp.heat[2:end, :], :) * 100, color="steelblue")
+            yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
+        if !isa(metrics.lpsp.hydrogen, Nothing)
+            figure("LPSP hydrogen")
+            violinplot(reshape(metrics.lpsp.hydrogen[2:end, :], :) * 100, color="steelblue")
+            yticks(size = "medium")
+            xlabel("LPSP (%)", size = "large"), xticks(size = "medium")
+        end
+    else
+        println("Only 'hist' or 'violin' type accepted")
     end
 end
 

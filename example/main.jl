@@ -39,5 +39,4 @@ metrics = Metrics(microgrid, designer)
 
 # Plots
 plot_operation(microgrid)
-plot_operation(microgrid, controller)
-plot_statistics(metrics)
+plot_metrics(metrics)

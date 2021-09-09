@@ -69,6 +69,6 @@ include(joinpath("utils","metrics.jl"))
 include(joinpath("utils","plots.jl"))
 # include(joinpath("utils","saves.jl"))
 export Metrics
-export plot_operation, plot_statistics
+export plot_operation, plot_metrics
 
 end
