@@ -147,11 +147,11 @@ function reduce(reducer::FeatureBasedReducer, ω::Scenarios; y::Int64 = 1, s::In
         generations[k] = (t = reshape(t_g[k][:,medoids], nh, 1, :), power = reshape(data_g[k][:,medoids], nh, 1, :), cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)))
     end
     # Storages
-    for a in ω.storages
+    for (k, a) in enumerate(ω.storages)
         storages[k] = (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),)
     end
     # Converters
-    for a in ω.converters
+    for (k, a) in enumerate(ω.converters)
         converters[k] = (cost =  repeat(a.cost[y:y, s:s], 1, length(medoids)),)
     end
     # Grids

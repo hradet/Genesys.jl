@@ -22,21 +22,33 @@ end
 
 ### Models
 function build_model(mg::Microgrid, controller::Anticipative, ω::Scenarios)
+    # Sets
+    nh, ns = size(ω.demands[1].power, 1), size(ω.demands[1].power, 3)
     # Initialize
     m = Model(controller.options.solver.Optimizer)
     set_optimizer_attribute(m,"CPX_PARAM_SCRIND", 0)
     # Add investment variables
-    add_investment_decisions!(m, mg, ω)
+    add_investment_decisions!(m, mg.generations)
+    add_investment_decisions!(m, mg.storages)
+    add_investment_decisions!(m, mg.converters)
     # Fix their values
-    fix_investment_decisions!(m, mg, controller)
+    fix_investment_decisions!(m, controller.generations, controller.storages, controller.converters)
     # Add decision variables
-    add_operation_decisions!(m, mg, ω)
+    add_operation_decisions!(m, mg.storages, nh, ns)
+    add_operation_decisions!(m, mg.converters, nh, ns)
+    add_operation_decisions!(m, mg.grids, nh, ns)
     # Add technical constraints
-    add_technical_constraints!(m, mg, ω)
+    add_technical_constraints!(m, mg.storages, mg.parameters.Δh, nh, ns)
+    add_technical_constraints!(m, mg.converters, nh, ns)
+    add_technical_constraints!(m, mg.grids, nh, ns)
+    # Add periodicity constraint
+    add_periodicity_constraints!(m, mg.storages, ns)
     # Add power balance constraints
-    add_power_balances!(m, mg, ω)
+    add_power_balance!(m, mg, ω, Electricity, nh, ns)
+    add_power_balance!(m, mg, ω, Heat, nh, ns)
+    add_power_balance!(m, mg, ω, Hydrogen, nh, ns)
     # Objective
-    opex = compute_opex(m, mg, ω)
+    opex = compute_opex(m, mg, ω, nh, ns)
     @objective(m, Min, opex[1])
     return m
 end

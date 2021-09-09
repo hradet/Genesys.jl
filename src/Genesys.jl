@@ -41,10 +41,10 @@ export Expectation, CVaR, WorstCase
 include(joinpath("optimization","controller","dummy.jl"))
 include(joinpath("optimization","controller","anticipative.jl"))
 include(joinpath("optimization","controller","rb.jl"))
-# include(joinpath("optimization","controller","olfc.jl"))
+include(joinpath("optimization","controller","olfc.jl"))
 # include(joinpath("optimization","controller","sddp.jl"))
-export Dummy, RBC, Anticipative#, OLFC, SDDPC
-export RBCOptions, AnticipativeOptions#, OLFCOptions, SDDPCOptions
+export Dummy, RBC, Anticipative, OLFC#, SDDPC
+export RBCOptions, AnticipativeOptions, OLFCOptions#, SDDPCOptions
 export initialize_controller!
 # # Investment optimization
 include(joinpath("optimization","designer","manual.jl"))
@@ -67,7 +67,7 @@ export simulate!
 # # Utils
 include(joinpath("utils","metrics.jl"))
 include(joinpath("utils","plots.jl"))
-# include(joinpath("utils","saves.jl"))
+include(joinpath("utils","saves.jl"))
 export Metrics
 export plot_operation, plot_metrics
 

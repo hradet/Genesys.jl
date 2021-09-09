@@ -32,22 +32,36 @@ end
 
 ### Models
 function build_model(mg::Microgrid, designer::MILP, ω::Scenarios, probabilities::Vector{Float64})
+    # Sets
+    nh, ns = size(ω.demands[1].power, 1), size(ω.demands[1].power, 3)
     # Initialize
     m = Model(designer.options.solver.Optimizer)
     # Add desgin decision variables
-    add_investment_decisions!(m, mg, ω)
+    add_investment_decisions!(m, mg.generations)
+    add_investment_decisions!(m, mg.storages)
+    add_investment_decisions!(m, mg.converters)
     # Add operation decision variables
-    add_operation_decisions!(m, mg, ω)
+    add_operation_decisions!(m, mg.storages, nh, ns)
+    add_operation_decisions!(m, mg.converters, nh, ns)
+    add_operation_decisions!(m, mg.grids, nh, ns)
     # Add design constraints
-    add_investment_constraints!(m, mg, ω)
+    add_investment_constraints!(m, mg.generations)
+    add_investment_constraints!(m, mg.storages)
+    add_investment_constraints!(m, mg.converters)
     # Add technical constraints
-    add_technical_constraints!(m, mg, ω)
+    add_technical_constraints!(m, mg.storages, mg.parameters.Δh, nh, ns)
+    add_technical_constraints!(m, mg.converters, nh, ns)
+    add_technical_constraints!(m, mg.grids, nh, ns)
+    # Add periodicity constraint
+    add_periodicity_constraints!(m, mg.storages, ns)
     # Add power balance constraints
-    add_power_balances!(m, mg, ω)
+    add_power_balance!(m, mg, ω, Electricity, nh, ns)
+    add_power_balance!(m, mg, ω, Heat, nh, ns)
+    add_power_balance!(m, mg, ω, Hydrogen, nh, ns)
     # Renewable share constraint
-    add_renewable_share!(m, mg, ω, probabilities, designer.options.share_risk)
+    add_renewable_share!(m, mg, ω, probabilities, designer.options.share_risk, nh, ns)
     # Objective
-    add_design_objective!(m, mg, ω, probabilities, designer.options.objective_risk)
+    add_design_objective!(m, mg, ω, probabilities, designer.options.objective_risk, nh, ns)
     return m
 end
 

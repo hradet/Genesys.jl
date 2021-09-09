@@ -42,56 +42,73 @@ end
 
 # MILP functions
 # Decisions
-function add_investment_decisions!(m::Model, mg::Microgrid, ω::Scenarios)
-    # Generation
-    if !isempty(mg.generations)
-        na = length(mg.generations)
+function add_investment_decisions!(m::Model, generations::Vector{AbstractGeneration})
+    if !isempty(generations)
+        na = length(generations)
         @variable(m, r_g[1:na])
     end
-    # Storages
-    if !isempty(mg.storages)
-        na = length(mg.storages)
+end
+function add_investment_decisions!(m::Model, storages::Vector{AbstractStorage})
+    if !isempty(storages)
+        na = length(storages)
         @variable(m, r_sto[1:na])
     end
-    # Converters
-    if !isempty(mg.converters)
-        na = length(mg.converters)
+end
+function add_investment_decisions!(m::Model, converters::Vector{AbstractConverter})
+    if !isempty(converters)
+        na = length(converters)
         @variable(m, r_c[1:na])
     end
 end
-function fix_investment_decisions!(m::Model, mg::Microgrid, controller::AbstractController)
+function fix_investment_decisions!(m::Model, generations::Vector{Float64}, storages::Vector{Float64}, converters::Vector{Float64})
     # Generation
-    if !isempty(mg.generations)
-        fix.(m[:r_g], controller.generations)
+    if !isempty(generations)
+        fix.(m[:r_g], generations)
     end
     # Storages
-    if !isempty(mg.storages)
-        fix.(m[:r_sto], controller.storages)
+    if !isempty(storages)
+        fix.(m[:r_sto], storages)
     end
     # Converters
-    if !isempty(mg.converters)
-        fix.(m[:r_c], controller.converters)
+    if !isempty(converters)
+        fix.(m[:r_c], converters)
     end
 end
-function add_operation_decisions!(m::Model, mg::Microgrid, ω::Scenarios)
-    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
-    # Storages
-    if !isempty(mg.storages)
-        na = length(mg.storages)
+function add_operation_decisions!(m::Model, demands::Vector{AbstractDemand}, nh::Int64, ns::Int64)
+    if !isempty(demands)
+        na = length(demands)
+        @variables(m, begin
+        p_d[1:nh, 1:ns, 1:na]
+        end)
+    end
+end
+function add_operation_decisions!(m::Model, generations::Vector{AbstractGeneration}, nh::Int64, ns::Int64)
+    if !isempty(generations)
+        na = length(generations)
+        @variables(m, begin
+        p_g[1:nh, 1:ns, 1:na]
+        end)
+    end
+end
+function add_operation_decisions!(m::Model, storages::Vector{AbstractStorage}, nh::Int64, ns::Int64)
+    if !isempty(storages)
+        na = length(storages)
         @variables(m, begin
         p_ch[1:nh, 1:ns, 1:na]   >= 0.
         p_dch[1:nh, 1:ns, 1:na]  >= 0.
         soc[1:nh+1, 1:ns, 1:na]
         end)
     end
-    # Converters
-    if !isempty(mg.converters)
-        na = length(mg.converters)
+end
+function add_operation_decisions!(m::Model, converters::Vector{AbstractConverter}, nh::Int64, ns::Int64)
+    if !isempty(converters)
+        na = length(converters)
         @variable(m, p_c[1:nh, 1:ns, 1:na] >= 0.)
     end
-    # Grids
-    if !isempty(mg.grids)
-        na = length(mg.grids)
+end
+function add_operation_decisions!(m::Model, grids::Vector{AbstractGrid}, nh::Int64, ns::Int64)
+    if !isempty(grids)
+        na = length(grids)
         @variables(m, begin
         p_in[1:nh, 1:ns, 1:na]   >= 0.
         p_out[1:nh, 1:ns, 1:na]  >= 0.
@@ -99,139 +116,160 @@ function add_operation_decisions!(m::Model, mg::Microgrid, ω::Scenarios)
     end
 end
 # Investment bounds
-function add_investment_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
-    # Generations
-    if !isempty(mg.generations)
-        na = length(mg.generations)
+function add_investment_constraints!(m::Model, generations::Vector{AbstractGeneration})
+    if !isempty(generations)
+        na = length(generations)
         @constraints(m, begin
-        [a in 1:na], m[:r_g][a] >= mg.generations[a].bounds.lb
-        [a in 1:na], m[:r_g][a] <= mg.generations[a].bounds.ub
-        end)
-    end
-    # Storages
-    if !isempty(mg.storages)
-        na = length(mg.storages)
-        @constraints(m, begin
-        [a in 1:na], m[:r_sto][a] >= mg.storages[a].bounds.lb
-        [a in 1:na], m[:r_sto][a] <= mg.storages[a].bounds.ub
-        end)
-    end
-    # Converters
-    if !isempty(mg.converters)
-        na = length(mg.converters)
-        @constraints(m, begin
-        [a in 1:na], m[:r_c][a] >= mg.converters[a].bounds.lb
-        [a in 1:na], m[:r_c][a] <= mg.converters[a].bounds.ub
+        [a in 1:na], m[:r_g][a] >= generations[a].bounds.lb
+        [a in 1:na], m[:r_g][a] <= generations[a].bounds.ub
         end)
     end
 end
-function add_technical_constraints!(m::Model, mg::Microgrid, ω::Scenarios)
-    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
-    # Storages
-    if !isempty(mg.storages)
-        na = length(mg.storages)
+function add_investment_constraints!(m::Model, storages::Vector{AbstractStorage})
+    if !isempty(storages)
+        na = length(storages)
         @constraints(m, begin
-        # Power bounds
-        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_dch][h,s,a]  <= mg.storages[a].α_p_dch * m[:r_sto][a]
-        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_ch][h,s,a] <= mg.storages[a].α_p_ch * m[:r_sto][a]
-        # SoC bounds
-        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a]  <= mg.storages[a].α_soc_max * m[:r_sto][a]
-        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a]  >= mg.storages[a].α_soc_min * m[:r_sto][a]
-        # State dynamics
-        [h in 1:nh, s in 1:ns, a in 1:na], m[:soc][h+1,s,a]  == m[:soc][h,s,a] * (1. - mg.storages[a].η_self * mg.parameters.Δh) - (m[:p_dch][h,s,a] / mg.storages[a].η_dch - m[:p_ch][h,s,a] * mg.storages[a].η_ch) * mg.parameters.Δh
-        # Initial and final states
-        [s in 1:ns, a in 1:na], m[:soc][1,s,a]    == mg.storages[a].soc_ini * m[:r_sto][a]
-        [s in 1:ns, a in 1:na], m[:soc][end,s,a]  >= m[:soc][1,s,a]
+        [a in 1:na], m[:r_sto][a] >= storages[a].bounds.lb
+        [a in 1:na], m[:r_sto][a] <= storages[a].bounds.ub
         end)
     end
-    # Converters
-    if !isempty(mg.converters)
-        na = length(mg.converters)
+end
+function add_investment_constraints!(m::Model, converters::Vector{AbstractConverter})
+    if !isempty(converters)
+        na = length(converters)
+        @constraints(m, begin
+        [a in 1:na], m[:r_c][a] >= converters[a].bounds.lb
+        [a in 1:na], m[:r_c][a] <= converters[a].bounds.ub
+        end)
+    end
+end
+# Technical constraint
+function add_technical_constraints!(m::Model, storages::Vector{AbstractStorage}, Δh::Int64, nh::Int64, ns::Int64)
+    if !isempty(storages)
+        na = length(storages)
+        @constraints(m, begin
+        # Power bounds
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_dch][h,s,a] <= storages[a].α_p_dch * m[:r_sto][a]
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_ch][h,s,a]  <= storages[a].α_p_ch * m[:r_sto][a]
+        # SoC bounds
+        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a] <= storages[a].α_soc_max * m[:r_sto][a]
+        [h in 1:nh+1, s in 1:ns, a in 1:na], m[:soc][h,s,a] >= storages[a].α_soc_min * m[:r_sto][a]
+        # State dynamics
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:soc][h+1,s,a] == m[:soc][h,s,a] * (1. - storages[a].η_self * Δh) - (m[:p_dch][h,s,a] / storages[a].η_dch - m[:p_ch][h,s,a] * storages[a].η_ch) * Δh
+        # Initial and final states
+        [s in 1:ns, a in 1:na], m[:soc][1,s,a] == storages[a].soc_ini * m[:r_sto][a]
+        end)
+    end
+end
+function add_technical_constraints!(m::Model, converters::Vector{AbstractConverter}, nh::Int64, ns::Int64)
+    if !isempty(converters)
+        na = length(converters)
         @constraints(m, begin
         # Power bounds
         [h in 1:nh, s in 1:ns, a in 1:na], m[:p_c][h,s,a]  <= m[:r_c][a]
         end)
     end
-    # Grids
-    if !isempty(mg.grids)
-        na = length(mg.grids)
+end
+function add_technical_constraints!(m::Model, grids::Vector{AbstractGrid}, nh::Int64, ns::Int64)
+    if !isempty(grids)
+        na = length(grids)
         @constraints(m, begin
         # Power bounds
-        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_in][h,s,a]  <= mg.grids[a].powerMax
-        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_out][h,s,a] <= mg.grids[a].powerMax
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_in][h,s,a]  <= grids[a].powerMax
+        [h in 1:nh, s in 1:ns, a in 1:na], m[:p_out][h,s,a] <= grids[a].powerMax
+        end)
+    end
+end
+# Periodicity constraint
+function add_periodicity_constraints!(m::Model, storages::Vector{AbstractStorage}, ns::Int64)
+    # Storages
+    if !isempty(storages)
+        na = length(storages)
+        @constraints(m, begin
+        # Final states
+        [s in 1:ns, a in 1:na], m[:soc][end,s,a]  >= m[:soc][1,s,a]
         end)
     end
 end
 # Power balance
-function add_power_balances!(m::Model, mg::Microgrid, ω::Scenarios)
+function add_power_balance!(m::Model, mg::Microgrid, ω::Scenarios, type::DataType, nh::Int64, ns::Int64; ispnet::Bool=false)
     # !!! All the decision variables are defined positive !!!
-    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
-    balance = (electricity = AffExpr.(zeros(nh,ns)), heat = AffExpr.(zeros(nh,ns)), hydrogen = AffExpr.(zeros(nh,ns)))
-    # Demands
-    for (k,a) in enumerate(mg.demands)
-        if a.carrier isa Electricity
-            add_to_expression!.(balance.electricity, ω.demands[k].power[:,1,:])
-        elseif a.carrier isa Heat
-            add_to_expression!.(balance.heat, ω.demands[k].power[:,1,:])
-        elseif a.carrier isa Hydrogen
-            add_to_expression!.(balance.hydrogen, ω.demands[k].power[:,1,:])
+    balance = AffExpr.(zeros(nh,ns))
+    # Demands and generation
+    if !ispnet
+        for (k,a) in enumerate(mg.demands)
+            if a.carrier isa type
+                add_to_expression!.(balance, ω.demands[k].power[:,1,:])
+            end
         end
-    end
-    # Generation
-    for (k,a) in enumerate(mg.generations)
-        if a.carrier isa Electricity
-            add_to_expression!.(balance.electricity, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
-        elseif a.carrier isa Heat
-            add_to_expression!.(balance.heat, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
-        elseif a.carrier isa Hydrogen
-            add_to_expression!.(balance.hydrogen, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
+        # Generation
+        for (k,a) in enumerate(mg.generations)
+            if a.carrier isa type
+                add_to_expression!.(balance, .- m[:r_g][k] .* ω.generations[k].power[:,1,:])
+            end
+        end
+    else
+        for (k,a) in enumerate(mg.demands)
+            if a.carrier isa type
+                add_to_expression!.(balance, m[:p_d][:,:,k])
+            end
+        end
+        # Generation
+        for (k,a) in enumerate(mg.generations)
+            if a.carrier isa type
+                add_to_expression!.(balance, .- m[:p_g][:,:,k])
+            end
         end
     end
     # Storages
     for (k,a) in enumerate(mg.storages)
-        if a.carrier isa Electricity
-            add_to_expression!.(balance.electricity, m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
-        elseif a.carrier isa Heat
-            add_to_expression!.(balance.heat,  m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
-        elseif a.carrier isa Hydrogen
-            add_to_expression!.(balance.hydrogen,  m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
+        if a.carrier isa type
+            add_to_expression!.(balance, m[:p_ch][:,:,k] .- m[:p_dch][:,:,k])
         end
     end
     # Converters
     for (k,a) in enumerate(mg.converters)
-        if a isa Heater
-            add_to_expression!.(balance.electricity, m[:p_c][:,:,k])
-            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_E_H)
-        elseif a isa Electrolyzer
-            add_to_expression!.(balance.electricity, m[:p_c][:,:,k])
-            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_E_H)
-            add_to_expression!.(balance.hydrogen, .- m[:p_c][:,:,k] * a.η_E_H2)
-        elseif a isa FuelCell
-            add_to_expression!.(balance.electricity, .- m[:p_c][:,:,k])
-            add_to_expression!.(balance.heat, .- m[:p_c][:,:,k] * a.η_H2_H / a.η_H2_E)
-            add_to_expression!.(balance.hydrogen, m[:p_c][:,:,k] / a.η_H2_E)
+        if type == Electricity
+            if a isa Heater
+                add_to_expression!.(balance, m[:p_c][:,:,k])
+            elseif a isa Electrolyzer
+                add_to_expression!.(balance, m[:p_c][:,:,k])
+            elseif a isa FuelCell
+                add_to_expression!.(balance, .- m[:p_c][:,:,k])
+            end
+        elseif type == Heat
+            if a isa Heater
+                add_to_expression!.(balance, .- m[:p_c][:,:,k] * a.η_E_H)
+            elseif a isa Electrolyzer
+                add_to_expression!.(balance, .- m[:p_c][:,:,k] * a.η_E_H)
+            elseif a isa FuelCell
+                add_to_expression!.(balance, .- m[:p_c][:,:,k] * a.η_H2_H / a.η_H2_E)
+            end
+        elseif type == Hydrogen
+            if a isa Electrolyzer
+                add_to_expression!.(balance, .- m[:p_c][:,:,k] * a.η_E_H2)
+            elseif a isa FuelCell
+                add_to_expression!.(balance, m[:p_c][:,:,k] / a.η_H2_E)
+            end
         end
     end
     # Grids
     for (k,a) in enumerate(mg.grids)
-        if a.carrier isa Electricity
-            add_to_expression!.(balance.electricity, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
-        elseif a.carrier isa Heat
-            add_to_expression!.(balance.heat, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
-        elseif a.carrier isa Hydrogen
-            add_to_expression!.(balance.hydrogen, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
+        if a.carrier isa type
+            add_to_expression!.(balance, .- m[:p_in][:,:,k] + m[:p_out][:,:,k])
         end
     end
     # Energy balance constraint
-    @constraints(m, begin
-        [h in 1:nh, s in 1:ns], balance.electricity[h,s] <= 0.
-        [h in 1:nh, s in 1:ns], balance.heat[h,s] <= 0.
-        [h in 1:nh, s in 1:ns], balance.hydrogen[h,s] == 0.
-    end)
+    if type == Electricity
+        @constraint(m, balance .<= 0.)
+    elseif type == Heat
+        @constraint(m, balance .<= 0.)
+    elseif type == Hydrogen
+        @constraint(m, balance .== 0.)
+    end
 end
 # Renewable share
-function add_renewable_share!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure)
-    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+function add_renewable_share!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure, nh::Int64, ns::Int64)
     total = zeros(ns)
     for (k,a) in enumerate(mg.demands)
         if a.carrier isa Electricity
@@ -256,12 +294,11 @@ function add_renewable_share!(m::Model, mg::Microgrid, ω::Scenarios, probabilit
     end)
 end
 # Objective
-function add_design_objective!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure)
-    ns = size(ω.demands[1].power,3)
+function add_design_objective!(m::Model, mg::Microgrid, ω::Scenarios, probabilities::Vector{Float64}, risk::AbstractRiskMeasure, nh::Int64, ns::Int64)
     # CAPEX
     capex = compute_capex(m, mg, ω)
     # OPEX
-    opex = compute_opex(m, mg, ω)
+    opex = compute_opex(m, mg, ω, nh, ns)
     # Objective according to the CVaR
     @variables(m, begin
     ζ_o
@@ -288,8 +325,7 @@ function compute_capex(m::Model, mg::Microgrid, ω::Scenarios)
     return cost
 end
 # Grids
-function compute_opex(m::Model, mg::Microgrid, ω::Scenarios)
-    nh, ns = size(ω.demands[1].power,1), size(ω.demands[1].power,3)
+function compute_opex(m::Model, mg::Microgrid, ω::Scenarios, nh::Int64, ns::Int64)
     cost = AffExpr.(zeros(ns))
     for (k,a) in enumerate(mg.grids)
         add_to_expression!.(cost, sum((m[:p_in][h,:,k] .* ω.grids[k].cost_in[h,1,:] .- m[:p_out][h,:] .* ω.grids[k].cost_out[h,1,:]) .* mg.parameters.Δh  for h in 1:nh))
