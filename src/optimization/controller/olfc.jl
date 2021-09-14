@@ -79,11 +79,14 @@ function initialize_controller!(mg::Microgrid, controller::OLFC, ω::Scenarios)
     # Compute markov chain for scenario generation
     println("Initializing scenario generator...")
     controller.options.generator = initialize_generator!(controller.options.generator, [a for a in ω_reduced.generations]..., [a for a in ω_reduced.demands]...)
+    # History
+    controller.history = ω
     return controller
 end
 
 ### Online
 function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, mg::Microgrid, controller::OLFC)
+    controller.model = build_model(mg, controller, controller.history) # Probleme à l'initialisation
     # Forecast window
     window = h:min(mg.parameters.nh, h + controller.options.horizon - 1)
     # Compute forecast
@@ -107,8 +110,8 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, mg::Microgri
             controller.decisions.converters[k][h,y,s] = value(controller.model[:p_c][1,1,k])
         end
     end
+    @assert controller.decisions.converters[3][h,y,s] > -1. println(h)
 end
-
 # OLFC forecast
 function compute_forecast(h::Int64, y::Int64, s::Int64, mg::Microgrid, controller::OLFC, window::UnitRange{Int64})
     # To make the writting easier...
@@ -130,30 +133,30 @@ end
 function fix_operation_variables!(controller::OLFC, demands::Vector{Array{Float64,3}}, generations::Vector{Array{Float64,3}}, soc_ini::Vector{Float64})
     # Fix demand values
     for (k,a) in enumerate(demands)
-        fix.(controller.model[:p_d][:,:,k], demands[k])
+        fix.(controller.model[:p_d][:,:,k], a[:,:,1])
     end
     # Fix generation values
     for (k,a) in enumerate(generations)
-        fix.(controller.model[:p_g][:,:,k], generations[k])
+        fix.(controller.model[:p_g][:,:,k], a[:,:,1])
     end
     # Fix initial SoC values
     for (k,a) in enumerate(soc_ini)
-        fix(controller.model[:soc][1,1,k], soc_ini[k])
+        fix(controller.model[:soc][1,1,k], a)
     end
 end
 # Add objective
-function add_objective!(controller::OLFC, mg::Microgrid, tariff::Vector{NamedTuple{(:cost_in, :cost_out),Tuple{Vector{Float64},Vector{Float64}}}}, probabilities::Array{Float64,2}, window::UnitRange{Int64})
+function add_objective!(controller::OLFC, mg::Microgrid, tariff::Vector{NamedTuple{(:cost_in, :cost_out), Tuple{Vector{Float64},Vector{Float64}}}}, probabilities::Array{Float64,2}, window::UnitRange{Int64})
     # To make the writting easier...
     nh, ns = controller.options.horizon, controller.options.nscenarios
     # Initialize
     cost = AffExpr(0.)
     # Opex
     for (k,a) in enumerate(mg.grids)
-        add_to_expression!(cost, sum(probabilities[s] * sum((controller.model[:p_in][h,s,k] * tariff[k].cost_in[h] + controller.model[:p_out][h,s,k] * tariff[k].cost_out[h]) * mg.parameters.Δh for h in 1:nh) for s in 1:ns))
+        add_to_expression!(cost, sum(probabilities[s] * sum((controller.model[:p_in][h,s,k] * tariff[k].cost_in[h] - controller.model[:p_out][h,s,k] * tariff[k].cost_out[h]) * mg.parameters.Δh for h in 1:nh) for s in 1:ns))
     end
     # Add final cost
     for (k,a) in enumerate(mg.storages)
-        if isa(controller.options.seasonal_targets, Nothing)
+        if controller.options.seasonal_targets isa Nothing
             add_to_expression!(cost, - controller.options.final_cost[k] * controller.model[:soc][end,1,k])
         else
             if a isa H2Tank

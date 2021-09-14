@@ -33,11 +33,11 @@ designer = initialize_designer!(microgrid, MILP(options = MILPOptions(reducer = 
 
 controller = initialize_controller!(microgrid, Anticipative(generations = [a[1] for a in designer.decisions.generations], storages = [a[1] for a in designer.decisions.storages], converters = [a[1] for a in designer.decisions.converters]), ω_optim)
 
-options = OLFCOptions(nscenarios = 5, reducer = ManualReducer(y=1:1, s=1:1))
+options = OLFCOptions(nscenarios = 1, reducer = ManualReducer(y=1:1, s=1:1))
 controller = initialize_controller!(microgrid, OLFC(options = options, generations = [a[1] for a in designer.decisions.generations], storages = [a[1] for a in designer.decisions.storages], converters = [a[1] for a in designer.decisions.converters]), ω_optim)
 
 # Simulate
-@time simulate!(microgrid, controller, designer, ω_optim, options = Genesys.Options(mode="serial"))
+@time simulate!(microgrid, controller, designer, ω_simu, options = Genesys.Options(mode="serial"))
 
 # Compute the metrics
 metrics = Metrics(microgrid, designer)
@@ -45,5 +45,3 @@ metrics = Metrics(microgrid, designer)
 # Plots
 plot_operation(microgrid)
 plot_metrics(metrics)
-
-a,b,c,d = Genesys.compute_forecast(1, 2, 1, microgrid, controller)

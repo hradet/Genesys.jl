@@ -261,11 +261,11 @@ function add_power_balance!(m::Model, mg::Microgrid, ω::Scenarios, type::DataTy
     end
     # Energy balance constraint
     if type == Electricity
-        @constraint(m, balance .<= 0.)
+        @constraint(m, electricity, balance .<= 0.)
     elseif type == Heat
-        @constraint(m, balance .<= 0.)
+        @constraint(m, heat, balance .<= 0.)
     elseif type == Hydrogen
-        @constraint(m, balance .== 0.)
+        @constraint(m, hydrogen, balance .== 0.)
     end
 end
 # Renewable share
