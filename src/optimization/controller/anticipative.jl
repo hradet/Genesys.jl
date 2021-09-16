@@ -94,7 +94,7 @@ function build_model(des::DistributedEnergySystem, controller::Anticipative, ω:
     [h in 1:nh], soc_h2tank[h+1] == soc_h2tank[h] * (1. - h2tank.η_self * des.parameters.Δh) - (p_h2tank_ch[h] * h2tank.η_ch + p_h2tank_dch[h] / h2tank.η_dch) * des.parameters.Δh
     # Initial and final states
     soc_liion[1]    == liion.soc_ini * controller.liion
-    soc_liion[end]  >= soc_liion[1]
+    # soc_liion[end]  >= soc_liion[1]
     soc_tes[1]      == tes.soc_ini * controller.tes
     soc_tes[end]    >= soc_tes[1]
     soc_h2tank[1]   == h2tank.soc_ini * controller.h2tank
