@@ -3,7 +3,7 @@ using Genesys, JLD, Dates, Seaborn, BenchmarkTools
 pygui(true)
 
 # Parameters
-const nh, ny, ns = 8760, 2, 1
+const nh, ny, ns = 8760, 2, 4
 
 # Load input data
 data = load(joinpath("data","ausgrid_5_twostage.jld"))

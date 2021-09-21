@@ -32,7 +32,7 @@ mutable struct H2Tank  <: AbstractStorage
         α_soc_min = 0.,
         α_soc_max = 1.,
         lifetime = 25,
-        bounds = (lb = 0., ub = 10000),
+        bounds = (lb = 0., ub = 10000.),
         Erated_ini = 1e-6,
         soc_ini = 0.5,
         soh_ini = 1.) =

@@ -86,7 +86,6 @@ end
 
 ### Online
 function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, mg::Microgrid, controller::OLFC)
-    controller.model = build_model(mg, controller, controller.history) # Probleme à l'initialisation
     # Forecast window
     window = h:min(mg.parameters.nh, h + controller.options.horizon - 1)
     # Compute forecast
@@ -110,7 +109,6 @@ function compute_operation_decisions!(h::Int64, y::Int64, s::Int64, mg::Microgri
             controller.decisions.converters[k][h,y,s] = value(controller.model[:p_c][1,1,k])
         end
     end
-    @assert controller.decisions.converters[3][h,y,s] > -1. println(h)
 end
 # OLFC forecast
 function compute_forecast(h::Int64, y::Int64, s::Int64, mg::Microgrid, controller::OLFC, window::UnitRange{Int64})
@@ -141,7 +139,8 @@ function fix_operation_variables!(controller::OLFC, demands::Vector{Array{Float6
     end
     # Fix initial SoC values
     for (k,a) in enumerate(soc_ini)
-        fix(controller.model[:soc][1,1,k], a)
+        set_normalized_coefficient.(controller.model[:soc_ini][:,k], controller.model[:r_sto][k], 0.)
+        set_normalized_rhs.(controller.model[:soc_ini][:,k], a)
     end
 end
 # Add objective

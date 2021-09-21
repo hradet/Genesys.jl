@@ -157,7 +157,7 @@ function add_technical_constraints!(m::Model, storages::Vector{AbstractStorage},
         # State dynamics
         [h in 1:nh, s in 1:ns, a in 1:na], m[:soc][h+1,s,a] == m[:soc][h,s,a] * (1. - storages[a].η_self * Δh) - (m[:p_dch][h,s,a] / storages[a].η_dch - m[:p_ch][h,s,a] * storages[a].η_ch) * Δh
         # Initial and final states
-        [s in 1:ns, a in 1:na], m[:soc][1,s,a] == storages[a].soc_ini * m[:r_sto][a]
+        soc_ini[s in 1:ns, a in 1:na], m[:soc][1,s,a] == storages[a].soc_ini * m[:r_sto][a]
         end)
     end
 end
