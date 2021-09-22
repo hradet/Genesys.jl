@@ -19,8 +19,7 @@ mutable struct GlobalParameters
                 Δh = 1,
                 Δy = 1,
                 τ = 0.045,
-                renewable_share = 0.) =
-                new(ns, Δh, nh, Δy, ny, τ, renewable_share)
+                renewable_share = 0.) = renewable_share == 1. ? new(ns, Δh, nh, Δy, ny, τ, 0.9999) : new(ns, Δh, nh, Δy, ny, τ, renewable_share)
 end
 
 mutable struct Microgrid

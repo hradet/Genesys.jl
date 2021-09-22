@@ -3,7 +3,6 @@
     and investment informations
  =#
 
-#TODO improve code speed
 function update_operation_informations!(h::Int64, y::Int64, s::Int64, mg::Microgrid, ω::Scenarios)
     # Demands
     for (k, a) in enumerate(mg.demands)

@@ -46,7 +46,7 @@ end
 mutable struct SAAReducer <: AbstractScenariosReducer
     nsample::Int64
 
-    SAAReducer(; nsample = 100) = new(nmontecarlo)
+    SAAReducer(; nsample = 100) = new(nsample)
 end
 
 function reduce(reducer::SAAReducer, ω::Scenarios; y::Int64 = 1, s::Int64 = 1)

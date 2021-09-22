@@ -150,7 +150,7 @@ renewable_share(mg::Microgrid) = renewable_share(1:mg.parameters.ns, mg)
 renewable_share(s::Union{Int64, UnitRange{Int64}}, mg::Microgrid) = renewable_share(1:mg.parameters.ny, s, mg)
 # Share of renewables for a given year y of a givn scenario s
 function renewable_share(y::Union{Int64, UnitRange{Int64}}, s::Union{Int64, UnitRange{Int64}}, mg::Microgrid)
-    # TODO to be changed if there is not grid...
+    # TODO to be changed if there is no grid...
     total = 0.
     for (k,a) in enumerate(mg.demands)
         if a.carrier isa Electricity

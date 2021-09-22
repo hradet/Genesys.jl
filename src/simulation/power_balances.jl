@@ -3,8 +3,6 @@
     constraints
 =#
 
-#TODO improve code speed
-
 function compute_power_balances!(h::Int64, y::Int64, s::Int64, mg::Microgrid)
     # Hydrogen
     checking!(h, y, s, mg, Hydrogen)
