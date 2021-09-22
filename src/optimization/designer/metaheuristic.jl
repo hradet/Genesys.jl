@@ -18,7 +18,7 @@ mutable struct MetaheuristicOptions
     write_reduction::Union{String, Nothing}
 
     MetaheuristicOptions(; method = Metaheuristics.Clearing(),
-                           iterations = 100,
+                           iterations = 50,
                            multithreads = false,
                            controller = RBC(),
                            isnpv = false,
@@ -36,7 +36,7 @@ end
 
 mutable struct Metaheuristic <: AbstractDesigner
     options::MetaheuristicOptions
-    u::NamedTuple
+    decisions::NamedTuple
     results::Metaheuristics.MetaheuristicResults
     history::AbstractScenarios
 
@@ -44,57 +44,60 @@ mutable struct Metaheuristic <: AbstractDesigner
 end
 
 # Objective functions
-function fobj(decisions::Array{Float64,1}, des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios, probabilities::Array{Float64})
+function fobj(decisions::Array{Float64,1}, mg::Microgrid, designer::Metaheuristic, ω::Scenarios, probabilities::Array{Float64})
     # Paramters
-    nh, ny, ns = size(ω.ld_E.power)
+    nh, ny, ns = size(ω.demands[1].power)
     λ1 = λ2 = λ3 = 1e6
 
-    # Initialize DES
-    des_m = copy(des, nh, ny, ns)
+    # Initialize mg
+    mg_m = copy(mg, nh, ny, ns)
 
     # Initialize controller
-    controller_m = initialize_controller!(des_m, designer.options.controller, ω)
+    controller_m = initialize_controller!(mg_m, designer.options.controller, ω)
 
     # Initialize with the manual designer
-    designer_m = initialize_designer!(des_m, Manual(pv = decisions[1], liion = decisions[2], tes = decisions[3], h2tank = decisions[4], elyz = decisions[5], fc = decisions[6]), ω)
+    designer_m = initialize_designer!(mg_m, Manual(generations = [decisions[1:length(mg_m.generations)]...], storages = [decisions[length(mg_m.generations)+1:length(mg_m.generations)+length(mg_m.storages)]...], converters = [decisions[end-length(mg_m.converters)+1:end]...]), ω)
 
     # Simulate
-    simulate!(des_m, controller_m, designer_m, ω)
+    simulate!(mg_m, controller_m, designer_m, ω)
 
     # Metrics
-    metrics = Metrics(des_m, designer_m)
+    metrics = Metrics(mg_m, designer_m)
 
     # Share constraint
-    share = max(0., des.parameters.renewable_share - conditional_value_at_risk([reshape(metrics.renewable_share[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.share_risk))
+    share = max(0., mg.parameters.renewable_share - conditional_value_at_risk([reshape(metrics.renewable_share[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.share_risk))
 
     # LPSP constraint for the heat
-    isa(des_m.ld_H, Load) ? lpsp = max(0., conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...],  probabilities,  designer.options.lpsp_risk) - designer.options.lpsp_tol) : lpsp = 0.
+    metrics.lpsp.heat isa Nothing ? lpsp = 0. : lpsp = max(0., conditional_value_at_risk([reshape(metrics.lpsp.heat[2:ny, 1:ns], :, 1)...], probabilities,  designer.options.lpsp_risk) - designer.options.lpsp_tol)
 
-    # SoC constraint for the storages
-    isa(des_m.h2tank, H2Tank) ? soc_h2tank = sum(max(0., des_m.h2tank.soc[1,y,s] - des_m.h2tank.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_h2tank = 0.
-    # isa(des_m.liion, Liion) ? soc_liion = sum(max(0., des_m.liion.soc[1,y,s] - des_m.liion.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_liion = 0.
-    # isa(des_m.tes, ThermalSto) ? soc_tes = sum(max(0., des_m.tes.soc[1,y,s] - des_m.tes.soc[end,y,s]) for y in 2:ny, s in 1:ns) : soc_tes = 0.
+    # SoC constraint for the seasonal storage
+    soc_seasonal = 0.
+    for a in mg_m.storages
+        if a isa H2Tank
+            soc_seasonal += sum(max(0., a.soc[1,y,s] - a.soc[end,y,s]) for y in 2:ny, s in 1:ns)
+        end
+    end
 
     # Objective - Algortihm find the maximum
     if designer.options.isnpv
         # NPV
         npv = conditional_value_at_risk([metrics.npv.total...], probabilities, designer.options.objective_risk)
-        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank # - λ3 * soc_liion - λ3 * soc_tes
+        return npv - λ1 * share - λ2 * lpsp - λ3 * soc_seasonal
     else
         # Equivalent annual cost
         eac = conditional_value_at_risk([metrics.eac.total...], probabilities, designer.options.objective_risk)
-        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_h2tank # - λ3 * soc_liion - λ3 * soc_tes
+        return - eac - λ1 * share - λ2 * lpsp - λ3 * soc_seasonal
     end
 end
 
 ### Offline
-function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuristic, ω::Scenarios{Array{DateTime,3}, Array{Float64,3}, Array{Float64,2}})
+function initialize_designer!(mg::Microgrid, designer::Metaheuristic, ω::Scenarios)
     # Preallocate and assigned values
-    preallocate!(designer, des.parameters.ny, des.parameters.ns)
+    preallocate!(mg, designer)
 
     # Scenario reduction from the optimization scenario pool
-    println("Starting scenario reduction...")
     if designer.options.isnpv
+        println("Starting scenario reduction...")
         ω_reduced, probabilities = reduce(designer.options.reducer, ω)
     else
         if isa(designer.options.read_reduction, Nothing)
@@ -114,23 +117,26 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
     end
 
     # Bounds
-    lb, ub = set_bounds(des)
+    lb, ub = set_bounds(mg)
 
     # Optimize
     designer.results = Metaheuristics.optimize(lb, ub,
                                                designer.options.method,
                                                options = Metaheuristics.Options(iterations = designer.options.iterations, multithreads = designer.options.multithreads)
     ) do decisions
-        fobj(decisions, des, designer, ω_reduced, probabilities)
+        fobj(decisions, mg, designer, ω_reduced, probabilities)
       end
 
     # Assign values
-    designer.u.pv[1,:] .= designer.results.minimizer[1]
-    designer.u.liion[1,:] .= designer.results.minimizer[2]
-    designer.u.tes[1,:] .= designer.results.minimizer[3]
-    designer.u.h2tank[1,:] .= designer.results.minimizer[4]
-    designer.u.elyz[1,:] .= designer.results.minimizer[5]
-    designer.u.fc[1,:] .= designer.results.minimizer[6]
+    for k in 1:length(mg.generations)
+        designer.decisions.generations[k][1,:] .= designer.results.minimizer[k]
+    end
+    for k in 1:length(mg.storages)
+        designer.decisions.storages[k][1,:] .= designer.results.minimizer[length(mg.generations)+k]
+    end
+    for k in 1:length(mg.converters)
+        designer.decisions.converters[k][1,:] .= designer.results.minimizer[end-length(mg.converters)+k]
+    end
 
     # Save history for online optimization
     designer.history = ω_reduced
@@ -139,28 +145,28 @@ function initialize_designer!(des::DistributedEnergySystem, designer::Metaheuris
 end
 
 ### Online
-function compute_investment_decisions!(y::Int64, s::Int64, des::DistributedEnergySystem, designer::Metaheuristic)
-    ϵ = 0.2
-
-    if designer.options.reopt && y != 1
-        # Do we need to reoptimize ?
-        (isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ) || (isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ) || (isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ) ? nothing : return
-        println("Re-optimization not yet implemented...")
-    else
-        isa(des.liion, Liion) && des.liion.soh[end,y,s] < ϵ ? designer.u.liion[y,s] = designer.u.liion[1,s] : nothing
-        isa(des.elyz, Electrolyzer) && des.elyz.soh[end,y,s] < ϵ ? designer.u.elyz[y,s] = designer.u.elyz[1,s] : nothing
-        isa(des.fc, FuelCell) && des.fc.soh[end,y,s] < ϵ ? designer.u.fc[y,s] = designer.u.fc[1,s] : nothing
-    end
+function compute_investment_decisions!(y::Int64, s::Int64, mg::Microgrid, designer::Metaheuristic)
+    #TODO
 end
 
 ### Utils
-function set_bounds(des::DistributedEnergySystem)
-    lb, ub = 1e-6 * ones(6), zeros(6)
-    isa(des.pv, Source) ? ub[1] = 1000. : nothing
-    isa(des.liion, Liion) ? ub[2] = 1000. : nothing
-    isa(des.tes, ThermalSto) ? ub[3] = 1000. : nothing
-    isa(des.h2tank, H2Tank) ? ub[4] = 50000. : nothing
-    isa(des.elyz, Electrolyzer) ? ub[5] = 50. : nothing
-    isa(des.fc, FuelCell) ? ub[6] = 50. : nothing
+function set_bounds(mg::Microgrid)
+    # Initialization
+    lb, ub = [], []
+    # Generations
+    for a in mg.generations
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
+    end
+    # Storages
+    for a in mg.storages
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
+    end
+    # Converters
+    for a in mg.converters
+        push!(lb, a.bounds.lb)
+        push!(ub, a.bounds.ub)
+    end
     return lb, ub
 end
