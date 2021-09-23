@@ -119,7 +119,7 @@ function compute_forecast(h::Int64, y::Int64, s::Int64, mg::Microgrid, controlle
     # Initial timestamp
     t0 = mg.demands[1].timestamp[h,y,s]
     # Demand and production forecast using the scenario generator
-    forecast, probabilities = generate(controller.options.generator, s0, t0, nh, ny = ns, h = h)
+    forecast, probabilities = generate(controller.options.generator, s0, t0, nh, ny = ns)
     # Unpack the forecast vector
     generations, demands = [a.powerMax[y,s] * forecast[k] for (k,a) in enumerate(mg.generations)], forecast[length(mg.generations)+1:end]
     # Operating cost - unchanged along the horizon. We add zeros to guarantee a constant vector size

@@ -174,6 +174,7 @@ mutable struct MarkovGenerator <: AbstractScenariosGenerator
 end
 
 function initialize_generator!(generator::MarkovGenerator, data...)
+    # TODO: generic function without .power and .t or specify the input type
     # Clustering by week and weekend for each month
     wk = [clustering_month_week(d.power, d.t) for d in data]
     wkd = [clustering_month_weekend(d.power, d.t) for d in data]
@@ -190,7 +191,7 @@ function initialize_generator!(generator::MarkovGenerator, data...)
 end
 
 # Generate scenario from markov chains
-function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1, h::Int64 = 1)
+function generate(generator::MarkovGenerator, s0, t0::DateTime, nstep::Int64; ny::Int64=1, ns::Int64=1)
     # Initialize state with the closest value
     mc = chose(generator, t0)
     Δ_s0 = [s0 .- mc.states[Dates.month(t0)][Dates.hour(t0)+1, :, :][:,state] for state in 1:generator.nstate]
