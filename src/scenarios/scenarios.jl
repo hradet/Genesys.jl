@@ -12,7 +12,7 @@ mutable struct Scenarios{T, O, I} <: AbstractScenarios
 end
 
 # Constructor
-function Scenarios(d::Dict{}, mg::Microgrid)
+function Scenarios(mg::Microgrid, d::Dict{})
     # Utils to simplify the writting
     h, y, s = 1:mg.parameters.nh, 1:mg.parameters.ny, 1:mg.parameters.ns
     T, O, I = Array{DateTime,3}, Array{Float64, 3}, Array{Float64, 2}
