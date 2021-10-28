@@ -1,7 +1,7 @@
 module Genesys
 # TODO: break into submodules
 # Optimisation
-using JuMP, CPLEX, Metaheuristics, SDDP
+using JuMP, Cbc, Metaheuristics, SDDP
 # Math
 using Statistics, StatsBase, MultivariateStats, Clustering, Distributions, Distances, LinearAlgebra
 # Others

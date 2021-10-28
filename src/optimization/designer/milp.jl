@@ -11,7 +11,7 @@ mutable struct MILPOptions
   read_reduction::Union{String, Nothing}
   write_reduction::Union{String, Nothing}
 
-  MILPOptions(; solver = CPLEX,
+  MILPOptions(; solver = Cbc,
                 reducer = FeatureBasedReducer(),
                 objective_risk = Expectation(),
                 share_risk = Expectation(),
