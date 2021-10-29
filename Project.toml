@@ -27,6 +27,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 CSV = ">= 0.7"
+Cbc = "0.9"
 Clustering = ">= 0.14"
 DataFrames = ">= 0.1"
 Distances = ">= 0.5"
