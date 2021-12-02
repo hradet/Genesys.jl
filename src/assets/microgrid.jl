@@ -56,65 +56,6 @@ function preallocate!(mg::Microgrid, controller::AbstractController)
                             storages = [zeros(mg.parameters.nh, mg.parameters.ny, mg.parameters.ns) for a in mg.storages])
 end
 
-# Copy function
-function Base.copy(mg::Microgrid, nh::Int64, ny::Int64, ns::Int64)
-    # TODO : copy not working without default parameters !
-    # Initialize mg
-    microgrid = Microgrid(parameters = GlobalParameters(nh, ny, ns, renewable_share = mg.parameters.renewable_share))
-    demands, generations, storages, converters, grids = [], [], [], [], []
-    # Get the assets
-    # Demands
-    for a in mg.demands
-        if a.carrier isa Electricity
-            push!(demands, Demand(carrier = Electricity()))
-        elseif a.carrier isa Heat
-            push!(demands, Demand(carrier = Heat()))
-        elseif a.carrier isa Hydrogen
-            push!(demands, Demand(carrier = Hydrogen()))
-        end
-    end
-    # Generations
-    for a in mg.generations
-        if a isa Solar
-            push!(generations, Solar())
-        end
-    end
-    # Storages
-    for a in mg.storages
-        if a isa Liion
-            push!(storages, Liion())
-        elseif a isa ThermalStorage
-            push!(storages, ThermalStorage())
-        elseif a isa H2Tank
-            push!(storages, H2Tank())
-        end
-    end
-    # Converters
-    for a in mg.converters
-        if a isa Heater
-            push!(converters, Heater())
-        elseif a isa Electrolyzer
-            push!(converters, Electrolyzer())
-        elseif a isa FuelCell
-            push!(converters, FuelCell())
-        end
-    end
-    # Grids
-    for a in mg.grids
-        if a.carrier isa Electricity
-            push!(grids, Grid(carrier = Electricity()))
-        elseif a.carrier isa Heat
-            push!(grids, Grid(carrier = Heat()))
-        elseif a.carrier isa Hydrogen
-            push!(grids, Grid(carrier = Hydrogen()))
-        end
-    end
-    # Build the microgrid
-    add!(microgrid, demands..., generations..., storages..., converters..., grids...)
-
-    return microgrid
-end
-
 # Find if the datatype is in a mg field
 function isin(field::Vector, type::DataType)
     # Return true if the datatype is in the field and its index

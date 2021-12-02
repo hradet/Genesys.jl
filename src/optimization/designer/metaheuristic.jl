@@ -50,7 +50,7 @@ function fobj(decisions::Array{Float64,1}, mg::Microgrid, designer::Metaheuristi
     λ1 = λ2 = λ3 = 1e6
 
     # Initialize mg
-    mg_m = copy(mg, nh, ny, ns)
+    mg_m = deepcopy(mg)
 
     # Initialize controller
     controller_m = initialize_controller!(mg_m, designer.options.controller, ω)
